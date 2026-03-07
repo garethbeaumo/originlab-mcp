@@ -1,0 +1,26 @@
+[project]
+name = "originlab-mcp"
+version = "0.1.0"
+description = "OriginLab MCP Server - AI 驱动的 OriginLab 自动化控制"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "originpro>=1.1.0",
+]
+
+[project.scripts]
+originlab-mcp = "originlab_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/originlab_mcp"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

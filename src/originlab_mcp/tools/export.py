@@ -1,0 +1,300 @@
+"""
+导出与项目管理类 tools
+
+让 AI 能完成结果交付和项目持久化。
+
+包含：
+- export_graph
+- save_project
+- open_project
+- new_project
+"""
+
+from __future__ import annotations
+
+import os
+
+from originlab_mcp.origin_manager import OriginManager
+from originlab_mcp.utils.constants import (
+    DEFAULT_EXPORT_FORMAT,
+    DEFAULT_EXPORT_WIDTH,
+    ExportFormat,
+)
+from originlab_mcp.utils.validators import (
+    error_response,
+    success_response,
+    validate_dir_path,
+    validate_export_format,
+    validate_file_path,
+)
+
+
+def register_export_tools(mcp) -> None:
+    """注册导出与项目管理类 tools 到 MCP Server。"""
+
+    manager = OriginManager()
+
+    # =================================================================
+    # export_graph
+    # =================================================================
+
+    @mcp.tool()
+    def export_graph(
+        output_path: str,
+        graph_name: str | None = None,
+        format: str | None = None,
+        width: int = DEFAULT_EXPORT_WIDTH,
+    ) -> dict:
+        """导出图表为图片文件。
+
+        何时使用：需要将图表导出为 PNG/SVG/PDF 文件时使用。
+        何时不用：只想在 Origin 中查看图表时无需调用。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - format 省略时根据 output_path 的扩展名推断（默认 png）
+        - width 默认 800 像素
+
+        示例：
+        - export_graph(output_path="C:\\\\output\\\\chart.png")
+        - export_graph(output_path="C:\\\\output\\\\chart.svg", format="svg", width=1200)
+        """
+        # 推断格式
+        if format is None:
+            ext = os.path.splitext(output_path)[1].lstrip(".").lower()
+            if ext in [e.value for e in ExportFormat]:
+                format = ext
+            else:
+                format = DEFAULT_EXPORT_FORMAT.value
+
+        err = validate_export_format(format)
+        if err:
+            return error_response(
+                message=err,
+                error_type="unsupported",
+                target="format",
+                value=format,
+                hint=f"Supported formats: {[e.value for e in ExportFormat]}",
+            )
+
+        # 确保输出目录存在
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.isdir(output_dir):
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+            except OSError as e:
+                return error_response(
+                    message=f"无法创建输出目录: {e}",
+                    error_type="invalid_input",
+                    target="output_path",
+                    value=output_path,
+                    hint="请检查输出路径是否有效。",
+                )
+
+        target_graph = graph_name or manager.active_graph
+        if not target_graph:
+            return error_response(
+                message="未指定图表且无活动图表",
+                error_type="invalid_input",
+                target="graph_name",
+                hint="请指定 graph_name 或先创建图表。",
+            )
+
+        try:
+            def _export(op):
+                gr = op.find_graph(target_graph)
+                if gr is None:
+                    return None, "not_found"
+
+                gr.save_fig(output_path, width=width)
+
+                return {
+                    "graph_name": target_graph,
+                    "output_path": os.path.abspath(output_path),
+                    "format": format,
+                    "width": width,
+                }, "ok"
+
+            result, status = manager.execute(_export)
+
+            if status == "not_found":
+                return error_response(
+                    message=f"图表 '{target_graph}' 不存在",
+                    error_type="not_found",
+                    target="graph",
+                    value=target_graph,
+                    hint="Call list_graphs to inspect available graph names.",
+                )
+
+            return success_response(
+                message=f"图表已导出到 '{result['output_path']}'。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["save_project"],
+            )
+        except Exception as e:
+            return error_response(
+                message=f"导出图表失败: {e}",
+                error_type="internal_error",
+                target="export_graph",
+                hint="请检查输出路径和格式。",
+            )
+
+    # =================================================================
+    # save_project
+    # =================================================================
+
+    @mcp.tool()
+    def save_project(file_path: str | None = None) -> dict:
+        """保存当前 Origin 项目。
+
+        何时使用：需要将当前工作保存到 .opju 文件时使用。
+        何时不用：只是临时查看数据不需要持久化时无需调用。
+
+        默认行为：
+        - file_path 省略时保存到当前项目路径（如果有的话）
+
+        示例：
+        - save_project()
+        - save_project(file_path="C:\\\\data\\\\analysis.opju")
+        """
+        try:
+            def _save(op):
+                if file_path:
+                    # 确保目录存在
+                    save_dir = os.path.dirname(file_path)
+                    if save_dir and not os.path.isdir(save_dir):
+                        os.makedirs(save_dir, exist_ok=True)
+                    op.save(file_path)
+                    return os.path.abspath(file_path)
+                else:
+                    op.save()
+                    return "current project"
+
+            saved_path = manager.execute(_save)
+
+            return success_response(
+                message=f"项目已保存到 '{saved_path}'。",
+                data={"saved_path": saved_path},
+                resource=manager.get_resource_context(),
+            )
+        except Exception as e:
+            return error_response(
+                message=f"保存项目失败: {e}",
+                error_type="internal_error",
+                target="file_path",
+                value=file_path,
+                hint="请检查文件路径和写入权限。",
+            )
+
+    # =================================================================
+    # open_project
+    # =================================================================
+
+    @mcp.tool()
+    def open_project(file_path: str, readonly: bool = False) -> dict:
+        """打开 Origin 项目文件。
+
+        何时使用：需要打开一个已有的 .opju 项目文件时使用。
+        何时不用：当前已在项目中工作且不需要切换项目时无需调用。
+
+        默认行为：
+        - readonly 默认为 false
+
+        示例：
+        - open_project(file_path="C:\\\\data\\\\analysis.opju")
+        - open_project(file_path="C:\\\\data\\\\analysis.opju", readonly=True)
+        """
+        err = validate_file_path(file_path)
+        if err:
+            return error_response(
+                message=err,
+                error_type="invalid_input",
+                target="file_path",
+                value=file_path,
+                hint="File does not exist. Please verify the file path and try again.",
+            )
+
+        try:
+            def _open(op):
+                op.open(file=file_path, readonly=readonly)
+
+                # 重置活动对象
+                manager.active_worksheet = None
+                manager.active_graph = None
+
+                # 尝试设置第一个工作表为活动
+                try:
+                    for book in op.pages("Book"):
+                        for sheet in book:
+                            manager.active_worksheet = sheet.name
+                            break
+                        break
+                except Exception:
+                    pass
+
+                return os.path.abspath(file_path)
+
+            opened_path = manager.execute(_open)
+
+            return success_response(
+                message=f"项目已打开: '{opened_path}'。",
+                data={
+                    "file_path": opened_path,
+                    "readonly": readonly,
+                },
+                resource=manager.get_resource_context(),
+                next_suggestions=[
+                    "list_worksheets",
+                    "list_graphs",
+                ],
+            )
+        except Exception as e:
+            return error_response(
+                message=f"打开项目失败: {e}",
+                error_type="internal_error",
+                target="file_path",
+                value=file_path,
+                hint="请检查文件是否为有效的 Origin 项目文件。",
+            )
+
+    # =================================================================
+    # new_project
+    # =================================================================
+
+    @mcp.tool()
+    def new_project() -> dict:
+        """新建空白 Origin 项目。
+
+        何时使用：需要从零开始一个全新的项目时使用。注意这会清除当前项目中所有未保存的内容。
+        何时不用：在当前项目继续工作时不要调用。请先用 save_project 保存。
+
+        示例：
+        - new_project()
+        """
+        try:
+            def _new(op):
+                op.new()
+                manager.active_worksheet = None
+                manager.active_graph = None
+
+            manager.execute(_new)
+
+            return success_response(
+                message="已创建新的空白项目。",
+                data={"status": "reset"},
+                resource=manager.get_resource_context(),
+                warnings=["之前项目中未保存的内容已丢失。"],
+                next_suggestions=[
+                    "import_csv",
+                    "import_excel",
+                    "import_data_from_text",
+                ],
+            )
+        except Exception as e:
+            return error_response(
+                message=f"新建项目失败: {e}",
+                error_type="internal_error",
+                target="new_project",
+                hint="请检查 Origin 连接状态。",
+            )
