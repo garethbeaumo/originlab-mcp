@@ -77,7 +77,6 @@ def register_plot_tools(mcp: Any) -> None:
         y_cols: int | list[int],
         sheet_name: str | None = None,
         plot_type: str = DEFAULT_PLOT_TYPE.value,
-        z_col: int | None = None,
     ) -> dict:
         """创建新图表（支持单条或多条曲线）。
 
@@ -179,7 +178,6 @@ def register_plot_tools(mcp: Any) -> None:
         y_cols: int | list[int],
         graph_name: str | None = None,
         sheet_name: str | None = None,
-        plot_type: str | None = None,
     ) -> dict:
         """在已有图表上追加一条或多条曲线。
 

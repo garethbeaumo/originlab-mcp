@@ -104,7 +104,7 @@ def register_export_tools(mcp: Any) -> None:
                 if gr is None:
                     raise GraphNotFoundError(target_graph)
 
-                gr.save_fig(output_path, width=width)
+                gr.save_fig(output_path, type=fmt, width=width)
 
                 return {
                     "graph_name": target_graph,
@@ -218,7 +218,7 @@ def register_export_tools(mcp: Any) -> None:
                 try:
                     for book in op.pages("Book"):
                         for sheet in book:
-                            manager.active_worksheet = sheet.name
+                            manager.active_worksheet = f"[{book.name}]{sheet.name}"
                             break
                         break
                 except Exception:

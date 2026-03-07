@@ -165,6 +165,8 @@ def validate_plot_type(plot_type: str) -> str | None:
 
 def validate_designation(designation: str) -> str | None:
     """验证列角色是否支持。"""
+    if designation == "YErr":
+        return None
     valid = [e.value for e in ColumnDesignation]
     if designation not in valid:
         return f"Unsupported designation '{designation}'. Supported values: {valid}"

@@ -5,8 +5,14 @@ Tool 基础测试
 这些测试不依赖 Origin COM，可以在任何环境运行。
 """
 
+from types import MethodType
+
 import pytest
 
+from originlab_mcp.origin_manager import OriginManager
+from originlab_mcp.tools.customize import register_customize_tools
+from originlab_mcp.tools.data import register_data_tools
+from originlab_mcp.tools.export import register_export_tools
 from originlab_mcp.utils.constants import (
     ColumnDesignation,
     ErrorType,
@@ -130,6 +136,7 @@ class TestValidateDesignation:
     def test_valid(self):
         for d in ColumnDesignation:
             assert validate_designation(d.value) is None
+        assert validate_designation("YErr") is None
 
     def test_invalid(self):
         err = validate_designation("W")
@@ -170,3 +177,224 @@ class TestNormalizeYCols:
 
     def test_empty_list(self):
         assert normalize_y_cols([]) == []
+
+
+class DummyMCP:
+    def __init__(self):
+        self.tools = {}
+
+    def tool(self):
+        def decorator(fn):
+            self.tools[fn.__name__] = fn
+            return fn
+
+        return decorator
+
+
+@pytest.fixture
+def fresh_manager():
+    OriginManager._instance = None
+    manager = OriginManager()
+    yield manager
+    manager.shutdown()
+
+
+class TestToolRegressions:
+    def test_get_worksheet_data_uses_sheet_lists_and_deduplicates_columns(
+        self,
+        fresh_manager,
+    ):
+        mcp = DummyMCP()
+        register_data_tools(mcp)
+        manager = OriginManager()
+        manager.active_worksheet = "[Book1]Sheet1"
+
+        class StubCol:
+            def __init__(self, name: str, long_name: str = ""):
+                self.name = name
+                self._long_name = long_name
+
+            def get_label(self, label_type: str) -> str:
+                return self._long_name if label_type == "L" else ""
+
+        class StubSheet:
+            rows = 99
+            cols = 2
+
+            def __init__(self):
+                self._cols = [
+                    StubCol("A", "Value"),
+                    StubCol("B", "Value"),
+                ]
+                self._data = [
+                    [1, 2],
+                    [10],
+                ]
+
+            def get_col(self, index: int) -> StubCol:
+                return self._cols[index]
+
+            def to_list(self, index: int) -> list[int]:
+                return self._data[index]
+
+        class StubOp:
+            def __init__(self):
+                self.sheet = StubSheet()
+
+            def find_sheet(self, kind: str, name: str) -> StubSheet:
+                assert kind == "w"
+                assert name == "[Book1]Sheet1"
+                return self.sheet
+
+        op = StubOp()
+        manager.execute = MethodType(
+            lambda self, func, *args, **kwargs: func(op, *args, **kwargs),
+            manager,
+        )
+
+        result = mcp.tools["get_worksheet_data"](max_rows=5)
+
+        assert result["ok"] is True
+        assert result["data"]["total_rows"] == 2
+        assert result["data"]["columns"] == ["Value", "Value_2"]
+        assert result["data"]["data"] == [
+            {"Value": 1, "Value_2": 10},
+            {"Value": 2, "Value_2": None},
+        ]
+
+    def test_set_column_designations_normalizes_legacy_yerr(self, fresh_manager):
+        mcp = DummyMCP()
+        register_data_tools(mcp)
+        manager = OriginManager()
+        manager.active_worksheet = "[Book1]Sheet1"
+
+        class StubCol:
+            def __init__(self, name: str):
+                self.name = name
+
+        class StubSheet:
+            cols = 3
+
+            def __init__(self):
+                self.applied = ""
+
+            def cols_axis(self, spec: str) -> None:
+                self.applied = spec
+
+            def get_labels(self, label_type: str) -> list[str]:
+                assert label_type == "D"
+                return list(self.applied)
+
+            def get_col(self, index: int) -> StubCol:
+                return StubCol(f"C{index + 1}")
+
+        class StubOp:
+            def __init__(self):
+                self.sheet = StubSheet()
+
+            def find_sheet(self, kind: str, name: str) -> StubSheet:
+                assert kind == "w"
+                assert name == "[Book1]Sheet1"
+                return self.sheet
+
+        op = StubOp()
+        manager.execute = MethodType(
+            lambda self, func, *args, **kwargs: func(op, *args, **kwargs),
+            manager,
+        )
+
+        result = mcp.tools["set_column_designations"]("XYYErr")
+
+        assert result["ok"] is True
+        assert op.sheet.applied == "XYE"
+        assert result["data"]["designations"] == "XYE"
+        assert result["data"]["requested_designations"] == "XYYErr"
+
+    def test_set_axis_scale_uses_origin_scale_strings(self, fresh_manager):
+        mcp = DummyMCP()
+        register_customize_tools(mcp)
+        manager = OriginManager()
+        manager.active_graph = "Graph1"
+
+        class StubLayer:
+            def __init__(self):
+                self.assigned = []
+
+            @property
+            def xscale(self):
+                return None
+
+            @xscale.setter
+            def xscale(self, value):
+                self.assigned.append(("x", value))
+
+            @property
+            def yscale(self):
+                return None
+
+            @yscale.setter
+            def yscale(self, value):
+                self.assigned.append(("y", value))
+
+        class StubGraph:
+            def __init__(self, layer: StubLayer):
+                self.layer = layer
+
+            def __getitem__(self, index: int) -> StubLayer:
+                return self.layer
+
+        class StubOp:
+            def __init__(self, layer: StubLayer):
+                self.layer = layer
+
+            def find_graph(self, name: str) -> StubGraph:
+                assert name == "Graph1"
+                return StubGraph(self.layer)
+
+        layer = StubLayer()
+        manager.execute = MethodType(
+            lambda self, func, *args, **kwargs: func(
+                StubOp(layer),
+                *args,
+                **kwargs,
+            ),
+            manager,
+        )
+
+        result = mcp.tools["set_axis_scale"]("x", "log")
+
+        assert result["ok"] is True
+        assert layer.assigned == [("x", "log10")]
+
+    def test_export_graph_passes_explicit_type(self, fresh_manager):
+        mcp = DummyMCP()
+        register_export_tools(mcp)
+        manager = OriginManager()
+        manager.active_graph = "Graph1"
+
+        class StubGraph:
+            def __init__(self):
+                self.calls = []
+
+            def save_fig(self, path: str, **kwargs) -> str:
+                self.calls.append((path, kwargs))
+                return path
+
+        class StubOp:
+            def __init__(self):
+                self.graph = StubGraph()
+
+            def find_graph(self, name: str) -> StubGraph:
+                assert name == "Graph1"
+                return self.graph
+
+        op = StubOp()
+        manager.execute = MethodType(
+            lambda self, func, *args, **kwargs: func(op, *args, **kwargs),
+            manager,
+        )
+
+        result = mcp.tools["export_graph"]("out/chart", output_format="svg")
+
+        assert result["ok"] is True
+        assert op.graph.calls == [("out/chart", {"type": "svg", "width": 800})]

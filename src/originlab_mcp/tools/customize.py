@@ -24,7 +24,7 @@ from originlab_mcp.exceptions import (
 )
 from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.constants import (
-    SCALE_TYPE_TO_INT,
+    SCALE_TYPE_TO_ORIGIN,
     ScaleType,
 )
 from originlab_mcp.utils.validators import (
@@ -193,12 +193,12 @@ def register_customize_tools(mcp: Any) -> None:
             def _set(op: Any) -> dict[str, Any]:
                 gr = _find_graph(op, target_name)
                 gl = gr[0]
-                scale_val = SCALE_TYPE_TO_INT.get(scale_type, 0)
+                scale_val = SCALE_TYPE_TO_ORIGIN[scale_type]
 
                 if normalized_axis == "x":
-                    gl.xscale(scale_val)
+                    gl.xscale = scale_val
                 else:
-                    gl.yscale(scale_val)
+                    gl.yscale = scale_val
 
                 return {
                     "graph_name": target_name,

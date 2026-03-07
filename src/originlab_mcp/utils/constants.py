@@ -41,7 +41,7 @@ class ColumnDesignation(str, Enum):
     X = "X"
     Y = "Y"
     Z = "Z"
-    Y_ERROR = "YErr"
+    Y_ERROR = "E"
     LABEL = "L"
     DISREGARD = "N"
 
@@ -68,11 +68,11 @@ class ScaleType(str, Enum):
     LN = "ln"
 
 
-# originpro 中 scale type 的数值映射
-SCALE_TYPE_TO_INT: dict[str, int] = {
-    ScaleType.LINEAR: 0,
-    ScaleType.LOG: 1,
-    ScaleType.LN: 2,
+# originpro 中 scale type 的字符串映射
+SCALE_TYPE_TO_ORIGIN: dict[str, str] = {
+    ScaleType.LINEAR.value: "linear",
+    ScaleType.LOG.value: "log10",
+    ScaleType.LN.value: "ln",
 }
 
 

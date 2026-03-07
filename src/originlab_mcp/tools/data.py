@@ -26,6 +26,7 @@ from originlab_mcp.exceptions import (
 )
 from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.constants import (
+    ColumnDesignation,
     DEFAULT_HAS_HEADER,
     DEFAULT_MAX_PREVIEW_ROWS,
     DEFAULT_SEPARATOR,
@@ -79,6 +80,79 @@ def _find_worksheet(op: Any, sheet_name: str) -> Any:
     return wks
 
 
+def _get_column_display_name(col: Any, index: int) -> str:
+    """返回用于预览输出的列名。"""
+    long_name = ""
+    if hasattr(col, "get_label"):
+        try:
+            long_name = col.get_label("L")
+        except Exception:
+            long_name = ""
+
+    if long_name:
+        return str(long_name)
+
+    short_name = getattr(col, "name", "")
+    if short_name:
+        return str(short_name)
+
+    return f"Col{index + 1}"
+
+
+def _make_unique_column_name(name: str, used: set[str]) -> str:
+    """为重复列名追加稳定后缀，避免 records 键冲突。"""
+    if name not in used:
+        used.add(name)
+        return name
+
+    suffix = 2
+    while f"{name}_{suffix}" in used:
+        suffix += 1
+    unique_name = f"{name}_{suffix}"
+    used.add(unique_name)
+    return unique_name
+
+
+def _normalize_designations(spec: str) -> str:
+    """将用户输入的列角色字符串归一化为 Origin 接受的单字符格式。"""
+    normalized: list[str] = []
+    valid_chars = {
+        ColumnDesignation.X.value,
+        ColumnDesignation.Y.value,
+        ColumnDesignation.Z.value,
+        ColumnDesignation.Y_ERROR.value,
+        ColumnDesignation.LABEL.value,
+        ColumnDesignation.DISREGARD.value,
+    }
+
+    i = 0
+    while i < len(spec):
+        if spec[i].isspace():
+            i += 1
+            continue
+
+        if spec[i:i + 4].lower() == "yerr":
+            normalized.append(ColumnDesignation.Y_ERROR.value)
+            i += 4
+            continue
+
+        token = spec[i].upper()
+        if token in valid_chars:
+            normalized.append(token)
+            i += 1
+            continue
+
+        raise ToolError(
+            f"Unsupported designation '{spec[i:]}'",
+            error_type="invalid_input",
+            target="designations",
+            value=spec,
+            hint="请提供列角色字符串。支持: X, Y, Z, E(误差), L, N；兼容旧写法 YErr。",
+        )
+
+    return "".join(normalized)
+
+
 def register_data_tools(mcp: Any) -> None:
     """注册数据类 tools 到 MCP Server。"""
 
@@ -125,11 +199,13 @@ def register_data_tools(mcp: Any) -> None:
                     created_new = True
 
                 wks.from_file(file_path)
+                book_name = wks.get_book().name
                 actual_name = wks.name
-                manager.active_worksheet = actual_name
+                full_name = f"[{book_name}]{actual_name}"
+                manager.active_worksheet = full_name
 
                 return {
-                    "sheet_name": actual_name,
+                    "sheet_name": full_name,
                     "rows": wks.rows,
                     "cols": wks.cols,
                     "created_new_sheet": created_new,
@@ -200,11 +276,13 @@ def register_data_tools(mcp: Any) -> None:
                     wks = op.new_sheet()
 
                 wks.from_file(file_path)
+                book_name = wks.get_book().name
                 actual_name = wks.name
-                manager.active_worksheet = actual_name
+                full_name = f"[{book_name}]{actual_name}"
+                manager.active_worksheet = full_name
 
                 return {
-                    "sheet_name": actual_name,
+                    "sheet_name": full_name,
                     "rows": wks.rows,
                     "cols": wks.cols,
                     "source_file": file_path,
@@ -320,10 +398,12 @@ def register_data_tools(mcp: Any) -> None:
                     )
                     wks.from_list(col_idx, col_data, lname=lname)
 
+                book_name = wks.get_book().name
                 actual_name = wks.name
-                manager.active_worksheet = actual_name
+                full_name = f"[{book_name}]{actual_name}"
+                manager.active_worksheet = full_name
                 return {
-                    "sheet_name": actual_name,
+                    "sheet_name": full_name,
                     "rows": len(rows_data),
                     "cols": num_cols,
                     "separator_used": separator,
@@ -512,25 +592,52 @@ def register_data_tools(mcp: Any) -> None:
         - get_worksheet_data()
         - get_worksheet_data(sheet_name="Sheet1", max_rows=10)
         """
+        if max_rows < 0:
+            return error_response(
+                message="max_rows 不能小于 0",
+                error_type="invalid_input",
+                target="max_rows",
+                value=max_rows,
+                hint="请传入 0 或正整数。",
+            )
+
         try:
             target_name = _resolve_worksheet_name(sheet_name, manager)
 
             def _data(op: Any) -> dict[str, Any]:
                 wks = _find_worksheet(op, target_name)
-                df = wks.to_df()
-                total_rows = len(df)
-                truncated = total_rows > max_rows
+                total_cols = wks.cols
+                used_names: set[str] = set()
+                col_names: list[str] = []
+                col_values: list[list[Any]] = []
+                for ci in range(total_cols):
+                    col_obj = wks.get_col(ci)
+                    base_name = _get_column_display_name(col_obj, ci)
+                    col_name = _make_unique_column_name(base_name, used_names)
+                    col_names.append(col_name)
+                    col_values.append(list(wks.to_list(ci)))
 
-                if truncated:
-                    df = df.head(max_rows)
+                total_rows = max((len(values) for values in col_values), default=0)
+                truncated = total_rows > max_rows
+                rows_to_return = min(total_rows, max_rows)
+
+                data_records = []
+                for ri in range(rows_to_return):
+                    record = {
+                        col_names[ci]: (
+                            col_values[ci][ri] if ri < len(col_values[ci]) else None
+                        )
+                        for ci in range(total_cols)
+                    }
+                    data_records.append(record)
 
                 return {
                     "sheet_name": target_name,
                     "total_rows": total_rows,
-                    "returned_rows": len(df),
+                    "returned_rows": rows_to_return,
                     "truncated": truncated,
-                    "columns": list(df.columns),
-                    "data": df.to_dict(orient="records"),
+                    "columns": col_names,
+                    "data": data_records,
                 }
 
             result = manager.execute(_data)
@@ -586,18 +693,24 @@ def register_data_tools(mcp: Any) -> None:
                 message="designations 不能为空",
                 error_type="invalid_input",
                 target="designations",
-                hint="请提供列角色字符串，如 'XYY'。支持: X, Y, Z, YErr, L, N",
+                hint="请提供列角色字符串。支持: X, Y, Z, E(误差), L, N；兼容旧写法 YErr。",
             )
 
         try:
             target_name = _resolve_worksheet_name(sheet_name, manager)
+            normalized_designations = _normalize_designations(designations)
 
             def _set(op: Any) -> list[dict[str, Any]]:
                 wks = _find_worksheet(op, target_name)
-                wks.cols_axis(designations)
+                wks.cols_axis(normalized_designations)
 
-                # 读取更新后的角色
+                # 从 Origin 读取更新后的实际角色
                 updated = []
+                try:
+                    actual_desigs = wks.get_labels("D")
+                except Exception:
+                    actual_desigs = []
+
                 for i in range(wks.cols):
                     col = wks.get_col(i)
                     col_name = (
@@ -607,9 +720,8 @@ def register_data_tools(mcp: Any) -> None:
                         "index": i,
                         "name": col_name,
                     }
-                    # 从 designations 字符串中提取对应角色
-                    if i < len(designations):
-                        col_info["designation"] = designations[i]
+                    if i < len(actual_desigs):
+                        col_info["designation"] = actual_desigs[i]
                     updated.append(col_info)
 
                 return updated
@@ -617,10 +729,11 @@ def register_data_tools(mcp: Any) -> None:
             columns = manager.execute(_set)
 
             return success_response(
-                message=f"列角色已更新为 '{designations}'。",
+                message=f"列角色已更新为 '{normalized_designations}'。",
                 data={
                     "sheet_name": target_name,
-                    "designations": designations,
+                    "designations": normalized_designations,
+                    "requested_designations": designations,
                     "columns": columns,
                 },
                 resource=manager.get_resource_context(),
@@ -634,7 +747,7 @@ def register_data_tools(mcp: Any) -> None:
                 error_type="internal_error",
                 target="designations",
                 value=designations,
-                hint="请检查角色字符串长度是否与列数匹配。",
+                hint="请检查角色字符串长度是否与列数匹配，且仅使用 X/Y/Z/E/L/N 或兼容写法 YErr。",
             )
 
     # =================================================================
