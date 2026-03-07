@@ -1,18 +1,27 @@
-"""
-绘图类 tools
+"""绘图类 tools。
 
 让 AI 能把结构化数据稳定转换成图表。
 
-包含：
-- create_plot
-- add_plot_to_graph
-- create_double_y_plot
-- list_graphs
-- list_graph_templates
+包含:
+    create_plot: 创建新图表
+    add_plot_to_graph: 在已有图表上追加曲线
+    create_double_y_plot: 创建双 Y 轴图
+    list_graphs: 列出所有图表
+    list_graph_templates: 列出支持的图表模板
 """
 
 from __future__ import annotations
 
+from typing import Any
+
+from originlab_mcp.exceptions import (
+    ColumnIndexError,
+    GraphNotFoundError,
+    NoActiveGraphError,
+    NoActiveWorksheetError,
+    ToolError,
+    WorksheetNotFoundError,
+)
 from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.constants import (
     DEFAULT_PLOT_TYPE,
@@ -21,6 +30,7 @@ from originlab_mcp.utils.constants import (
 )
 from originlab_mcp.utils.validators import (
     error_response,
+    error_response_from_exception,
     normalize_y_cols,
     success_response,
     validate_column_index,
@@ -29,7 +39,30 @@ from originlab_mcp.utils.validators import (
 )
 
 
-def register_plot_tools(mcp) -> None:
+def _resolve_worksheet(op: Any, name: str) -> Any:
+    """查找工作表，不存在时抛出异常。"""
+    wks = op.find_sheet("w", name)
+    if wks is None:
+        raise WorksheetNotFoundError(name)
+    return wks
+
+
+def _resolve_graph(op: Any, name: str) -> Any:
+    """查找图表，不存在时抛出异常。"""
+    gr = op.find_graph(name)
+    if gr is None:
+        raise GraphNotFoundError(name)
+    return gr
+
+
+def _validate_cols(col_indices: list[int], total_cols: int) -> None:
+    """验证列索引范围，越界时抛出异常。"""
+    for idx in col_indices:
+        if idx < 0 or idx >= total_cols:
+            raise ColumnIndexError(idx, total_cols)
+
+
+def register_plot_tools(mcp: Any) -> None:
     """注册绘图类 tools 到 MCP Server。"""
 
     manager = OriginManager()
@@ -59,7 +92,6 @@ def register_plot_tools(mcp) -> None:
         - create_plot(x_col=0, y_cols=1)
         - create_plot(x_col=0, y_cols=[1, 2], plot_type="scatter")
         """
-        # 验证 plot_type
         err = validate_plot_type(plot_type)
         if err:
             return error_response(
@@ -72,29 +104,16 @@ def register_plot_tools(mcp) -> None:
 
         target_name = sheet_name or manager.active_worksheet
         if not target_name:
-            return error_response(
-                message="未指定工作表且无活动工作表",
-                error_type="invalid_input",
-                target="sheet_name",
-                hint="请指定 sheet_name 或先导入数据。",
-            )
+            return error_response_from_exception(NoActiveWorksheetError())
 
         y_col_list = normalize_y_cols(y_cols)
 
         try:
-            def _plot(op):
-                wks = op.find_sheet("w", target_name)
-                if wks is None:
-                    return None, "sheet_not_found"
-
+            def _plot(op: Any) -> dict[str, Any]:
+                wks = _resolve_worksheet(op, target_name)
                 total_cols = wks.cols
-                # 验证列索引
-                col_err = validate_column_index(x_col, total_cols)
-                if col_err:
-                    return col_err, "col_error"
-                col_err = validate_column_indices(y_col_list, total_cols)
-                if col_err:
-                    return col_err, "col_error"
+
+                _validate_cols([x_col] + y_col_list, total_cols)
 
                 template = PLOT_TYPE_TO_TEMPLATE.get(plot_type, "line")
                 gr = op.new_graph(template=template)
@@ -102,14 +121,16 @@ def register_plot_tools(mcp) -> None:
 
                 curves = []
                 for i, yc in enumerate(y_col_list):
-                    plot = gl.add_plot(wks, coly=yc, colx=x_col)
-                    curves.append({"y_col": yc, "x_col": x_col, "plot_index": i})
+                    gl.add_plot(wks, coly=yc, colx=x_col)
+                    curves.append({
+                        "y_col": yc, "x_col": x_col, "plot_index": i,
+                    })
 
                 gl.rescale()
                 try:
                     gl.group()
                 except Exception:
-                    pass  # group 可能在只有一条曲线时不需要
+                    pass  # group 在单曲线时可能不需要
 
                 graph_name = gr.name
                 manager.active_graph = graph_name
@@ -120,30 +141,15 @@ def register_plot_tools(mcp) -> None:
                     "sheet_name": target_name,
                     "curves": curves,
                     "curve_count": len(curves),
-                }, "ok"
+                }
 
-            result, status = manager.execute(_plot)
-
-            if status == "sheet_not_found":
-                return error_response(
-                    message=f"工作表 '{target_name}' 不存在",
-                    error_type="not_found",
-                    target="worksheet",
-                    value=target_name,
-                    hint="Call list_worksheets to inspect available worksheet names.",
-                )
-
-            if status == "col_error":
-                return error_response(
-                    message=result,
-                    error_type="invalid_input",
-                    target="y_cols",
-                    value=y_col_list,
-                    hint="Call get_worksheet_info to inspect column details.",
-                )
+            result = manager.execute(_plot)
 
             return success_response(
-                message=f"图表 '{result['graph_name']}' 已创建，共 {result['curve_count']} 条曲线。",
+                message=(
+                    f"图表 '{result['graph_name']}' 已创建，"
+                    f"共 {result['curve_count']} 条曲线。"
+                ),
                 data=result,
                 resource=manager.get_resource_context(),
                 next_suggestions=[
@@ -153,6 +159,8 @@ def register_plot_tools(mcp) -> None:
                     "export_graph",
                 ],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"创建图表失败: {e}",
@@ -187,45 +195,28 @@ def register_plot_tools(mcp) -> None:
         - add_plot_to_graph(x_col=0, y_cols=[3, 4], graph_name="Graph1")
         """
         target_graph = graph_name or manager.active_graph
-        target_sheet = sheet_name or manager.active_worksheet
-
         if not target_graph:
-            return error_response(
-                message="未指定图表且无活动图表",
-                error_type="invalid_input",
-                target="graph_name",
-                hint="请指定 graph_name 或先创建图表。",
-            )
+            return error_response_from_exception(NoActiveGraphError())
+
+        target_sheet = sheet_name or manager.active_worksheet
         if not target_sheet:
-            return error_response(
-                message="未指定工作表且无活动工作表",
-                error_type="invalid_input",
-                target="sheet_name",
-                hint="请指定 sheet_name 或先导入数据。",
-            )
+            return error_response_from_exception(NoActiveWorksheetError())
 
         y_col_list = normalize_y_cols(y_cols)
 
         try:
-            def _add(op):
-                wks = op.find_sheet("w", target_sheet)
-                if wks is None:
-                    return None, "sheet_not_found"
+            def _add(op: Any) -> dict[str, Any]:
+                wks = _resolve_worksheet(op, target_sheet)
+                gr = _resolve_graph(op, target_graph)
 
-                gr = op.find_graph(target_graph)
-                if gr is None:
-                    return None, "graph_not_found"
-
-                total_cols = wks.cols
-                col_err = validate_column_indices(y_col_list, total_cols)
-                if col_err:
-                    return col_err, "col_error"
+                _validate_cols([x_col] + y_col_list, wks.cols)
 
                 gl = gr[0]
-                new_curves = []
-                # 计算当前已有的曲线数作为起始 index
-                existing_count = gl.num_plots if hasattr(gl, "num_plots") else 0
+                existing_count = (
+                    gl.num_plots if hasattr(gl, "num_plots") else 0
+                )
 
+                new_curves = []
                 for i, yc in enumerate(y_col_list):
                     gl.add_plot(wks, coly=yc, colx=x_col)
                     new_curves.append({
@@ -240,45 +231,22 @@ def register_plot_tools(mcp) -> None:
                 except Exception:
                     pass
 
-                total_count = existing_count + len(y_col_list)
-
                 return {
                     "graph_name": target_graph,
                     "sheet_name": target_sheet,
                     "new_curves": new_curves,
                     "new_curve_count": len(new_curves),
-                    "total_curve_count": total_count,
-                }, "ok"
+                    "total_curve_count": existing_count + len(y_col_list),
+                }
 
-            result, status = manager.execute(_add)
-
-            if status == "sheet_not_found":
-                return error_response(
-                    message=f"工作表 '{target_sheet}' 不存在",
-                    error_type="not_found",
-                    target="worksheet",
-                    value=target_sheet,
-                    hint="Call list_worksheets to inspect available worksheet names.",
-                )
-            if status == "graph_not_found":
-                return error_response(
-                    message=f"图表 '{target_graph}' 不存在",
-                    error_type="not_found",
-                    target="graph",
-                    value=target_graph,
-                    hint="Call list_graphs to inspect available graph names.",
-                )
-            if status == "col_error":
-                return error_response(
-                    message=result,
-                    error_type="invalid_input",
-                    target="y_cols",
-                    value=y_col_list,
-                    hint="Call get_worksheet_info to inspect column details.",
-                )
+            result = manager.execute(_add)
 
             return success_response(
-                message=f"已向图表 '{target_graph}' 追加 {result['new_curve_count']} 条曲线，当前共 {result['total_curve_count']} 条。",
+                message=(
+                    f"已向图表 '{target_graph}' 追加 "
+                    f"{result['new_curve_count']} 条曲线，"
+                    f"当前共 {result['total_curve_count']} 条。"
+                ),
                 data=result,
                 resource=manager.get_resource_context(),
                 next_suggestions=[
@@ -287,6 +255,8 @@ def register_plot_tools(mcp) -> None:
                     "export_graph",
                 ],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"追加曲线失败: {e}",
@@ -320,31 +290,16 @@ def register_plot_tools(mcp) -> None:
         """
         target_name = sheet_name or manager.active_worksheet
         if not target_name:
-            return error_response(
-                message="未指定工作表且无活动工作表",
-                error_type="invalid_input",
-                target="sheet_name",
-                hint="请指定 sheet_name 或先导入数据。",
-            )
+            return error_response_from_exception(NoActiveWorksheetError())
 
         try:
-            def _dbl(op):
-                wks = op.find_sheet("w", target_name)
-                if wks is None:
-                    return None, "sheet_not_found"
-
-                total_cols = wks.cols
-                for c, name in [(x_col, "x_col"), (y1_col, "y1_col"), (y2_col, "y2_col")]:
-                    err = validate_column_index(c, total_cols)
-                    if err:
-                        return (err, name), "col_error"
+            def _dbl(op: Any) -> dict[str, Any]:
+                wks = _resolve_worksheet(op, target_name)
+                _validate_cols([x_col, y1_col, y2_col], wks.cols)
 
                 gr = op.new_graph(template="doubley")
-                # 左 Y 轴
                 gr[0].add_plot(wks, coly=y1_col, colx=x_col)
-                # 右 Y 轴
                 gr[1].add_plot(wks, coly=y2_col, colx=x_col)
-
                 gr[0].rescale()
                 gr[1].rescale()
 
@@ -356,26 +311,9 @@ def register_plot_tools(mcp) -> None:
                     "sheet_name": target_name,
                     "left_y": {"y_col": y1_col, "x_col": x_col},
                     "right_y": {"y_col": y2_col, "x_col": x_col},
-                }, "ok"
+                }
 
-            result, status = manager.execute(_dbl)
-
-            if status == "sheet_not_found":
-                return error_response(
-                    message=f"工作表 '{target_name}' 不存在",
-                    error_type="not_found",
-                    target="worksheet",
-                    value=target_name,
-                    hint="Call list_worksheets to inspect available worksheet names.",
-                )
-            if status == "col_error":
-                err_msg, col_name = result
-                return error_response(
-                    message=err_msg,
-                    error_type="invalid_input",
-                    target=col_name,
-                    hint="Call get_worksheet_info to inspect column details.",
-                )
+            result = manager.execute(_dbl)
 
             return success_response(
                 message=f"双 Y 轴图 '{result['graph_name']}' 已创建。",
@@ -387,6 +325,8 @@ def register_plot_tools(mcp) -> None:
                     "export_graph",
                 ],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"创建双 Y 轴图失败: {e}",
@@ -410,12 +350,14 @@ def register_plot_tools(mcp) -> None:
         - list_graphs()
         """
         try:
-            def _list(op):
+            def _list(op: Any) -> list[dict[str, Any]]:
                 graphs = []
                 for g in op.pages("Graph"):
                     graphs.append({
                         "graph_name": g.name,
-                        "layers": len(g) if hasattr(g, "__len__") else 1,
+                        "layers": (
+                            len(g) if hasattr(g, "__len__") else 1
+                        ),
                     })
                 return graphs
 
@@ -435,6 +377,8 @@ def register_plot_tools(mcp) -> None:
                     "export_graph",
                 ],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"列出图表失败: {e}",
@@ -458,12 +402,18 @@ def register_plot_tools(mcp) -> None:
         - list_graph_templates()
         """
         templates = [
-            {"type": "line", "template": "line", "description": "折线图，适用于连续数据趋势展示"},
-            {"type": "scatter", "template": "scatter", "description": "散点图，适用于数据分布和相关性分析"},
-            {"type": "line_symbol", "template": "linesymb", "description": "折线+符号图，同时显示数据点和趋势"},
-            {"type": "column", "template": "column", "description": "柱状图，适用于分类数据对比"},
-            {"type": "area", "template": "area", "description": "面积图，适用于累积量展示"},
-            {"type": "auto", "template": "line", "description": "自动选择（默认折线图）"},
+            {"type": "line", "template": "line",
+             "description": "折线图，适用于连续数据趋势展示"},
+            {"type": "scatter", "template": "scatter",
+             "description": "散点图，适用于数据分布和相关性分析"},
+            {"type": "line_symbol", "template": "linesymb",
+             "description": "折线+符号图，同时显示数据点和趋势"},
+            {"type": "column", "template": "column",
+             "description": "柱状图，适用于分类数据对比"},
+            {"type": "area", "template": "area",
+             "description": "面积图，适用于累积量展示"},
+            {"type": "auto", "template": "line",
+             "description": "自动选择（默认折线图）"},
         ]
 
         return success_response(

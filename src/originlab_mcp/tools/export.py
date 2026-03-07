@@ -1,19 +1,24 @@
-"""
-导出与项目管理类 tools
+"""导出与项目管理类 tools。
 
 让 AI 能完成结果交付和项目持久化。
 
-包含：
-- export_graph
-- save_project
-- open_project
-- new_project
+包含:
+    export_graph: 导出图表为图片
+    save_project: 保存项目
+    open_project: 打开项目
+    new_project: 新建空白项目
 """
 
 from __future__ import annotations
 
 import os
+from typing import Any
 
+from originlab_mcp.exceptions import (
+    GraphNotFoundError,
+    NoActiveGraphError,
+    ToolError,
+)
 from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.constants import (
     DEFAULT_EXPORT_FORMAT,
@@ -22,14 +27,14 @@ from originlab_mcp.utils.constants import (
 )
 from originlab_mcp.utils.validators import (
     error_response,
+    error_response_from_exception,
     success_response,
-    validate_dir_path,
     validate_export_format,
     validate_file_path,
 )
 
 
-def register_export_tools(mcp) -> None:
+def register_export_tools(mcp: Any) -> None:
     """注册导出与项目管理类 tools 到 MCP Server。"""
 
     manager = OriginManager()
@@ -42,7 +47,7 @@ def register_export_tools(mcp) -> None:
     def export_graph(
         output_path: str,
         graph_name: str | None = None,
-        format: str | None = None,
+        output_format: str | None = None,
         width: int = DEFAULT_EXPORT_WIDTH,
     ) -> dict:
         """导出图表为图片文件。
@@ -52,28 +57,26 @@ def register_export_tools(mcp) -> None:
 
         默认行为：
         - graph_name 省略时使用当前活动图表
-        - format 省略时根据 output_path 的扩展名推断（默认 png）
+        - output_format 省略时根据 output_path 的扩展名推断（默认 png）
         - width 默认 800 像素
 
         示例：
         - export_graph(output_path="C:\\\\output\\\\chart.png")
-        - export_graph(output_path="C:\\\\output\\\\chart.svg", format="svg", width=1200)
+        - export_graph(output_path="C:\\\\output\\\\chart.svg", output_format="svg", width=1200)
         """
         # 推断格式
-        if format is None:
+        fmt = output_format
+        if fmt is None:
             ext = os.path.splitext(output_path)[1].lstrip(".").lower()
-            if ext in [e.value for e in ExportFormat]:
-                format = ext
-            else:
-                format = DEFAULT_EXPORT_FORMAT.value
+            fmt = ext if ext in [e.value for e in ExportFormat] else DEFAULT_EXPORT_FORMAT.value
 
-        err = validate_export_format(format)
+        err = validate_export_format(fmt)
         if err:
             return error_response(
                 message=err,
                 error_type="unsupported",
-                target="format",
-                value=format,
+                target="output_format",
+                value=fmt,
                 hint=f"Supported formats: {[e.value for e in ExportFormat]}",
             )
 
@@ -91,40 +94,26 @@ def register_export_tools(mcp) -> None:
                     hint="请检查输出路径是否有效。",
                 )
 
-        target_graph = graph_name or manager.active_graph
-        if not target_graph:
-            return error_response(
-                message="未指定图表且无活动图表",
-                error_type="invalid_input",
-                target="graph_name",
-                hint="请指定 graph_name 或先创建图表。",
-            )
-
         try:
-            def _export(op):
+            target_graph = graph_name or manager.active_graph
+            if not target_graph:
+                raise NoActiveGraphError()
+
+            def _export(op: Any) -> dict[str, Any]:
                 gr = op.find_graph(target_graph)
                 if gr is None:
-                    return None, "not_found"
+                    raise GraphNotFoundError(target_graph)
 
                 gr.save_fig(output_path, width=width)
 
                 return {
                     "graph_name": target_graph,
                     "output_path": os.path.abspath(output_path),
-                    "format": format,
+                    "format": fmt,
                     "width": width,
-                }, "ok"
+                }
 
-            result, status = manager.execute(_export)
-
-            if status == "not_found":
-                return error_response(
-                    message=f"图表 '{target_graph}' 不存在",
-                    error_type="not_found",
-                    target="graph",
-                    value=target_graph,
-                    hint="Call list_graphs to inspect available graph names.",
-                )
+            result = manager.execute(_export)
 
             return success_response(
                 message=f"图表已导出到 '{result['output_path']}'。",
@@ -132,6 +121,8 @@ def register_export_tools(mcp) -> None:
                 resource=manager.get_resource_context(),
                 next_suggestions=["save_project"],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"导出图表失败: {e}",
@@ -159,9 +150,8 @@ def register_export_tools(mcp) -> None:
         - save_project(file_path="C:\\\\data\\\\analysis.opju")
         """
         try:
-            def _save(op):
+            def _save(op: Any) -> str:
                 if file_path:
-                    # 确保目录存在
                     save_dir = os.path.dirname(file_path)
                     if save_dir and not os.path.isdir(save_dir):
                         os.makedirs(save_dir, exist_ok=True)
@@ -178,6 +168,8 @@ def register_export_tools(mcp) -> None:
                 data={"saved_path": saved_path},
                 resource=manager.get_resource_context(),
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"保存项目失败: {e}",
@@ -212,18 +204,17 @@ def register_export_tools(mcp) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="File does not exist. Please verify the file path and try again.",
+                hint="File does not exist. Please verify the file path.",
             )
 
         try:
-            def _open(op):
+            def _open(op: Any) -> str:
                 op.open(file=file_path, readonly=readonly)
 
-                # 重置活动对象
                 manager.active_worksheet = None
                 manager.active_graph = None
 
-                # 尝试设置第一个工作表为活动
+                # 尝试将第一个工作表设为活动
                 try:
                     for book in op.pages("Book"):
                         for sheet in book:
@@ -239,16 +230,12 @@ def register_export_tools(mcp) -> None:
 
             return success_response(
                 message=f"项目已打开: '{opened_path}'。",
-                data={
-                    "file_path": opened_path,
-                    "readonly": readonly,
-                },
+                data={"file_path": opened_path, "readonly": readonly},
                 resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "list_worksheets",
-                    "list_graphs",
-                ],
+                next_suggestions=["list_worksheets", "list_graphs"],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"打开项目失败: {e}",
@@ -273,7 +260,7 @@ def register_export_tools(mcp) -> None:
         - new_project()
         """
         try:
-            def _new(op):
+            def _new(op: Any) -> None:
                 op.new()
                 manager.active_worksheet = None
                 manager.active_graph = None
@@ -291,6 +278,8 @@ def register_export_tools(mcp) -> None:
                     "import_data_from_text",
                 ],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"新建项目失败: {e}",

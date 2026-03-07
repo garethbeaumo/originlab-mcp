@@ -18,6 +18,17 @@ from .constants import (
     ScaleType,
 )
 
+# 延迟导入避免循环依赖
+_ToolError = None
+
+
+def _get_tool_error():
+    global _ToolError
+    if _ToolError is None:
+        from originlab_mcp.exceptions import ToolError
+        _ToolError = ToolError
+    return _ToolError
+
 
 # ===================================================================
 # 统一返回结构
@@ -184,3 +195,30 @@ def normalize_y_cols(y_cols: int | list[int]) -> list[int]:
     if isinstance(y_cols, int):
         return [y_cols]
     return list(y_cols)
+
+
+def error_response_from_exception(exc: Exception) -> dict[str, Any]:
+    """将 ToolError 异常转换为标准 error_response。
+
+    Args:
+        exc: ToolError 实例或其子类。
+
+    Returns:
+        统一格式的错误返回字典。
+    """
+    ToolError = _get_tool_error()
+    if isinstance(exc, ToolError):
+        return error_response(
+            message=str(exc),
+            error_type=exc.error_type,
+            target=exc.target,
+            value=exc.value,
+            hint=exc.hint,
+        )
+    return error_response(
+        message=str(exc),
+        error_type="internal_error",
+        target="unknown",
+        hint="发生未知错误，请检查 Origin 连接状态。",
+    )
+

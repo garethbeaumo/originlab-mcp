@@ -1,41 +1,85 @@
-"""
-数据类 tools
+"""数据类 tools。
 
 让 AI 能导入数据、理解工作表结构、设置列语义。
 
-包含：
-- import_csv
-- import_excel
-- import_data_from_text
-- list_worksheets
-- get_worksheet_info
-- get_worksheet_data
-- set_column_designations
-- set_column_labels
+包含:
+    import_csv: 导入 CSV 文件到工作表
+    import_excel: 导入 Excel 文件到工作表
+    import_data_from_text: 从文本数据创建工作表
+    list_worksheets: 列出所有工作表
+    get_worksheet_info: 返回工作表结构信息
+    get_worksheet_data: 返回工作表样本数据
+    set_column_designations: 设置列角色
+    set_column_labels: 设置列标签
 """
 
 from __future__ import annotations
 
 import os
+from typing import Any
 
+from originlab_mcp.exceptions import (
+    ColumnIndexError,
+    NoActiveWorksheetError,
+    ToolError,
+    WorksheetNotFoundError,
+)
 from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.constants import (
     DEFAULT_HAS_HEADER,
     DEFAULT_MAX_PREVIEW_ROWS,
     DEFAULT_SEPARATOR,
-    ColumnDesignation,
 )
 from originlab_mcp.utils.validators import (
     error_response,
-    normalize_y_cols,
+    error_response_from_exception,
     success_response,
-    validate_column_index,
-    validate_designation,
     validate_file_path,
 )
 
 
-def register_data_tools(mcp) -> None:
+def _resolve_worksheet_name(
+    sheet_name: str | None,
+    manager: OriginManager,
+) -> str:
+    """解析工作表名称，未指定时使用活动工作表。
+
+    Args:
+        sheet_name: 用户指定的工作表名，可为 None。
+        manager: OriginManager 实例。
+
+    Returns:
+        解析后的工作表名称。
+
+    Raises:
+        NoActiveWorksheetError: 未指定且无活动工作表时。
+    """
+    name = sheet_name or manager.active_worksheet
+    if not name:
+        raise NoActiveWorksheetError()
+    return name
+
+
+def _find_worksheet(op: Any, sheet_name: str) -> Any:
+    """查找工作表，不存在时抛出异常。
+
+    Args:
+        op: originpro 模块引用。
+        sheet_name: 工作表名称。
+
+    Returns:
+        工作表对象。
+
+    Raises:
+        WorksheetNotFoundError: 工作表不存在时。
+    """
+    wks = op.find_sheet("w", sheet_name)
+    if wks is None:
+        raise WorksheetNotFoundError(sheet_name)
+    return wks
+
+
+def register_data_tools(mcp: Any) -> None:
     """注册数据类 tools 到 MCP Server。"""
 
     manager = OriginManager()
@@ -58,7 +102,6 @@ def register_data_tools(mcp) -> None:
         - import_csv(file_path="C:\\\\data\\\\exp.csv")
         - import_csv(file_path="C:\\\\data\\\\exp.csv", sheet_name="RawData")
         """
-        # 验证文件路径
         err = validate_file_path(file_path)
         if err:
             return error_response(
@@ -66,43 +109,41 @@ def register_data_tools(mcp) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="File does not exist. Please verify the file path and try again.",
+                hint="File does not exist. Please verify the file path.",
             )
 
         try:
-            def _import(op):
-                # 创建或获取工作表
+            def _import(op: Any) -> dict[str, Any]:
+                created_new = False
                 if sheet_name:
                     wks = op.find_sheet("w", sheet_name)
                     if wks is None:
                         wks = op.new_sheet(lname=sheet_name)
-                    created_new = wks is not None
+                        created_new = True
                 else:
                     wks = op.new_sheet()
                     created_new = True
 
                 wks.from_file(file_path)
-
                 actual_name = wks.name
-                rows = wks.rows
-                cols = wks.cols
-
-                # 更新活动工作表
                 manager.active_worksheet = actual_name
 
-                return actual_name, rows, cols, created_new
+                return {
+                    "sheet_name": actual_name,
+                    "rows": wks.rows,
+                    "cols": wks.cols,
+                    "created_new_sheet": created_new,
+                    "source_file": file_path,
+                }
 
-            name, rows, cols, created = manager.execute(_import)
+            result = manager.execute(_import)
 
             return success_response(
-                message=f"CSV 已导入到工作表 '{name}'，共 {rows} 行 {cols} 列。",
-                data={
-                    "sheet_name": name,
-                    "rows": rows,
-                    "cols": cols,
-                    "created_new_sheet": created,
-                    "source_file": file_path,
-                },
+                message=(
+                    f"CSV 已导入到工作表 '{result['sheet_name']}'，"
+                    f"共 {result['rows']} 行 {result['cols']} 列。"
+                ),
+                data=result,
                 resource=manager.get_resource_context(),
                 next_suggestions=[
                     "get_worksheet_info",
@@ -110,13 +151,15 @@ def register_data_tools(mcp) -> None:
                     "create_plot",
                 ],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"导入 CSV 失败: {e}",
                 error_type="internal_error",
                 target="file_path",
                 value=file_path,
-                hint="请检查文件格式是否为有效的 CSV，或尝试使用 import_data_from_text 手动传入数据。",
+                hint="请检查文件格式是否为有效的 CSV。",
             )
 
     # =================================================================
@@ -144,11 +187,11 @@ def register_data_tools(mcp) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="File does not exist. Please verify the file path and try again.",
+                hint="File does not exist. Please verify the file path.",
             )
 
         try:
-            def _import(op):
+            def _import(op: Any) -> dict[str, Any]:
                 if sheet_name:
                     wks = op.find_sheet("w", sheet_name)
                     if wks is None:
@@ -157,21 +200,24 @@ def register_data_tools(mcp) -> None:
                     wks = op.new_sheet()
 
                 wks.from_file(file_path)
-
                 actual_name = wks.name
                 manager.active_worksheet = actual_name
-                return actual_name, wks.rows, wks.cols
 
-            name, rows, cols = manager.execute(_import)
+                return {
+                    "sheet_name": actual_name,
+                    "rows": wks.rows,
+                    "cols": wks.cols,
+                    "source_file": file_path,
+                }
+
+            result = manager.execute(_import)
 
             return success_response(
-                message=f"Excel 已导入到工作表 '{name}'，共 {rows} 行 {cols} 列。",
-                data={
-                    "sheet_name": name,
-                    "rows": rows,
-                    "cols": cols,
-                    "source_file": file_path,
-                },
+                message=(
+                    f"Excel 已导入到工作表 '{result['sheet_name']}'，"
+                    f"共 {result['rows']} 行 {result['cols']} 列。"
+                ),
+                data=result,
                 resource=manager.get_resource_context(),
                 next_suggestions=[
                     "get_worksheet_info",
@@ -179,6 +225,8 @@ def register_data_tools(mcp) -> None:
                     "create_plot",
                 ],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"导入 Excel 失败: {e}",
@@ -231,7 +279,7 @@ def register_data_tools(mcp) -> None:
                     hint="请提供至少一行数据。",
                 )
 
-            # 解析数据
+            # 解析表头和数据行
             header = None
             start_row = 0
             if has_header and len(lines) > 1:
@@ -243,17 +291,20 @@ def register_data_tools(mcp) -> None:
                 row = [cell.strip() for cell in line.split(separator)]
                 rows_data.append(row)
 
-            num_cols = len(rows_data[0]) if rows_data else (len(header) if header else 0)
+            num_cols = len(rows_data[0]) if rows_data else (
+                len(header) if header else 0
+            )
 
-            def _import(op):
-                wks = op.new_sheet(lname=sheet_name) if sheet_name else op.new_sheet()
+            def _import(op: Any) -> dict[str, Any]:
+                wks = (
+                    op.new_sheet(lname=sheet_name) if sheet_name
+                    else op.new_sheet()
+                )
 
-                # 逐列写入数据
                 for col_idx in range(num_cols):
                     col_data = []
                     for row in rows_data:
                         val = row[col_idx] if col_idx < len(row) else ""
-                        # 尝试转换为数值
                         try:
                             val = float(val)
                             if val == int(val):
@@ -262,24 +313,31 @@ def register_data_tools(mcp) -> None:
                             pass
                         col_data.append(val)
 
-                    lname = header[col_idx] if header and col_idx < len(header) else None
+                    lname = (
+                        header[col_idx]
+                        if header and col_idx < len(header)
+                        else None
+                    )
                     wks.from_list(col_idx, col_data, lname=lname)
 
                 actual_name = wks.name
                 manager.active_worksheet = actual_name
-                return actual_name, len(rows_data), num_cols
-
-            name, n_rows, n_cols = manager.execute(_import)
-
-            return success_response(
-                message=f"文本数据已导入到工作表 '{name}'，共 {n_rows} 行 {n_cols} 列。",
-                data={
-                    "sheet_name": name,
-                    "rows": n_rows,
-                    "cols": n_cols,
+                return {
+                    "sheet_name": actual_name,
+                    "rows": len(rows_data),
+                    "cols": num_cols,
                     "separator_used": separator,
                     "has_header": has_header,
-                },
+                }
+
+            result = manager.execute(_import)
+
+            return success_response(
+                message=(
+                    f"文本数据已导入到工作表 '{result['sheet_name']}'，"
+                    f"共 {result['rows']} 行 {result['cols']} 列。"
+                ),
+                data=result,
                 resource=manager.get_resource_context(),
                 next_suggestions=[
                     "get_worksheet_info",
@@ -287,6 +345,8 @@ def register_data_tools(mcp) -> None:
                     "create_plot",
                 ],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"从文本数据导入失败: {e}",
@@ -310,7 +370,7 @@ def register_data_tools(mcp) -> None:
         - list_worksheets()
         """
         try:
-            def _list(op):
+            def _list(op: Any) -> list[dict[str, Any]]:
                 worksheets = []
                 for book in op.pages("Book"):
                     for sheet in book:
@@ -327,16 +387,12 @@ def register_data_tools(mcp) -> None:
 
             return success_response(
                 message=f"当前项目共有 {len(sheets)} 个工作表。",
-                data={
-                    "worksheets": sheets,
-                    "count": len(sheets),
-                },
+                data={"worksheets": sheets, "count": len(sheets)},
                 resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "get_worksheet_info",
-                    "import_csv",
-                ],
+                next_suggestions=["get_worksheet_info", "import_csv"],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"列出工作表失败: {e}",
@@ -363,31 +419,32 @@ def register_data_tools(mcp) -> None:
         - get_worksheet_info()
         - get_worksheet_info(sheet_name="Sheet1")
         """
-        target_name = sheet_name or manager.active_worksheet
-
-        if not target_name:
-            return error_response(
-                message="未指定工作表且无活动工作表",
-                error_type="invalid_input",
-                target="sheet_name",
-                hint="请指定 sheet_name，或先调用 import_csv / list_worksheets 获取可用工作表。",
-            )
-
         try:
-            def _info(op):
-                wks = op.find_sheet("w", target_name)
-                if wks is None:
-                    return None
+            target_name = _resolve_worksheet_name(sheet_name, manager)
+
+            def _info(op: Any) -> dict[str, Any]:
+                wks = _find_worksheet(op, target_name)
 
                 columns = []
                 for i in range(wks.cols):
                     col = wks.get_col(i)
-                    col_info = {
+                    col_info: dict[str, Any] = {
                         "index": i,
-                        "name": col.name if hasattr(col, "name") else f"Col{i+1}",
-                        "long_name": col.get_label("L") if hasattr(col, "get_label") else "",
-                        "units": col.get_label("U") if hasattr(col, "get_label") else "",
-                        "comments": col.get_label("C") if hasattr(col, "get_label") else "",
+                        "name": (
+                            col.name if hasattr(col, "name") else f"Col{i+1}"
+                        ),
+                        "long_name": (
+                            col.get_label("L")
+                            if hasattr(col, "get_label") else ""
+                        ),
+                        "units": (
+                            col.get_label("U")
+                            if hasattr(col, "get_label") else ""
+                        ),
+                        "comments": (
+                            col.get_label("C")
+                            if hasattr(col, "get_label") else ""
+                        ),
                     }
                     columns.append(col_info)
 
@@ -409,17 +466,11 @@ def register_data_tools(mcp) -> None:
 
             result = manager.execute(_info)
 
-            if result is None:
-                return error_response(
-                    message=f"工作表 '{target_name}' 不存在",
-                    error_type="not_found",
-                    target="worksheet",
-                    value=target_name,
-                    hint="Call list_worksheets to inspect available worksheet names.",
-                )
-
             return success_response(
-                message=f"工作表 '{target_name}' 共 {result['rows']} 行 {result['cols']} 列。",
+                message=(
+                    f"工作表 '{target_name}' "
+                    f"共 {result['rows']} 行 {result['cols']} 列。"
+                ),
                 data=result,
                 resource=manager.get_resource_context(),
                 next_suggestions=[
@@ -428,12 +479,14 @@ def register_data_tools(mcp) -> None:
                     "create_plot",
                 ],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"获取工作表信息失败: {e}",
                 error_type="internal_error",
                 target="sheet_name",
-                value=target_name,
+                value=sheet_name,
                 hint="请确认工作表名称正确。调用 list_worksheets 查看可用工作表。",
             )
 
@@ -459,22 +512,11 @@ def register_data_tools(mcp) -> None:
         - get_worksheet_data()
         - get_worksheet_data(sheet_name="Sheet1", max_rows=10)
         """
-        target_name = sheet_name or manager.active_worksheet
-
-        if not target_name:
-            return error_response(
-                message="未指定工作表且无活动工作表",
-                error_type="invalid_input",
-                target="sheet_name",
-                hint="请指定 sheet_name，或先调用 import_csv / list_worksheets。",
-            )
-
         try:
-            def _data(op):
-                wks = op.find_sheet("w", target_name)
-                if wks is None:
-                    return None
+            target_name = _resolve_worksheet_name(sheet_name, manager)
 
+            def _data(op: Any) -> dict[str, Any]:
+                wks = _find_worksheet(op, target_name)
                 df = wks.to_df()
                 total_rows = len(df)
                 truncated = total_rows > max_rows
@@ -482,28 +524,16 @@ def register_data_tools(mcp) -> None:
                 if truncated:
                     df = df.head(max_rows)
 
-                # 转为简单的列表结构
-                records = df.to_dict(orient="records")
-
                 return {
                     "sheet_name": target_name,
                     "total_rows": total_rows,
-                    "returned_rows": len(records),
+                    "returned_rows": len(df),
                     "truncated": truncated,
                     "columns": list(df.columns),
-                    "data": records,
+                    "data": df.to_dict(orient="records"),
                 }
 
             result = manager.execute(_data)
-
-            if result is None:
-                return error_response(
-                    message=f"工作表 '{target_name}' 不存在",
-                    error_type="not_found",
-                    target="worksheet",
-                    value=target_name,
-                    hint="Call list_worksheets to inspect available worksheet names.",
-                )
 
             msg = f"返回 {result['returned_rows']} 行数据"
             if result["truncated"]:
@@ -514,17 +544,16 @@ def register_data_tools(mcp) -> None:
                 message=msg,
                 data=result,
                 resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "set_column_designations",
-                    "create_plot",
-                ],
+                next_suggestions=["set_column_designations", "create_plot"],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"获取工作表数据失败: {e}",
                 error_type="internal_error",
                 target="sheet_name",
-                value=target_name,
+                value=sheet_name,
                 hint="请确认工作表名称正确。",
             )
 
@@ -552,65 +581,53 @@ def register_data_tools(mcp) -> None:
         - set_column_designations(designations="XYY")
         - set_column_designations(designations="XYYY", sheet_name="Sheet1")
         """
-        target_name = sheet_name or manager.active_worksheet
-
-        if not target_name:
-            return error_response(
-                message="未指定工作表且无活动工作表",
-                error_type="invalid_input",
-                target="sheet_name",
-                hint="请指定 sheet_name 或先导入数据。",
-            )
-
         if not designations:
             return error_response(
                 message="designations 不能为空",
                 error_type="invalid_input",
                 target="designations",
-                hint="请提供列角色字符串，如 'XYY'。支持的角色: X, Y, Z, YErr, L, N",
+                hint="请提供列角色字符串，如 'XYY'。支持: X, Y, Z, YErr, L, N",
             )
 
         try:
-            def _set(op):
-                wks = op.find_sheet("w", target_name)
-                if wks is None:
-                    return None, "not_found"
+            target_name = _resolve_worksheet_name(sheet_name, manager)
 
+            def _set(op: Any) -> list[dict[str, Any]]:
+                wks = _find_worksheet(op, target_name)
                 wks.cols_axis(designations)
 
                 # 读取更新后的角色
                 updated = []
                 for i in range(wks.cols):
                     col = wks.get_col(i)
-                    col_name = col.name if hasattr(col, "name") else f"Col{i+1}"
-                    updated.append({"index": i, "name": col_name})
+                    col_name = (
+                        col.name if hasattr(col, "name") else f"Col{i+1}"
+                    )
+                    col_info: dict[str, Any] = {
+                        "index": i,
+                        "name": col_name,
+                    }
+                    # 从 designations 字符串中提取对应角色
+                    if i < len(designations):
+                        col_info["designation"] = designations[i]
+                    updated.append(col_info)
 
-                return updated, "ok"
+                return updated
 
-            result, status = manager.execute(_set)
-
-            if status == "not_found":
-                return error_response(
-                    message=f"工作表 '{target_name}' 不存在",
-                    error_type="not_found",
-                    target="worksheet",
-                    value=target_name,
-                    hint="Call list_worksheets to inspect available worksheet names.",
-                )
+            columns = manager.execute(_set)
 
             return success_response(
                 message=f"列角色已更新为 '{designations}'。",
                 data={
                     "sheet_name": target_name,
                     "designations": designations,
-                    "columns": result,
+                    "columns": columns,
                 },
                 resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "create_plot",
-                    "get_worksheet_info",
-                ],
+                next_suggestions=["create_plot", "get_worksheet_info"],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"设置列角色失败: {e}",
@@ -645,26 +662,16 @@ def register_data_tools(mcp) -> None:
         - set_column_labels(col=1, lname="Voltage", units="mV")
         - set_column_labels(col=0, lname="Time", units="s", comments="elapsed time")
         """
-        target_name = sheet_name or manager.active_worksheet
-
-        if not target_name:
-            return error_response(
-                message="未指定工作表且无活动工作表",
-                error_type="invalid_input",
-                target="sheet_name",
-                hint="请指定 sheet_name 或先导入数据。",
-            )
-
         try:
-            def _set_labels(op):
-                wks = op.find_sheet("w", target_name)
-                if wks is None:
-                    return None, "not_found"
+            target_name = _resolve_worksheet_name(sheet_name, manager)
+
+            def _set_labels(op: Any) -> dict[str, str]:
+                wks = _find_worksheet(op, target_name)
 
                 if col < 0 or col >= wks.cols:
-                    return col, "out_of_range"
+                    raise ColumnIndexError(col, wks.cols)
 
-                changes = {}
+                changes: dict[str, str] = {}
                 if lname is not None:
                     wks.set_label(col, lname, "L")
                     changes["long_name"] = lname
@@ -675,27 +682,9 @@ def register_data_tools(mcp) -> None:
                     wks.set_label(col, comments, "C")
                     changes["comments"] = comments
 
-                return changes, "ok"
+                return changes
 
-            result, status = manager.execute(_set_labels)
-
-            if status == "not_found":
-                return error_response(
-                    message=f"工作表 '{target_name}' 不存在",
-                    error_type="not_found",
-                    target="worksheet",
-                    value=target_name,
-                    hint="Call list_worksheets to inspect available worksheet names.",
-                )
-
-            if status == "out_of_range":
-                return error_response(
-                    message=f"列索引 {col} 超出范围",
-                    error_type="invalid_input",
-                    target="col",
-                    value=col,
-                    hint="Call get_worksheet_info to inspect column count.",
-                )
+            result = manager.execute(_set_labels)
 
             return success_response(
                 message=f"列 {col} 的标签已更新。",
@@ -705,11 +694,10 @@ def register_data_tools(mcp) -> None:
                     "changes": result,
                 },
                 resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "get_worksheet_info",
-                    "create_plot",
-                ],
+                next_suggestions=["get_worksheet_info", "create_plot"],
             )
+        except ToolError as e:
+            return error_response_from_exception(e)
         except Exception as e:
             return error_response(
                 message=f"设置列标签失败: {e}",
