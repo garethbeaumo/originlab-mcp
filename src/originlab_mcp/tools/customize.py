@@ -27,6 +27,12 @@ from originlab_mcp.utils.constants import (
     SCALE_TYPE_TO_ORIGIN,
     ScaleType,
 )
+from originlab_mcp.utils.helpers import (
+    find_graph as _find_graph,
+    get_plot as _get_plot,
+    resolve_graph_name as _resolve_graph_name,
+    validate_axis as _validate_axis,
+)
 from originlab_mcp.utils.validators import (
     error_response,
     error_response_from_exception,
@@ -35,55 +41,7 @@ from originlab_mcp.utils.validators import (
 )
 
 
-def _resolve_graph_name(
-    graph_name: str | None,
-    manager: OriginManager,
-) -> str:
-    """解析图表名称，未指定时使用活动图表。
-
-    Raises:
-        NoActiveGraphError: 未指定且无活动图表时。
-    """
-    name = graph_name or manager.active_graph
-    if not name:
-        raise NoActiveGraphError()
-    return name
-
-
-def _find_graph(op: Any, graph_name: str) -> Any:
-    """查找图表对象，不存在时抛出异常。
-
-    Raises:
-        GraphNotFoundError: 图表不存在时。
-    """
-    gr = op.find_graph(graph_name)
-    if gr is None:
-        raise GraphNotFoundError(graph_name)
-    return gr
-
-
-def _get_plot(gl: Any, plot_index: int) -> Any:
-    """获取指定索引的曲线，不存在时抛出异常。
-
-    Raises:
-        PlotIndexError: 曲线索引不存在时。
-    """
-    plot = gl.plot(plot_index)
-    if plot is None:
-        raise PlotIndexError(plot_index)
-    return plot
-
-
-def _validate_axis(axis: str, supported: tuple[str, ...] = ("x", "y")) -> str:
-    """验证并归一化轴标识。
-
-    Raises:
-        InvalidAxisError: 不支持的轴标识时。
-    """
-    normalized = axis.lower()
-    if normalized not in supported:
-        raise InvalidAxisError(axis, supported)
-    return normalized
+# 注: _resolve_graph_name, _find_graph, _get_plot, _validate_axis 从 utils.helpers 导入
 
 
 def register_customize_tools(mcp: Any) -> None:

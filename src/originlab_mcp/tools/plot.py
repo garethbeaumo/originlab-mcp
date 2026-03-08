@@ -28,6 +28,11 @@ from originlab_mcp.utils.constants import (
     PLOT_TYPE_TO_TEMPLATE,
     PlotType,
 )
+from originlab_mcp.utils.helpers import (
+    find_graph as _resolve_graph,
+    find_worksheet as _resolve_worksheet,
+    validate_column_indices as _validate_cols_helper,
+)
 from originlab_mcp.utils.validators import (
     error_response,
     error_response_from_exception,
@@ -39,27 +44,12 @@ from originlab_mcp.utils.validators import (
 )
 
 
-def _resolve_worksheet(op: Any, name: str) -> Any:
-    """查找工作表，不存在时抛出异常。"""
-    wks = op.find_sheet("w", name)
-    if wks is None:
-        raise WorksheetNotFoundError(name)
-    return wks
-
-
-def _resolve_graph(op: Any, name: str) -> Any:
-    """查找图表，不存在时抛出异常。"""
-    gr = op.find_graph(name)
-    if gr is None:
-        raise GraphNotFoundError(name)
-    return gr
+# 注: _resolve_worksheet, _resolve_graph, _validate_cols 从 utils.helpers 导入
 
 
 def _validate_cols(col_indices: list[int], total_cols: int) -> None:
     """验证列索引范围，越界时抛出异常。"""
-    for idx in col_indices:
-        if idx < 0 or idx >= total_cols:
-            raise ColumnIndexError(idx, total_cols)
+    _validate_cols_helper(col_indices, total_cols)
 
 
 def register_plot_tools(mcp: Any) -> None:

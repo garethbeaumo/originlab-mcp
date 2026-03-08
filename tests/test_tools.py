@@ -193,10 +193,10 @@ class DummyMCP:
 
 @pytest.fixture
 def fresh_manager():
-    OriginManager._instance = None
+    OriginManager.reset_for_testing()
     manager = OriginManager()
     yield manager
-    manager.shutdown()
+    OriginManager.reset_for_testing()
 
 
 class TestToolRegressions:

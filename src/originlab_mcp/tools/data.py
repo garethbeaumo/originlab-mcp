@@ -31,6 +31,10 @@ from originlab_mcp.utils.constants import (
     DEFAULT_MAX_PREVIEW_ROWS,
     DEFAULT_SEPARATOR,
 )
+from originlab_mcp.utils.helpers import (
+    find_worksheet as _find_worksheet,
+    resolve_worksheet_name as _resolve_worksheet_name,
+)
 from originlab_mcp.utils.validators import (
     error_response,
     error_response_from_exception,
@@ -39,45 +43,7 @@ from originlab_mcp.utils.validators import (
 )
 
 
-def _resolve_worksheet_name(
-    sheet_name: str | None,
-    manager: OriginManager,
-) -> str:
-    """解析工作表名称，未指定时使用活动工作表。
-
-    Args:
-        sheet_name: 用户指定的工作表名，可为 None。
-        manager: OriginManager 实例。
-
-    Returns:
-        解析后的工作表名称。
-
-    Raises:
-        NoActiveWorksheetError: 未指定且无活动工作表时。
-    """
-    name = sheet_name or manager.active_worksheet
-    if not name:
-        raise NoActiveWorksheetError()
-    return name
-
-
-def _find_worksheet(op: Any, sheet_name: str) -> Any:
-    """查找工作表，不存在时抛出异常。
-
-    Args:
-        op: originpro 模块引用。
-        sheet_name: 工作表名称。
-
-    Returns:
-        工作表对象。
-
-    Raises:
-        WorksheetNotFoundError: 工作表不存在时。
-    """
-    wks = op.find_sheet("w", sheet_name)
-    if wks is None:
-        raise WorksheetNotFoundError(sheet_name)
-    return wks
+# 注: _resolve_worksheet_name 和 _find_worksheet 从 utils.helpers 导入
 
 
 def _get_column_display_name(col: Any, index: int) -> str:

@@ -230,11 +230,22 @@ class OriginManager:
     # -----------------------------------------------------------------
 
     def shutdown(self) -> None:
-        """MCP Server 关闭时调用，清理资源。"""
+        """MCP Server 关闭时调用，清理资源。
+
+        注意：不重置单例实例，避免已持有引用的 tool 函数拿到失效对象。
+        """
         logger.info("OriginManager 正在关闭...")
         self.disconnect()
         self._active_worksheet = None
         self._active_graph = None
-        OriginManager._instance = None
-        self._initialized = False
         logger.info("OriginManager 已关闭")
+
+    @classmethod
+    def reset_for_testing(cls) -> None:
+        """仅用于测试：重置单例，允许创建新实例。
+
+        生产代码中不要调用此方法。
+        """
+        if cls._instance is not None:
+            cls._instance.disconnect()
+        cls._instance = None

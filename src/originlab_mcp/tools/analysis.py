@@ -20,19 +20,12 @@ from originlab_mcp.exceptions import (
 )
 from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.constants import COMMON_FIT_FUNCTIONS
+from originlab_mcp.utils.helpers import find_worksheet as _find_worksheet
 from originlab_mcp.utils.validators import (
     error_response,
     error_response_from_exception,
     success_response,
 )
-
-
-def _find_worksheet(op: Any, sheet_name: str) -> Any:
-    """查找工作表，不存在时抛出异常。"""
-    wks = op.find_sheet("w", sheet_name)
-    if wks is None:
-        raise WorksheetNotFoundError(sheet_name)
-    return wks
 
 
 def register_analysis_tools(mcp: Any) -> None:
