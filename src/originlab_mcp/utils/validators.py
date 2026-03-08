@@ -17,17 +17,7 @@ from .constants import (
     PlotType,
     ScaleType,
 )
-
-# 延迟导入避免循环依赖
-_ToolError = None
-
-
-def _get_tool_error():
-    global _ToolError
-    if _ToolError is None:
-        from originlab_mcp.exceptions import ToolError
-        _ToolError = ToolError
-    return _ToolError
+from originlab_mcp.exceptions import ToolError
 
 
 # ===================================================================
@@ -109,9 +99,7 @@ def error_response(
 def validate_file_path(file_path: str) -> str | None:
     """验证文件路径是否存在。
 
-    Returns
-    -------
-    str | None
+    Returns:
         如果路径无效，返回错误描述；否则返回 None。
     """
     if not file_path:
@@ -133,15 +121,13 @@ def validate_dir_path(dir_path: str) -> str | None:
 def validate_column_index(col_index: int, total_cols: int) -> str | None:
     """验证列索引是否在范围内（0-based）。
 
-    Returns
-    -------
-    str | None
+    Returns:
         如果索引越界返回错误描述；否则返回 None。
     """
     if col_index < 0 or col_index >= total_cols:
         return (
-            f"Column index {col_index} out of range. "
-            f"Current worksheet has {total_cols} columns (0-{total_cols - 1})."
+            f"列索引 {col_index} 超出范围，"
+            f"当前工作表共 {total_cols} 列（0-{total_cols - 1}）。"
         )
     return None
 
@@ -159,7 +145,7 @@ def validate_plot_type(plot_type: str) -> str | None:
     """验证图表类型是否支持。"""
     valid = [e.value for e in PlotType]
     if plot_type not in valid:
-        return f"Unsupported plot_type '{plot_type}'. Supported types: {valid}"
+        return f"不支持的图表类型 '{plot_type}'。支持的类型: {valid}"
     return None
 
 
@@ -169,7 +155,7 @@ def validate_designation(designation: str) -> str | None:
         return None
     valid = [e.value for e in ColumnDesignation]
     if designation not in valid:
-        return f"Unsupported designation '{designation}'. Supported values: {valid}"
+        return f"不支持的列角色 '{designation}'。支持的值: {valid}"
     return None
 
 
@@ -177,7 +163,7 @@ def validate_scale_type(scale_type: str) -> str | None:
     """验证缩放类型是否支持。"""
     valid = [e.value for e in ScaleType]
     if scale_type not in valid:
-        return f"Unsupported scale_type '{scale_type}'. Supported types: {valid}"
+        return f"不支持的缩放类型 '{scale_type}'。支持的类型: {valid}"
     return None
 
 
@@ -185,7 +171,7 @@ def validate_export_format(fmt: str) -> str | None:
     """验证导出格式是否支持。"""
     valid = [e.value for e in ExportFormat]
     if fmt not in valid:
-        return f"Unsupported export format '{fmt}'. Supported formats: {valid}"
+        return f"不支持的导出格式 '{fmt}'。支持的格式: {valid}"
     return None
 
 
@@ -208,7 +194,6 @@ def error_response_from_exception(exc: Exception) -> dict[str, Any]:
     Returns:
         统一格式的错误返回字典。
     """
-    ToolError = _get_tool_error()
     if isinstance(exc, ToolError):
         return error_response(
             message=str(exc),

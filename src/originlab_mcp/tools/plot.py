@@ -91,7 +91,7 @@ def register_plot_tools(mcp: Any) -> None:
                 error_type="unsupported",
                 target="plot_type",
                 value=plot_type,
-                hint=f"Supported types: {[e.value for e in PlotType]}",
+                hint=f"支持的类型: {[e.value for e in PlotType]}",
             )
 
         target_name = sheet_name or manager.active_worksheet

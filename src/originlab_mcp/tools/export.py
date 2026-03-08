@@ -25,6 +25,10 @@ from originlab_mcp.utils.constants import (
     DEFAULT_EXPORT_WIDTH,
     ExportFormat,
 )
+from originlab_mcp.utils.helpers import (
+    find_graph,
+    resolve_graph_name,
+)
 from originlab_mcp.utils.validators import (
     error_response,
     error_response_from_exception,
@@ -77,7 +81,7 @@ def register_export_tools(mcp: Any) -> None:
                 error_type="unsupported",
                 target="output_format",
                 value=fmt,
-                hint=f"Supported formats: {[e.value for e in ExportFormat]}",
+                hint=f"支持的格式: {[e.value for e in ExportFormat]}",
             )
 
         # 确保输出目录存在
@@ -95,14 +99,10 @@ def register_export_tools(mcp: Any) -> None:
                 )
 
         try:
-            target_graph = graph_name or manager.active_graph
-            if not target_graph:
-                raise NoActiveGraphError()
+            target_graph = resolve_graph_name(graph_name, manager)
 
             def _export(op: Any) -> dict[str, Any]:
-                gr = op.find_graph(target_graph)
-                if gr is None:
-                    raise GraphNotFoundError(target_graph)
+                gr = find_graph(op, target_graph)
 
                 gr.save_fig(output_path, type=fmt, width=width)
 
@@ -204,7 +204,7 @@ def register_export_tools(mcp: Any) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="File does not exist. Please verify the file path.",
+                hint="文件不存在，请检查文件路径。",
             )
 
         try:

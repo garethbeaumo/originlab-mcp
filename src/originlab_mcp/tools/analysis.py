@@ -340,8 +340,8 @@ def register_analysis_tools(mcp: Any) -> None:
         for fname, finfo in COMMON_FIT_FUNCTIONS.items():
             functions.append({
                 "name": fname,
-                "parameters": finfo["params"],
-                "description": finfo["desc"],
+                "parameters": list(finfo.params),
+                "description": finfo.description,
             })
 
         return success_response(

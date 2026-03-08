@@ -149,7 +149,7 @@ def register_data_tools(mcp: Any) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="File does not exist. Please verify the file path.",
+                hint="文件不存在，请检查文件路径。",
             )
 
         try:
@@ -229,7 +229,7 @@ def register_data_tools(mcp: Any) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="File does not exist. Please verify the file path.",
+                hint="文件不存在，请检查文件路径。",
             )
 
         try:

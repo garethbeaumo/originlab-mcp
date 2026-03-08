@@ -4,6 +4,7 @@
 维护图类型、错误类型、列角色、默认值等枚举和常量。
 """
 
+from dataclasses import dataclass
 from enum import Enum
 
 
@@ -144,49 +145,57 @@ class AddPlotType(str, Enum):
 # 常用非线性拟合函数
 # ---------------------------------------------------------------------------
 
-COMMON_FIT_FUNCTIONS: dict[str, dict] = {
-    "Gauss": {
-        "params": ["y0", "xc", "w", "A"],
-        "desc": "高斯函数 - 适用于峰形分布数据",
-    },
-    "Lorentz": {
-        "params": ["y0", "xc", "w", "A"],
-        "desc": "洛伦兹函数 - 适用于共振峰拟合",
-    },
-    "ExpDec1": {
-        "params": ["y0", "A1", "t1"],
-        "desc": "单指数衰减 - 适用于一阶反应动力学",
-    },
-    "ExpDec2": {
-        "params": ["y0", "A1", "t1", "A2", "t2"],
-        "desc": "双指数衰减 - 适用于混合衰减过程",
-    },
-    "ExpGrow1": {
-        "params": ["y0", "A1", "t1"],
-        "desc": "单指数增长 - 适用于增长过程",
-    },
-    "Boltzmann": {
-        "params": ["A1", "A2", "x0", "dx"],
-        "desc": "玻尔兹曼函数 - 适用于 S 型曲线拟合",
-    },
-    "Logistic": {
-        "params": ["A1", "A2", "x0", "p"],
-        "desc": "逻辑斯谛函数 - 适用于增长饱和曲线",
-    },
-    "Hill": {
-        "params": ["Vmax", "k", "n"],
-        "desc": "Hill 方程 - 适用于剂量-反应曲线",
-    },
-    "Polynomial": {
-        "params": [],
-        "desc": "多项式拟合 - 通用拟合",
-    },
-    "Line": {
-        "params": ["A", "B"],
-        "desc": "线性函数 y = A + B*x",
-    },
-    "Plane": {
-        "params": ["z0", "a", "b"],
-        "desc": "平面拟合 z = z0 + a*x + b*y",
-    },
+@dataclass(frozen=True)
+class FitFunctionInfo:
+    """拟合函数的元信息。"""
+
+    params: tuple[str, ...]
+    description: str
+
+
+COMMON_FIT_FUNCTIONS: dict[str, FitFunctionInfo] = {
+    "Gauss": FitFunctionInfo(
+        params=("y0", "xc", "w", "A"),
+        description="高斯函数 - 适用于峰形分布数据",
+    ),
+    "Lorentz": FitFunctionInfo(
+        params=("y0", "xc", "w", "A"),
+        description="洛伦兹函数 - 适用于共振峰拟合",
+    ),
+    "ExpDec1": FitFunctionInfo(
+        params=("y0", "A1", "t1"),
+        description="单指数衰减 - 适用于一阶反应动力学",
+    ),
+    "ExpDec2": FitFunctionInfo(
+        params=("y0", "A1", "t1", "A2", "t2"),
+        description="双指数衰减 - 适用于混合衰减过程",
+    ),
+    "ExpGrow1": FitFunctionInfo(
+        params=("y0", "A1", "t1"),
+        description="单指数增长 - 适用于增长过程",
+    ),
+    "Boltzmann": FitFunctionInfo(
+        params=("A1", "A2", "x0", "dx"),
+        description="玻尔兹曼函数 - 适用于 S 型曲线拟合",
+    ),
+    "Logistic": FitFunctionInfo(
+        params=("A1", "A2", "x0", "p"),
+        description="逻辑斯谛函数 - 适用于增长饱和曲线",
+    ),
+    "Hill": FitFunctionInfo(
+        params=("Vmax", "k", "n"),
+        description="Hill 方程 - 适用于剂量-反应曲线",
+    ),
+    "Polynomial": FitFunctionInfo(
+        params=(),
+        description="多项式拟合 - 通用拟合",
+    ),
+    "Line": FitFunctionInfo(
+        params=("A", "B"),
+        description="线性函数 y = A + B*x",
+    ),
+    "Plane": FitFunctionInfo(
+        params=("z0", "a", "b"),
+        description="平面拟合 z = z0 + a*x + b*y",
+    ),
 }

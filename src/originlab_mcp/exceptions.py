@@ -42,7 +42,7 @@ class WorksheetNotFoundError(ToolError):
             error_type="not_found",
             target="worksheet",
             value=sheet_name,
-            hint="Call list_worksheets to inspect available worksheet names.",
+            hint="请调用 list_worksheets 查看可用的工作表名称。",
         )
 
 
@@ -55,7 +55,7 @@ class GraphNotFoundError(ToolError):
             error_type="not_found",
             target="graph",
             value=graph_name,
-            hint="Call list_graphs to inspect available graph names.",
+            hint="请调用 list_graphs 查看可用的图表名称。",
         )
 
 
@@ -93,7 +93,7 @@ class ColumnIndexError(ToolError):
             error_type="invalid_input",
             target="col",
             value=col_index,
-            hint="Call get_worksheet_info to inspect column details.",
+            hint="请调用 get_worksheet_info 查看列信息。",
         )
 
 
@@ -106,7 +106,7 @@ class InvalidAxisError(ToolError):
             error_type="invalid_input",
             target="axis",
             value=axis,
-            hint=f"Supported axis values: {list(supported)}.",
+            hint=f"支持的轴标识: {list(supported)}。",
         )
 
 

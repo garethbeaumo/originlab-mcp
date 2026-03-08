@@ -89,7 +89,7 @@ class OriginManager:
                 self._op.exit()
                 logger.info("已断开 Origin 连接")
             except Exception as e:
-                logger.warning(f"断开连接时出错: {e}")
+                logger.warning("断开连接时出错: %s", e)
             finally:
                 self._connected = False
                 self._op = None
@@ -160,7 +160,7 @@ class OriginManager:
     def active_worksheet(self, name: str | None) -> None:
         self._active_worksheet = name
         if name:
-            logger.debug(f"活动工作表 -> {name}")
+            logger.debug("活动工作表 -> %s", name)
 
     @property
     def active_graph(self) -> str | None:
@@ -171,7 +171,7 @@ class OriginManager:
     def active_graph(self, name: str | None) -> None:
         self._active_graph = name
         if name:
-            logger.debug(f"活动图表 -> {name}")
+            logger.debug("活动图表 -> %s", name)
 
     def get_resource_context(self) -> dict[str, str | None]:
         """返回当前活动对象上下文，用于填充返回结构的 resource 字段。"""

@@ -141,7 +141,7 @@ def register_customize_tools(mcp: Any) -> None:
                 error_type="unsupported",
                 target="scale_type",
                 value=scale_type,
-                hint=f"Supported types: {[e.value for e in ScaleType]}",
+                hint=f"支持的类型: {[e.value for e in ScaleType]}",
             )
 
         try:
