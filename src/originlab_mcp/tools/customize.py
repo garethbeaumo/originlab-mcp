@@ -9,6 +9,10 @@
     set_plot_color: 设置曲线颜色
     set_plot_colormap: 设置颜色映射
     set_plot_symbols: 设置数据点符号
+    set_plot_line_width: 设置曲线线宽
+    set_plot_line_style: 设置曲线线型（实线/虚线/点线等）
+    set_error_bar_style: 设置误差棒样式（线宽/端帽/颜色/方向）
+    set_legend: 控制图例显示、位置和字号
 """
 
 from __future__ import annotations
@@ -1199,4 +1203,443 @@ def register_customize_tools(mcp: Any) -> None:
                 target="increment",
                 value=increment,
                 hint="请检查参数值。",
+            )
+
+    # =================================================================
+    # set_plot_line_width
+    # =================================================================
+
+    @mcp.tool()
+    def set_plot_line_width(
+        width: float,
+        plot_index: int = 0,
+        graph_name: str | None = None,
+    ) -> dict:
+        """设置指定曲线的线宽。
+
+        何时使用：需要调整折线图或折线+符号图的线条粗细时使用。
+        何时不用：使用默认线宽时无需调用。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - plot_index 默认为 0（第一条曲线）
+
+        参数说明：
+        - width: 线宽值（单位：点），常用值 0.5, 1, 1.5, 2, 3
+
+        示例：
+        - set_plot_line_width(width=2)
+        - set_plot_line_width(width=1.5, plot_index=1)
+        """
+        if width <= 0:
+            return error_response(
+                message="width 必须大于 0",
+                error_type="invalid_input",
+                target="width",
+                value=width,
+                hint="常用线宽值: 0.5, 1, 1.5, 2, 3",
+            )
+
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _set(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                gl = gr[0]
+                # 验证 plot_index 有效
+                _get_plot(gl, plot_index)
+
+                # 通过 LabTalk 设置线宽
+                op.lt_exec(f'win -a {gr.name}')
+                op.lt_exec(f'layer -s 1')
+                op.lt_exec(f'layer.plot = {plot_index + 1}')
+                op.lt_exec(f'set %C -w {width}')
+
+                return {
+                    "graph_name": target_name,
+                    "plot_index": plot_index,
+                    "width": width,
+                }
+
+            result = manager.execute(_set)
+
+            return success_response(
+                message=f"曲线 {plot_index} 的线宽已设置为 {width}。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=[
+                    "set_plot_line_style", "set_plot_color", "export_graph",
+                ],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置线宽失败: {e}",
+                error_type="internal_error",
+                target="width",
+                value=width,
+                hint="请检查参数值。",
+            )
+
+    # =================================================================
+    # set_plot_line_style
+    # =================================================================
+
+    # 线型编号映射
+    LINE_STYLE_MAP = {
+        "solid": 1,
+        "dash": 2,
+        "dot": 3,
+        "dashdot": 4,
+        "dashdotdot": 5,
+        "short_dash": 6,
+        "short_dot": 7,
+        "short_dashdot": 8,
+    }
+
+    @mcp.tool()
+    def set_plot_line_style(
+        style: str,
+        plot_index: int = 0,
+        graph_name: str | None = None,
+    ) -> dict:
+        """设置指定曲线的线型（实线、虚线、点线等）。
+
+        何时使用：需要区分多条曲线或满足论文排版要求时使用。
+        何时不用：使用默认实线时无需调用。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - plot_index 默认为 0（第一条曲线）
+
+        参数说明：
+        - style: 线型名称
+            - "solid" = 实线
+            - "dash" = 虚线
+            - "dot" = 点线
+            - "dashdot" = 点划线
+            - "dashdotdot" = 双点划线
+            - "short_dash" = 短虚线
+            - "short_dot" = 短点线
+            - "short_dashdot" = 短点划线
+
+        示例：
+        - set_plot_line_style(style="dash")
+        - set_plot_line_style(style="dot", plot_index=1)
+        """
+        style_lower = style.lower()
+        if style_lower not in LINE_STYLE_MAP:
+            return error_response(
+                message=f"不支持的线型 '{style}'",
+                error_type="invalid_input",
+                target="style",
+                value=style,
+                hint=f"支持的线型: {list(LINE_STYLE_MAP.keys())}",
+            )
+
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+            style_code = LINE_STYLE_MAP[style_lower]
+
+            def _set(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                gl = gr[0]
+                _get_plot(gl, plot_index)
+
+                op.lt_exec(f'win -a {gr.name}')
+                op.lt_exec(f'layer -s 1')
+                op.lt_exec(f'layer.plot = {plot_index + 1}')
+                op.lt_exec(f'set %C -d {style_code}')
+
+                return {
+                    "graph_name": target_name,
+                    "plot_index": plot_index,
+                    "style": style,
+                    "style_code": style_code,
+                }
+
+            result = manager.execute(_set)
+
+            return success_response(
+                message=f"曲线 {plot_index} 的线型已设置为 {style}。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=[
+                    "set_plot_line_width", "set_plot_color", "export_graph",
+                ],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置线型失败: {e}",
+                error_type="internal_error",
+                target="style",
+                value=style,
+                hint=f"支持的线型: {list(LINE_STYLE_MAP.keys())}",
+            )
+
+    # =================================================================
+    # set_error_bar_style
+    # =================================================================
+
+    @mcp.tool()
+    def set_error_bar_style(
+        plot_index: int = 0,
+        line_width: float | None = None,
+        cap_width: float | None = None,
+        color: str | None = None,
+        direction: str | None = None,
+        graph_name: str | None = None,
+    ) -> dict:
+        """设置误差棒的样式（线宽、端帽、颜色、方向）。
+
+        何时使用：需要调整误差棒的外观时使用（如论文排版、视觉区分等）。
+        何时不用：使用默认误差棒样式时无需调用。前提是已通过 create_plot 或 add_plot_to_graph 的 yerr_col 参数创建了误差棒。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - plot_index 默认为 0（第一条曲线）
+        - 未提供的参数不会被修改
+
+        参数说明：
+        - line_width: 误差棒线宽（单位：点），常用值 1, 1.5, 2
+        - cap_width: 误差棒端帽宽度（单位：点），常用值 5, 8, 10, 15
+        - color: 误差棒颜色，十六进制值如 "#ff0000"；设为 "auto" 则跟随曲线颜色
+        - direction: 误差棒方向
+            - "both" = 上下双向（默认）
+            - "plus" = 仅向上
+            - "minus" = 仅向下
+
+        示例：
+        - set_error_bar_style(line_width=2, cap_width=10)
+        - set_error_bar_style(color="#000000", plot_index=1)
+        - set_error_bar_style(direction="plus")
+        """
+        if line_width is not None and line_width <= 0:
+            return error_response(
+                message="line_width 必须大于 0",
+                error_type="invalid_input",
+                target="line_width",
+                value=line_width,
+            )
+        if cap_width is not None and cap_width < 0:
+            return error_response(
+                message="cap_width 不能为负数",
+                error_type="invalid_input",
+                target="cap_width",
+                value=cap_width,
+            )
+
+        direction_map = {"both": 0, "plus": 1, "minus": 2}
+        if direction is not None and direction.lower() not in direction_map:
+            return error_response(
+                message=f"不支持的方向 '{direction}'",
+                error_type="invalid_input",
+                target="direction",
+                value=direction,
+                hint="支持: both, plus, minus",
+            )
+
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _set(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                gl = gr[0]
+                _get_plot(gl, plot_index)
+
+                # 激活目标图表和曲线
+                op.lt_exec(f'win -a {gr.name}')
+                op.lt_exec(f'layer -s 1')
+                op.lt_exec(f'layer.plot = {plot_index + 1}')
+
+                changes = {}
+
+                if line_width is not None:
+                    op.lt_exec(f'set %C -ew {line_width}')
+                    changes["line_width"] = line_width
+
+                if cap_width is not None:
+                    op.lt_exec(f'set %C -ecw {cap_width}')
+                    changes["cap_width"] = cap_width
+
+                if color is not None:
+                    if color.lower() == "auto":
+                        # 恢复跟随曲线颜色
+                        op.lt_exec('set %C -ecc 0')
+                        changes["color"] = "auto"
+                    else:
+                        # 解析十六进制颜色
+                        c = color.lstrip('#')
+                        r = int(c[0:2], 16)
+                        g = int(c[2:4], 16)
+                        b = int(c[4:6], 16)
+                        # 设置自定义颜色
+                        op.lt_exec('set %C -ecc 1')
+                        op.lt_exec(
+                            f'set %C -ec color(rgb({r},{g},{b}))'
+                        )
+                        changes["color"] = color
+
+                if direction is not None:
+                    d_code = direction_map[direction.lower()]
+                    op.lt_exec(f'set %C -ed {d_code}')
+                    changes["direction"] = direction
+
+                return {
+                    "graph_name": target_name,
+                    "plot_index": plot_index,
+                    **changes,
+                }
+
+            result = manager.execute(_set)
+
+            return success_response(
+                message=f"曲线 {plot_index} 的误差棒样式已更新。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=[
+                    "set_plot_color", "set_plot_line_width", "export_graph",
+                ],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置误差棒样式失败: {e}",
+                error_type="internal_error",
+                target="error_bar_style",
+                hint="请确认该曲线已添加误差棒（通过 yerr_col 参数创建）。",
+            )
+
+    # =================================================================
+    # set_legend
+    # =================================================================
+
+    @mcp.tool()
+    def set_legend(
+        visible: bool | None = None,
+        position: str | None = None,
+        font_size: float | None = None,
+        graph_name: str | None = None,
+    ) -> dict:
+        """控制图例的显示、位置和字号。
+
+        何时使用：需要显示/隐藏图例、调整图例位置或字号时使用。
+        何时不用：使用默认图例设置时无需调用。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - 未提供的参数不会被修改
+
+        参数说明：
+        - visible: 是否显示图例（True=显示, False=隐藏）
+        - position: 图例位置
+            - "top_left" = 左上角
+            - "top_right" = 右上角
+            - "bottom_left" = 左下角
+            - "bottom_right" = 右下角
+            - "top_center" = 顶部居中
+            - "bottom_center" = 底部居中
+            - "right_center" = 右侧居中
+        - font_size: 图例文字大小（单位：点），常用值 8, 10, 12, 14
+
+        示例：
+        - set_legend(visible=True, position="top_right")
+        - set_legend(visible=False)
+        - set_legend(font_size=10, position="bottom_left")
+        """
+        position_map = {
+            "top_left": (15, 15),
+            "top_right": (85, 15),
+            "bottom_left": (15, 85),
+            "bottom_right": (85, 85),
+            "top_center": (50, 10),
+            "bottom_center": (50, 90),
+            "right_center": (85, 50),
+        }
+
+        if position is not None and position.lower() not in position_map:
+            return error_response(
+                message=f"不支持的图例位置 '{position}'",
+                error_type="invalid_input",
+                target="position",
+                value=position,
+                hint=f"支持的位置: {list(position_map.keys())}",
+            )
+
+        if font_size is not None and font_size <= 0:
+            return error_response(
+                message="font_size 必须大于 0",
+                error_type="invalid_input",
+                target="font_size",
+                value=font_size,
+            )
+
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _set(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+
+                op.lt_exec(f'win -a {gr.name}')
+                op.lt_exec(f'layer -s 1')
+
+                changes = {}
+
+                if visible is not None:
+                    if visible:
+                        # 重新生成图例
+                        op.lt_exec('legend -r')
+                        op.lt_exec('legend -s')
+                        changes["visible"] = True
+                    else:
+                        op.lt_exec('legend -h')
+                        changes["visible"] = False
+
+                if position is not None:
+                    pos_key = position.lower()
+                    x_pct, y_pct = position_map[pos_key]
+                    op.lt_exec(f'legend.x = {x_pct}')
+                    op.lt_exec(f'legend.y = {y_pct}')
+                    changes["position"] = position
+
+                if font_size is not None:
+                    op.lt_exec(f'legend.fsize = {font_size}')
+                    changes["font_size"] = font_size
+
+                return {
+                    "graph_name": target_name,
+                    **changes,
+                }
+
+            result = manager.execute(_set)
+
+            parts = []
+            if visible is not None:
+                parts.append("已显示" if visible else "已隐藏")
+            if position is not None:
+                parts.append(f"位置={position}")
+            if font_size is not None:
+                parts.append(f"字号={font_size}")
+            desc = "，".join(parts) if parts else "已更新"
+
+            return success_response(
+                message=f"图例{desc}。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=[
+                    "set_plot_color", "set_graph_title", "export_graph",
+                ],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置图例失败: {e}",
+                error_type="internal_error",
+                target="legend",
+                hint="请检查图表是否存在。",
             )

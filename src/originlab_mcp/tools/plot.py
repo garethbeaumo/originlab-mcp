@@ -68,6 +68,7 @@ def register_plot_tools(mcp: Any) -> None:
         sheet_name: str | None = None,
         plot_type: str = DEFAULT_PLOT_TYPE.value,
         yerr_col: int | None = None,
+        xerr_col: int | None = None,
     ) -> dict:
         """创建新图表（支持单条或多条曲线）。
 
@@ -77,12 +78,14 @@ def register_plot_tools(mcp: Any) -> None:
         默认行为：
         - sheet_name 省略时使用当前活动工作表
         - plot_type 省略时默认为 line
-        - yerr_col 省略时不绘制误差棒
+        - yerr_col 省略时不绘制 Y 方向误差棒
+        - xerr_col 省略时不绘制 X 方向误差棒
 
         示例：
         - create_plot(x_col=0, y_cols=1)
         - create_plot(x_col=0, y_cols=[1, 2], plot_type="scatter")
         - create_plot(x_col=0, y_cols=1, yerr_col=2)
+        - create_plot(x_col=0, y_cols=1, yerr_col=2, xerr_col=3)
         """
         err = validate_plot_type(plot_type)
         if err:
@@ -108,6 +111,8 @@ def register_plot_tools(mcp: Any) -> None:
                 cols_to_check = [x_col] + y_col_list
                 if yerr_col is not None:
                     cols_to_check.append(yerr_col)
+                if xerr_col is not None:
+                    cols_to_check.append(xerr_col)
                 _validate_cols(cols_to_check, total_cols)
 
                 template = PLOT_TYPE_TO_TEMPLATE.get(plot_type, "line")
@@ -116,15 +121,20 @@ def register_plot_tools(mcp: Any) -> None:
 
                 curves = []
                 for i, yc in enumerate(y_col_list):
+                    # 构造 add_plot 的关键字参数
+                    plot_kwargs = {"coly": yc, "colx": x_col}
                     if yerr_col is not None:
-                        gl.add_plot(wks, coly=yc, colx=x_col, colyerr=yerr_col)
-                    else:
-                        gl.add_plot(wks, coly=yc, colx=x_col)
+                        plot_kwargs["colyerr"] = yerr_col
+                    if xerr_col is not None:
+                        plot_kwargs["colxerr"] = xerr_col
+                    gl.add_plot(wks, **plot_kwargs)
                     curve_info = {
                         "y_col": yc, "x_col": x_col, "plot_index": i,
                     }
                     if yerr_col is not None:
                         curve_info["yerr_col"] = yerr_col
+                    if xerr_col is not None:
+                        curve_info["xerr_col"] = xerr_col
                     curves.append(curve_info)
 
                 gl.rescale()
@@ -181,6 +191,7 @@ def register_plot_tools(mcp: Any) -> None:
         graph_name: str | None = None,
         sheet_name: str | None = None,
         yerr_col: int | None = None,
+        xerr_col: int | None = None,
     ) -> dict:
         """在已有图表上追加一条或多条曲线。
 
@@ -190,12 +201,14 @@ def register_plot_tools(mcp: Any) -> None:
         默认行为：
         - graph_name 省略时使用当前活动图表
         - sheet_name 省略时使用当前活动工作表
-        - yerr_col 省略时不绘制误差棒
+        - yerr_col 省略时不绘制 Y 方向误差棒
+        - xerr_col 省略时不绘制 X 方向误差棒
 
         示例：
         - add_plot_to_graph(x_col=0, y_cols=2)
         - add_plot_to_graph(x_col=0, y_cols=[3, 4], graph_name="Graph1")
         - add_plot_to_graph(x_col=0, y_cols=1, yerr_col=2)
+        - add_plot_to_graph(x_col=0, y_cols=1, yerr_col=2, xerr_col=3)
         """
         target_graph = graph_name or manager.active_graph
         if not target_graph:
@@ -215,6 +228,8 @@ def register_plot_tools(mcp: Any) -> None:
                 cols_to_check = [x_col] + y_col_list
                 if yerr_col is not None:
                     cols_to_check.append(yerr_col)
+                if xerr_col is not None:
+                    cols_to_check.append(xerr_col)
                 _validate_cols(cols_to_check, wks.cols)
 
                 gl = gr[0]
@@ -224,10 +239,13 @@ def register_plot_tools(mcp: Any) -> None:
 
                 new_curves = []
                 for i, yc in enumerate(y_col_list):
+                    # 构造 add_plot 的关键字参数
+                    plot_kwargs = {"coly": yc, "colx": x_col}
                     if yerr_col is not None:
-                        gl.add_plot(wks, coly=yc, colx=x_col, colyerr=yerr_col)
-                    else:
-                        gl.add_plot(wks, coly=yc, colx=x_col)
+                        plot_kwargs["colyerr"] = yerr_col
+                    if xerr_col is not None:
+                        plot_kwargs["colxerr"] = xerr_col
+                    gl.add_plot(wks, **plot_kwargs)
                     curve_info = {
                         "y_col": yc,
                         "x_col": x_col,
@@ -235,6 +253,8 @@ def register_plot_tools(mcp: Any) -> None:
                     }
                     if yerr_col is not None:
                         curve_info["yerr_col"] = yerr_col
+                    if xerr_col is not None:
+                        curve_info["xerr_col"] = xerr_col
                     new_curves.append(curve_info)
 
                 gl.rescale()

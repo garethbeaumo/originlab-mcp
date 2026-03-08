@@ -106,11 +106,11 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 
 ## 🧰 功能一览
 
-共提供 **45 个工具**，覆盖 OriginLab 的数据全流程。
+共提供 **53 个工具**，覆盖 OriginLab 的数据全流程。
 
 <table>
 <tr>
-<td width="140"><b>📊 数据管理</b><br/><sub>17 个工具</sub></td>
+<td width="140"><b>📊 数据管理</b><br/><sub>15 个工具</sub></td>
 <td>
 
 **导入**：`import_csv` · `import_excel` · `import_data_from_text`<br/>
@@ -134,7 +134,7 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 </td>
 </tr>
 <tr>
-<td><b>🎨 图表定制</b><br/><sub>14 个工具</sub></td>
+<td><b>🎨 图表定制</b><br/><sub>18 个工具</sub></td>
 <td>
 
 **坐标轴**：`set_axis_range` · `set_axis_scale` · `set_axis_step` · `set_axis_title`<br/>
@@ -142,7 +142,8 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 **符号**：`set_plot_symbols` · `set_symbol_size` · `set_symbol_interior`<br/>
 **分组递增**：`set_color_increment` · `set_symbol_increment`<br/>
 **填充**：`set_fill_area`<br/>
-**标注**：`set_graph_title` · `add_text_label` · `add_line_to_graph` · `remove_graph_label`
+**标注**：`set_graph_title` · `add_text_label` · `add_line_to_graph` · `remove_graph_label`<br/>
+**查看**：`get_graph_info`
 
 </td>
 </tr>
@@ -157,10 +158,10 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 </td>
 </tr>
 <tr>
-<td><b>💾 导出与项目</b><br/><sub>4 个工具</sub></td>
+<td><b>💾 导出与项目</b><br/><sub>5 个工具</sub></td>
 <td>
 
-`export_graph` · `save_project` · `open_project` · `new_project`
+`export_graph` · `export_worksheet_to_csv` · `save_project` · `open_project` · `new_project`
 
 </td>
 </tr>
@@ -281,16 +282,19 @@ originlab-mcp/
 ├── src/originlab_mcp/
 │   ├── server.py                 # MCP Server 入口
 │   ├── origin_manager.py         # Origin COM 连接管理（单例 + 线程安全）
+│   ├── exceptions.py             # 自定义异常类
+│   ├── types.py                  # Protocol 类型定义
 │   ├── tools/
-│   │   ├── data.py               # 📊 数据导入与工作表管理（17 tools）
+│   │   ├── data.py               # 📊 数据导入与工作表管理（15 tools）
 │   │   ├── plot.py               # 📈 图表创建与管理（10 tools）
-│   │   ├── customize.py          # 🎨 图表外观定制（14 tools）
+│   │   ├── customize.py          # 🎨 图表外观定制（18 tools）
 │   │   ├── analysis.py           # 📐 数据分析 — 线性/非线性拟合（3 tools）
-│   │   ├── export.py             # 💾 导出与项目管理（4 tools）
+│   │   ├── export.py             # 💾 导出与项目管理（5 tools）
 │   │   ├── system.py             # 🔧 系统状态（1 tool）
 │   │   └── advanced.py           # ⚡ LabTalk 逃生舱（1 tool）
 │   └── utils/
 │       ├── constants.py          # 枚举、默认值、拟合函数定义
+│       ├── helpers.py            # 工作表/图表解析、错误处理装饰器
 │       └── validators.py         # 参数校验与统一返回结构
 └── tests/
     └── test_tools.py             # 单元测试
