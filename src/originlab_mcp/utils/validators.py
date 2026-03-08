@@ -34,18 +34,15 @@ def success_response(
 ) -> dict[str, Any]:
     """构建统一的成功返回结构。
 
-    Parameters
-    ----------
-    message : str
-        简短结果摘要。
-    data : dict, optional
-        与本次操作直接相关的结构化数据。
-    resource : dict, optional
-        新建或更新后的核心对象标识。
-    warnings : list[str], optional
-        非致命问题列表。
-    next_suggestions : list[str], optional
-        建议 AI 下一步可调用的 tool。
+    Args:
+        message: 简短结果摘要。
+        data: 与本次操作直接相关的结构化数据。
+        resource: 新建或更新后的核心对象标识。
+        warnings: 非致命问题列表。
+        next_suggestions: 建议 AI 下一步可调用的 tool。
+
+    Returns:
+        统一格式的成功返回字典。
     """
     return {
         "ok": True,
@@ -66,18 +63,15 @@ def error_response(
 ) -> dict[str, Any]:
     """构建统一的错误返回结构。
 
-    Parameters
-    ----------
-    message : str
-        简短的错误摘要。
-    error_type : str | ErrorType
-        错误类别（见 constants.ErrorType）。
-    target : str
-        出错的参数名或对象名。
-    value : Any, optional
-        导致错误的实际值。
-    hint : str
-        给 AI 的修复建议。
+    Args:
+        message: 简短的错误摘要。
+        error_type: 错误类别（见 constants.ErrorType）。
+        target: 出错的参数名或对象名。
+        value: 导致错误的实际值。
+        hint: 给 AI 的修复建议。
+
+    Returns:
+        统一格式的错误返回字典。
     """
     return {
         "ok": False,

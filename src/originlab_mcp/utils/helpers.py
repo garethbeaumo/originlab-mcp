@@ -1,22 +1,79 @@
 """共享辅助函数。
 
-提供跨 tool 模块复用的查找、解析函数，消除重复代码。
+提供跨 tool 模块复用的查找、解析函数，
+以及统一的错误处理装饰器，消除重复代码。
 """
 
 from __future__ import annotations
 
-from typing import Any
+import functools
+import logging
+from typing import Any, Callable
 
 from originlab_mcp.exceptions import (
+    ColumnIndexError,
     GraphNotFoundError,
     InvalidAxisError,
     NoActiveGraphError,
     NoActiveWorksheetError,
     PlotIndexError,
+    ToolError,
     WorksheetNotFoundError,
-    ColumnIndexError,
 )
 from originlab_mcp.origin_manager import OriginManager
+from originlab_mcp.types import (
+    GraphProtocol,
+    OriginProProtocol,
+    WorksheetProtocol,
+)
+from originlab_mcp.utils.validators import (
+    error_response,
+    error_response_from_exception,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def tool_error_handler(
+    target: str,
+    error_hint: str = "请检查参数值。",
+) -> Callable:
+    """通用 tool 错误处理装饰器。
+
+    消除每个 tool 函数中重复的 try/except 样板代码。
+    捕获 ToolError 和通用 Exception，转换为标准 error_response。
+
+    Args:
+        target: 出错时的目标标识（如 tool 名称或参数名）。
+        error_hint: 通用异常时给 AI 的提示信息。
+
+    Returns:
+        装饰后的函数。
+
+    用法::
+
+        @tool_error_handler("import_csv", "请检查文件路径和格式。")
+        def import_csv(...) -> dict:
+            ...  # 无需 try/except，直接写业务逻辑
+    """
+    def decorator(fn: Callable[..., dict]) -> Callable[..., dict]:
+        @functools.wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> dict:
+            try:
+                return fn(*args, **kwargs)
+            except ToolError as e:
+                return error_response_from_exception(e)
+            except Exception as e:
+                logger.exception("tool %s 执行失败", target)
+                return error_response(
+                    message=f"{target} 执行失败: {e}",
+                    error_type="internal_error",
+                    target=target,
+                    hint=error_hint,
+                )
+        return wrapper
+    return decorator
+
 
 
 def resolve_worksheet_name(
@@ -41,11 +98,11 @@ def resolve_worksheet_name(
     return name
 
 
-def find_worksheet(op: Any, sheet_name: str) -> Any:
+def find_worksheet(op: OriginProProtocol, sheet_name: str) -> WorksheetProtocol:
     """查找工作表，不存在时抛出异常。
 
     Args:
-        op: originpro 模块引用。
+        op: originpro 操作接口。
         sheet_name: 工作表名称。
 
     Returns:
@@ -82,11 +139,11 @@ def resolve_graph_name(
     return name
 
 
-def find_graph(op: Any, graph_name: str) -> Any:
+def find_graph(op: OriginProProtocol, graph_name: str) -> GraphProtocol:
     """查找图表对象，不存在时抛出异常。
 
     Args:
-        op: originpro 模块引用。
+        op: originpro 操作接口。
         graph_name: 图表名称。
 
     Returns:
