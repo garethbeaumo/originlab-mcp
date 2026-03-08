@@ -20,7 +20,11 @@ from originlab_mcp.exceptions import (
 )
 from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.constants import COMMON_FIT_FUNCTIONS
-from originlab_mcp.utils.helpers import find_worksheet as _find_worksheet
+from originlab_mcp.utils.helpers import (
+    find_worksheet as _find_worksheet,
+    resolve_worksheet_name,
+    tool_error_handler,
+)
 from originlab_mcp.utils.validators import (
     error_response,
     error_response_from_exception,
@@ -38,6 +42,7 @@ def register_analysis_tools(mcp: Any) -> None:
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("线性拟合", "请检查列索引和数据是否有效。")
     def linear_fit(
         x_col: int,
         y_col: int,
@@ -61,118 +66,107 @@ def register_analysis_tools(mcp: Any) -> None:
         - linear_fit(x_col=0, y_col=1, yerr_col=2, confidence_band=True)
         - linear_fit(x_col=0, y_col=1, fix_intercept=0)
         """
-        target_name = sheet_name or manager.active_worksheet
-        if not target_name:
-            return error_response_from_exception(NoActiveWorksheetError())
+        target_name = resolve_worksheet_name(sheet_name, manager)
 
-        try:
-            def _fit(op: Any) -> dict[str, Any]:
-                wks = _find_worksheet(op, target_name)
+        def _fit(op: Any) -> dict[str, Any]:
+            wks = _find_worksheet(op, target_name)
 
-                lr = op.LinearFit()
+            lr = op.LinearFit()
 
-                # 设置数据
-                if yerr_col is not None:
-                    lr.set_data(wks, x_col, y_col, yerr_col)
-                else:
-                    lr.set_data(wks, x_col, y_col)
+            # 设置数据
+            if yerr_col is not None:
+                lr.set_data(wks, x_col, y_col, yerr_col)
+            else:
+                lr.set_data(wks, x_col, y_col)
 
-                # 可选：固定斜率或截距
-                if fix_slope is not None:
-                    lr.fix_slope = fix_slope
-                if fix_intercept is not None:
-                    lr.fix_intercept = fix_intercept
+            # 可选：固定斜率或截距
+            if fix_slope is not None:
+                lr.fix_slope = fix_slope
+            if fix_intercept is not None:
+                lr.fix_intercept = fix_intercept
 
-                # 执行拟合
-                if confidence_band:
-                    band = 3  # 同时生成置信带和预测带
-                    r, c = lr.report(band)
-                    result = lr.result() if hasattr(lr, 'result') else {}
-                    report_info = {
-                        "report_range": str(r) if r else None,
-                        "curves_range": str(c) if c else None,
-                    }
-                else:
-                    result = lr.result()
-                    report_info = {}
-
-                # 提取拟合参数
-                fit_result: dict[str, Any] = {
-                    "sheet_name": target_name,
-                    "x_col": x_col,
-                    "y_col": y_col,
-                    "method": "linear",
+            # 执行拟合
+            if confidence_band:
+                band = 3  # 同时生成置信带和预测带
+                r, c = lr.report(band)
+                result = lr.result() if hasattr(lr, 'result') else {}
+                report_info = {
+                    "report_range": str(r) if r else None,
+                    "curves_range": str(c) if c else None,
                 }
+            else:
+                result = lr.result()
+                report_info = {}
 
-                if result:
-                    # 提取 Parameters
-                    params = result.get("Parameters", {})
-                    fit_result["parameters"] = {}
-                    for pname, pinfo in params.items():
-                        if isinstance(pinfo, dict):
-                            fit_result["parameters"][pname] = {
-                                "value": pinfo.get("Value"),
-                                "error": pinfo.get("Error"),
-                            }
+            # 提取拟合参数
+            fit_result: dict[str, Any] = {
+                "sheet_name": target_name,
+                "x_col": x_col,
+                "y_col": y_col,
+                "method": "linear",
+            }
 
-                    # 提取统计量
-                    stats = result.get("Statistics", {})
-                    if stats:
-                        fit_result["statistics"] = stats
+            if result:
+                # 提取 Parameters
+                params = result.get("Parameters", {})
+                fit_result["parameters"] = {}
+                for pname, pinfo in params.items():
+                    if isinstance(pinfo, dict):
+                        fit_result["parameters"][pname] = {
+                            "value": pinfo.get("Value"),
+                            "error": pinfo.get("Error"),
+                        }
 
-                if report_info:
-                    fit_result["report"] = report_info
+                # 提取统计量
+                stats = result.get("Statistics", {})
+                if stats:
+                    fit_result["statistics"] = stats
 
-                if fix_slope is not None:
-                    fit_result["fixed_slope"] = fix_slope
-                if fix_intercept is not None:
-                    fit_result["fixed_intercept"] = fix_intercept
+            if report_info:
+                fit_result["report"] = report_info
 
-                return fit_result
+            if fix_slope is not None:
+                fit_result["fixed_slope"] = fix_slope
+            if fix_intercept is not None:
+                fit_result["fixed_intercept"] = fix_intercept
 
-            result = manager.execute(_fit)
+            return fit_result
 
-            # 构建消息
-            params = result.get("parameters", {})
-            slope_info = params.get("Slope", {})
-            intercept_info = params.get("Intercept", {})
-            msg_parts = ["线性拟合完成。"]
-            if slope_info.get("value") is not None:
-                msg_parts.append(
-                    f"Slope = {slope_info['value']:.6g}"
-                    + (f" ± {slope_info['error']:.6g}" if slope_info.get('error') else "")
-                )
-            if intercept_info.get("value") is not None:
-                msg_parts.append(
-                    f"Intercept = {intercept_info['value']:.6g}"
-                    + (f" ± {intercept_info['error']:.6g}" if intercept_info.get('error') else "")
-                )
+        result = manager.execute(_fit)
 
-            return success_response(
-                message=" ".join(msg_parts),
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "create_plot",
-                    "export_graph",
-                    "nonlinear_fit",
-                ],
+        # 构建消息
+        params = result.get("parameters", {})
+        slope_info = params.get("Slope", {})
+        intercept_info = params.get("Intercept", {})
+        msg_parts = ["线性拟合完成。"]
+        if slope_info.get("value") is not None:
+            msg_parts.append(
+                f"Slope = {slope_info['value']:.6g}"
+                + (f" ± {slope_info['error']:.6g}" if slope_info.get('error') else "")
             )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"线性拟合失败: {e}",
-                error_type="internal_error",
-                target="linear_fit",
-                hint="请检查列索引和数据是否有效。",
+        if intercept_info.get("value") is not None:
+            msg_parts.append(
+                f"Intercept = {intercept_info['value']:.6g}"
+                + (f" ± {intercept_info['error']:.6g}" if intercept_info.get('error') else "")
             )
+
+        return success_response(
+            message=" ".join(msg_parts),
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "create_plot",
+                "export_graph",
+                "nonlinear_fit",
+            ],
+        )
 
     # =================================================================
     # nonlinear_fit
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("非线性拟合", "请检查函数名、列索引和数据是否有效。调用 list_fit_functions 查看可用函数。")
     def nonlinear_fit(
         function_name: str,
         x_col: int,
@@ -202,125 +196,113 @@ def register_analysis_tools(mcp: Any) -> None:
         - nonlinear_fit(function_name="ExpDec1", x_col=0, y_col=1, initial_params={"t1": 5.0})
         - nonlinear_fit(function_name="Gauss", x_col=0, y_col=1, fixed_params={"y0": 0})
         """
-        target_name = sheet_name or manager.active_worksheet
-        if not target_name:
-            return error_response_from_exception(NoActiveWorksheetError())
+        target_name = resolve_worksheet_name(sheet_name, manager)
 
-        try:
-            def _fit(op: Any) -> dict[str, Any]:
-                wks = _find_worksheet(op, target_name)
+        def _fit(op: Any) -> dict[str, Any]:
+            wks = _find_worksheet(op, target_name)
 
+            try:
+                model = op.NLFit(function_name)
+            except Exception as e:
+                raise ToolError(
+                    f"无法创建拟合模型 '{function_name}': {e}",
+                    error_type="not_found",
+                    target="function_name",
+                    value=function_name,
+                    hint="请调用 list_fit_functions 查看常用函数名，或确认 Origin 中已安装该拟合函数。",
+                )
+
+            # 设置数据
+            if yerr_col is not None:
+                model.set_data(wks, x_col, y_col, yerr=yerr_col)
+            else:
+                model.set_data(wks, x_col, y_col)
+
+            # 设置初始参数
+            if initial_params:
+                for pname, pval in initial_params.items():
+                    model.set_param(pname, pval)
+
+            # 固定参数
+            if fixed_params:
+                for pname, pval in fixed_params.items():
+                    model.fix_param(pname, pval)
+
+            # 执行拟合
+            try:
+                model.fit()
+            except Exception as e:
+                raise FitConvergenceError(function_name, str(e))
+
+            # 获取结果
+            fit_result: dict[str, Any] = {
+                "sheet_name": target_name,
+                "x_col": x_col,
+                "y_col": y_col,
+                "function_name": function_name,
+            }
+
+            if generate_report:
                 try:
-                    model = op.NLFit(function_name)
-                except Exception as e:
-                    raise ToolError(
-                        f"无法创建拟合模型 '{function_name}': {e}",
-                        error_type="not_found",
-                        target="function_name",
-                        value=function_name,
-                        hint="请调用 list_fit_functions 查看常用函数名，或确认 Origin 中已安装该拟合函数。",
-                    )
-
-                # 设置数据
-                if yerr_col is not None:
-                    model.set_data(wks, x_col, y_col, yerr=yerr_col)
-                else:
-                    model.set_data(wks, x_col, y_col)
-
-                # 设置初始参数
-                if initial_params:
-                    for pname, pval in initial_params.items():
-                        model.set_param(pname, pval)
-
-                # 固定参数
-                if fixed_params:
-                    for pname, pval in fixed_params.items():
-                        model.fix_param(pname, pval)
-
-                # 执行拟合
+                    r, c = model.report()
+                    fit_result["report"] = {
+                        "report_range": str(r) if r else None,
+                        "curves_range": str(c) if c else None,
+                    }
+                except Exception:
+                    pass
+                # report 之后不能再调用 result
+            else:
                 try:
-                    model.fit()
-                except Exception as e:
-                    raise FitConvergenceError(function_name, str(e))
+                    result = model.result()
+                    if result:
+                        params = result.get("Parameters", {})
+                        fit_result["parameters"] = {}
+                        for pname, pinfo in params.items():
+                            if isinstance(pinfo, dict):
+                                fit_result["parameters"][pname] = {
+                                    "value": pinfo.get("Value"),
+                                    "error": pinfo.get("Error"),
+                                }
 
-                # 获取结果
-                fit_result: dict[str, Any] = {
-                    "sheet_name": target_name,
-                    "x_col": x_col,
-                    "y_col": y_col,
-                    "function_name": function_name,
-                }
+                        stats = result.get("Statistics", {})
+                        if stats:
+                            fit_result["statistics"] = stats
+                except Exception:
+                    pass
 
-                if generate_report:
-                    try:
-                        r, c = model.report()
-                        fit_result["report"] = {
-                            "report_range": str(r) if r else None,
-                            "curves_range": str(c) if c else None,
-                        }
-                    except Exception:
-                        pass
-                    # report 之后不能再调用 result
-                else:
-                    try:
-                        result = model.result()
-                        if result:
-                            params = result.get("Parameters", {})
-                            fit_result["parameters"] = {}
-                            for pname, pinfo in params.items():
-                                if isinstance(pinfo, dict):
-                                    fit_result["parameters"][pname] = {
-                                        "value": pinfo.get("Value"),
-                                        "error": pinfo.get("Error"),
-                                    }
+            return fit_result
 
-                            stats = result.get("Statistics", {})
-                            if stats:
-                                fit_result["statistics"] = stats
-                    except Exception:
-                        pass
+        result = manager.execute(_fit)
 
-                return fit_result
+        # 构建消息
+        params = result.get("parameters", {})
+        param_strs = []
+        for pname, pinfo in params.items():
+            val = pinfo.get("value")
+            err = pinfo.get("error")
+            if val is not None:
+                s = f"{pname} = {val:.6g}"
+                if err is not None:
+                    s += f" ± {err:.6g}"
+                param_strs.append(s)
 
-            result = manager.execute(_fit)
+        msg = f"非线性拟合完成（函数: {function_name}）。"
+        if param_strs:
+            msg += " " + ", ".join(param_strs[:4])
+            if len(param_strs) > 4:
+                msg += f"...（共 {len(param_strs)} 个参数）"
 
-            # 构建消息
-            params = result.get("parameters", {})
-            param_strs = []
-            for pname, pinfo in params.items():
-                val = pinfo.get("value")
-                err = pinfo.get("error")
-                if val is not None:
-                    s = f"{pname} = {val:.6g}"
-                    if err is not None:
-                        s += f" ± {err:.6g}"
-                    param_strs.append(s)
-
-            msg = f"非线性拟合完成（函数: {function_name}）。"
-            if param_strs:
-                msg += " " + ", ".join(param_strs[:4])
-                if len(param_strs) > 4:
-                    msg += f"...（共 {len(param_strs)} 个参数）"
-
-            return success_response(
-                message=msg,
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "create_plot",
-                    "export_graph",
-                    "linear_fit",
-                ],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"非线性拟合失败: {e}",
-                error_type="internal_error",
-                target="nonlinear_fit",
-                hint="请检查函数名、列索引和数据是否有效。调用 list_fit_functions 查看可用函数。",
-            )
+        return success_response(
+            message=msg,
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "create_plot",
+                "export_graph",
+                "linear_fit",
+            ],
+        )
 
     # =================================================================
     # list_fit_functions
