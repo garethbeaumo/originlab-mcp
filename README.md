@@ -4,25 +4,30 @@
     <strong>让 AI 成为你的 OriginLab 助手</strong>
   </p>
   <p align="center">
-    通过 <a href="https://modelcontextprotocol.io">MCP 协议</a> 将 OriginLab 的数据分析与可视化能力无缝接入 Antigravity 等 AI 客户端
+    通过 <a href="https://modelcontextprotocol.io">MCP 协议</a> 将 OriginLab 的数据分析与可视化能力无缝接入 Antigravity、Claude、Cursor 等 AI 客户端
   </p>
   <p align="center">
     <a href="#-快速开始">快速开始</a> · <a href="#-功能一览">功能一览</a> · <a href="#-使用示例">使用示例</a> · <a href="#-客户端配置">客户端配置</a>
   </p>
 </p>
 
+> [!WARNING]
+> **v0.1 早期版本** — 本项目仍处于早期开发阶段，功能和 API 可能随时变更，已知问题较多。欢迎试用和反馈，但请勿用于生产环境。
+
 ---
 
 ## ✨ 什么是 OriginLab MCP Server？
 
-OriginLab MCP Server 是一个连接 AI 与 OriginLab 的桥梁。它让你可以用**自然语言**完成数据导入、图表绘制、样式定制和结果导出——无需手动操作 Origin 界面。
+OriginLab MCP Server 是一个连接 AI 与 OriginLab 的桥梁。它让你可以用**自然语言**完成数据导入、图表绘制、样式定制、数据分析和结果导出——无需手动操作 Origin 界面。
 
 ```
-你：「把桌面上的 experiment.csv 导入 Origin，用第一列做 X、第二列做 Y，画散点图，导出为 PNG。」
+你：「把桌面上的 experiment.csv 导入 Origin，用第一列做 X、第二列做 Y，画散点图，
+     做个高斯拟合，然后导出为 PNG。」
 
 AI：好的，我来帮你完成。
     ✅ 已导入 experiment.csv → Sheet1（200 行 × 5 列）
     ✅ 已创建散点图 → Graph1
+    ✅ 高斯拟合完成 → xc=2.35, w=0.82, A=156.3, R²=0.9987
     ✅ 已导出 → C:\Users\Desktop\Graph1.png
 ```
 
@@ -60,7 +65,7 @@ irm https://astral.sh/uv/install.ps1 | iex
 **2. 安装依赖**
 
 ```powershell
-cd C:\path\to\originlab
+cd C:\path\to\originlab-mcp
 uv sync
 ```
 
@@ -78,7 +83,7 @@ uv run originlab-mcp
 **1. 创建虚拟环境（可选但推荐）**
 
 ```powershell
-cd C:\path\to\originlab
+cd C:\path\to\originlab-mcp
 python -m venv .venv
 .venv\Scripts\activate
 ```
@@ -101,37 +106,58 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 
 ## 🧰 功能一览
 
+共提供 **45 个工具**，覆盖 OriginLab 的数据全流程。
+
 <table>
 <tr>
-<td width="140"><b>📊 数据管理</b></td>
+<td width="140"><b>📊 数据管理</b><br/><sub>17 个工具</sub></td>
 <td>
 
-`import_csv` · `import_excel` · `import_data_from_text`<br/>
-`list_worksheets` · `get_worksheet_info` · `get_worksheet_data`<br/>
-`set_column_designations` · `set_column_labels`
+**导入**：`import_csv` · `import_excel` · `import_data_from_text`<br/>
+**查看**：`list_worksheets` · `get_worksheet_info` · `get_worksheet_data` · `get_cell_value`<br/>
+**编辑**：`set_column_designations` · `set_column_labels` · `set_column_formula`<br/>
+**管理**：`add_worksheet` · `sort_worksheet` · `clear_worksheet` · `delete_columns`<br/>
+**导出**：`export_worksheet_to_csv`
 
 </td>
 </tr>
 <tr>
-<td><b>📈 绘图</b></td>
+<td><b>📈 绘图</b><br/><sub>10 个工具</sub></td>
 <td>
 
-`create_plot` · `add_plot_to_graph` · `create_double_y_plot`<br/>
-`list_graphs` · `list_graph_templates`
+**创建**：`create_plot` · `create_double_y_plot`<br/>
+**修改**：`add_plot_to_graph` · `remove_plot_from_graph` · `change_plot_data`<br/>
+**图层**：`add_graph_layer` · `group_plots`<br/>
+**查看**：`list_graphs` · `list_graph_templates` · `get_graph_info`<br/>
+**剪贴板**：`copy_graph_to_clipboard`
 
 </td>
 </tr>
 <tr>
-<td><b>🎨 图表定制</b></td>
+<td><b>🎨 图表定制</b><br/><sub>14 个工具</sub></td>
 <td>
 
-`set_axis_range` · `set_axis_scale` · `set_axis_title`<br/>
-`set_plot_color` · `set_plot_colormap` · `set_plot_symbols`
+**坐标轴**：`set_axis_range` · `set_axis_scale` · `set_axis_step` · `set_axis_title`<br/>
+**颜色**：`set_plot_color` · `set_plot_colormap` · `set_plot_transparency`<br/>
+**符号**：`set_plot_symbols` · `set_symbol_size` · `set_symbol_interior`<br/>
+**分组递增**：`set_color_increment` · `set_symbol_increment`<br/>
+**填充**：`set_fill_area`<br/>
+**标注**：`set_graph_title` · `add_text_label` · `add_line_to_graph` · `remove_graph_label`
 
 </td>
 </tr>
 <tr>
-<td><b>💾 导出与项目</b></td>
+<td><b>📐 数据分析</b><br/><sub>3 个工具</sub></td>
+<td>
+
+**拟合**：`linear_fit` · `nonlinear_fit`<br/>
+**查询**：`list_fit_functions`<br/>
+<sub>支持 Gauss、Lorentz、ExpDec1、Boltzmann 等常用拟合函数，可固定参数、设置初始值、带误差棒拟合</sub>
+
+</td>
+</tr>
+<tr>
+<td><b>💾 导出与项目</b><br/><sub>4 个工具</sub></td>
 <td>
 
 `export_graph` · `save_project` · `open_project` · `new_project`
@@ -139,7 +165,7 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 </td>
 </tr>
 <tr>
-<td><b>🔧 系统状态</b></td>
+<td><b>🔧 系统状态</b><br/><sub>1 个工具</sub></td>
 <td>
 
 `get_origin_info`
@@ -147,7 +173,7 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 </td>
 </tr>
 <tr>
-<td><b>⚡ 高级</b></td>
+<td><b>⚡ 高级</b><br/><sub>1 个工具</sub></td>
 <td>
 
 `execute_labtalk` — 执行任意 LabTalk 命令（逃生舱）
@@ -160,19 +186,23 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 
 配置好客户端后，在 AI 对话中直接用自然语言操作：
 
-| 你说的话                              | AI 调用的 tool                      |
-| ------------------------------------- | ----------------------------------- |
-| 「把 data.csv 导入 Origin」           | `import_csv`                        |
-| 「这个表有几列？」                    | `get_worksheet_info`                |
-| 「第一列设 X，第二三列设 Y」          | `set_column_designations`           |
-| 「画个散点图」                        | `create_plot`                       |
-| 「X 轴标题改成 Time (s)，曲线改红色」 | `set_axis_title` + `set_plot_color` |
-| 「导出 PNG 到桌面」                   | `export_graph`                      |
+| 你说的话                                    | AI 调用的 tool                           |
+| ------------------------------------------- | ---------------------------------------- |
+| 「把 data.csv 导入 Origin」                 | `import_csv`                             |
+| 「这个表有几列？列头是什么？」              | `get_worksheet_info`                     |
+| 「第一列设 X，第二三列设 Y」                | `set_column_designations`                |
+| 「画个散点图」                              | `create_plot`                            |
+| 「再加一条第三列的曲线」                    | `add_plot_to_graph`                      |
+| 「X 轴标题改成 Time (s)，曲线改红色」       | `set_axis_title` + `set_plot_color`      |
+| 「做个高斯拟合」                            | `nonlinear_fit`                          |
+| 「把 Y 轴改成对数刻度」                     | `set_axis_scale`                         |
+| 「导出 PNG 到桌面」                         | `export_graph`                           |
+| 「复制到剪贴板，我要粘贴到 PPT」           | `copy_graph_to_clipboard`                |
 
 典型的完整工作流：
 
 ```text
-导入数据 → 查看结构 → 设置列角色 → 创建图表 → 定制外观 → 导出结果
+导入数据 → 查看结构 → 设置列角色 → 创建图表 → 定制外观 → 数据分析 → 导出结果
 ```
 
 ## 🔌 客户端配置
@@ -192,7 +222,7 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
   "mcpServers": {
     "originlab": {
       "command": "uv",
-      "args": ["--directory", "C:\\path\\to\\originlab", "run", "originlab-mcp"]
+      "args": ["--directory", "C:\\path\\to\\originlab-mcp", "run", "originlab-mcp"]
     }
   }
 }
@@ -204,7 +234,7 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 {
   "mcpServers": {
     "originlab": {
-      "command": "C:\\path\\to\\originlab\\.venv\\Scripts\\originlab-mcp.exe"
+      "command": "C:\\path\\to\\originlab-mcp\\.venv\\Scripts\\originlab-mcp.exe"
     }
   }
 }
@@ -246,21 +276,21 @@ pytest tests/ -v
 ## 📁 项目结构
 
 ```
-originlab/
+originlab-mcp/
 ├── pyproject.toml                # 项目配置与依赖
-├── PLAN.md                       # 详细设计方案与 AI-First 原则
 ├── src/originlab_mcp/
 │   ├── server.py                 # MCP Server 入口
 │   ├── origin_manager.py         # Origin COM 连接管理（单例 + 线程安全）
 │   ├── tools/
-│   │   ├── data.py               # 📊 数据导入与工作表管理
-│   │   ├── plot.py               # 📈 图表创建
-│   │   ├── customize.py          # 🎨 图表外观定制
-│   │   ├── export.py             # 💾 导出与项目管理
-│   │   ├── system.py             # 🔧 系统状态
-│   │   └── advanced.py           # ⚡ LabTalk 逃生舱
+│   │   ├── data.py               # 📊 数据导入与工作表管理（17 tools）
+│   │   ├── plot.py               # 📈 图表创建与管理（10 tools）
+│   │   ├── customize.py          # 🎨 图表外观定制（14 tools）
+│   │   ├── analysis.py           # 📐 数据分析 — 线性/非线性拟合（3 tools）
+│   │   ├── export.py             # 💾 导出与项目管理（4 tools）
+│   │   ├── system.py             # 🔧 系统状态（1 tool）
+│   │   └── advanced.py           # ⚡ LabTalk 逃生舱（1 tool）
 │   └── utils/
-│       ├── constants.py          # 枚举、默认值
+│       ├── constants.py          # 枚举、默认值、拟合函数定义
 │       └── validators.py         # 参数校验与统一返回结构
 └── tests/
     └── test_tools.py             # 单元测试
@@ -289,6 +319,16 @@ originlab/
 
 </details>
 
+<details>
+<summary><b>拟合结果不准确</b></summary>
+
+1. 检查数据是否有异常值（可用 `get_worksheet_data` 预览）
+2. 尝试通过 `initial_params` 提供更好的初始参数
+3. 使用 `fixed_params` 固定已知参数
+4. 确认选择了正确的拟合函数（`list_fit_functions` 可查看可用函数）
+
+</details>
+
 ## 📜 许可证
 
-[MIT](LICENSE) © 2026 garethbeaumo
+[MIT](LICENSE) © 2025 garethbeaumo
