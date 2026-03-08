@@ -62,17 +62,31 @@ class AxisId(str, Enum):
 # ---------------------------------------------------------------------------
 
 class ScaleType(str, Enum):
-    """坐标轴缩放类型"""
+    """坐标轴缩放类型（完整覆盖 originpro API 支持的 9 种）"""
     LINEAR = "linear"
-    LOG = "log"
+    LOG10 = "log10"
+    LOG = "log"          # log10 的别名，保持向后兼容
+    PROBABILITY = "probability"
+    PROBIT = "probit"
+    RECIPROCAL = "reciprocal"
+    OFFSET_RECIPROCAL = "offset_reciprocal"
+    LOGIT = "logit"
     LN = "ln"
+    LOG2 = "log2"
 
 
 # originpro 中 scale type 的字符串映射
 SCALE_TYPE_TO_ORIGIN: dict[str, str] = {
     ScaleType.LINEAR.value: "linear",
+    ScaleType.LOG10.value: "log10",
     ScaleType.LOG.value: "log10",
+    ScaleType.PROBABILITY.value: "probability",
+    ScaleType.PROBIT.value: "probit",
+    ScaleType.RECIPROCAL.value: "reciprocal",
+    ScaleType.OFFSET_RECIPROCAL.value: "offset_reciprocal",
+    ScaleType.LOGIT.value: "logit",
     ScaleType.LN.value: "ln",
+    ScaleType.LOG2.value: "log2",
 }
 
 
@@ -111,3 +125,68 @@ DEFAULT_HAS_HEADER = True
 DEFAULT_EXPORT_FORMAT = ExportFormat.PNG
 DEFAULT_EXPORT_WIDTH = 800
 DEFAULT_MAX_PREVIEW_ROWS = 20
+
+
+# ---------------------------------------------------------------------------
+# add_plot 子类型映射
+# ---------------------------------------------------------------------------
+
+class AddPlotType(str, Enum):
+    """GLayer.add_plot() 的 type 参数"""
+    LINE = "l"
+    SCATTER = "s"
+    LINE_SYMBOL = "y"
+    COLUMN = "c"
+    AUTO = "?"
+
+
+# ---------------------------------------------------------------------------
+# 常用非线性拟合函数
+# ---------------------------------------------------------------------------
+
+COMMON_FIT_FUNCTIONS: dict[str, dict] = {
+    "Gauss": {
+        "params": ["y0", "xc", "w", "A"],
+        "desc": "高斯函数 - 适用于峰形分布数据",
+    },
+    "Lorentz": {
+        "params": ["y0", "xc", "w", "A"],
+        "desc": "洛伦兹函数 - 适用于共振峰拟合",
+    },
+    "ExpDec1": {
+        "params": ["y0", "A1", "t1"],
+        "desc": "单指数衰减 - 适用于一阶反应动力学",
+    },
+    "ExpDec2": {
+        "params": ["y0", "A1", "t1", "A2", "t2"],
+        "desc": "双指数衰减 - 适用于混合衰减过程",
+    },
+    "ExpGrow1": {
+        "params": ["y0", "A1", "t1"],
+        "desc": "单指数增长 - 适用于增长过程",
+    },
+    "Boltzmann": {
+        "params": ["A1", "A2", "x0", "dx"],
+        "desc": "玻尔兹曼函数 - 适用于 S 型曲线拟合",
+    },
+    "Logistic": {
+        "params": ["A1", "A2", "x0", "p"],
+        "desc": "逻辑斯谛函数 - 适用于增长饱和曲线",
+    },
+    "Hill": {
+        "params": ["Vmax", "k", "n"],
+        "desc": "Hill 方程 - 适用于剂量-反应曲线",
+    },
+    "Polynomial": {
+        "params": [],
+        "desc": "多项式拟合 - 通用拟合",
+    },
+    "Line": {
+        "params": ["A", "B"],
+        "desc": "线性函数 y = A + B*x",
+    },
+    "Plane": {
+        "params": ["z0", "a", "b"],
+        "desc": "平面拟合 z = z0 + a*x + b*y",
+    },
+}

@@ -458,3 +458,787 @@ def register_customize_tools(mcp: Any) -> None:
                 value=shape_list,
                 hint="请检查 shape_list 格式。",
             )
+
+    # =================================================================
+    # set_plot_transparency
+    # =================================================================
+
+    @mcp.tool()
+    def set_plot_transparency(
+        transparency: int,
+        plot_index: int = 0,
+        graph_name: str | None = None,
+    ) -> dict:
+        """设置指定曲线的透明度。
+
+        何时使用：需要调整曲线或数据点的透明度时使用，常用于多曲线重叠的场景。
+        何时不用：不需要透明效果时无需调用。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - plot_index 默认为 0（第一条曲线）
+
+        参数说明：
+        - transparency: 透明度百分比，0=完全不透明，100=完全透明
+
+        示例：
+        - set_plot_transparency(transparency=50)
+        - set_plot_transparency(transparency=30, plot_index=1)
+        """
+        if transparency < 0 or transparency > 100:
+            return error_response(
+                message="transparency 必须在 0-100 之间",
+                error_type="invalid_input",
+                target="transparency",
+                value=transparency,
+                hint="0=完全不透明，100=完全透明。",
+            )
+
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _set(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                plot = _get_plot(gr[0], plot_index)
+                plot.transparency = transparency
+
+                return {
+                    "graph_name": target_name,
+                    "plot_index": plot_index,
+                    "transparency": transparency,
+                }
+
+            result = manager.execute(_set)
+
+            return success_response(
+                message=f"曲线 {plot_index} 的透明度已设置为 {transparency}%。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["set_plot_color", "export_graph"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置透明度失败: {e}",
+                error_type="internal_error",
+                target="transparency",
+                value=transparency,
+                hint="请检查参数值。",
+            )
+
+    # =================================================================
+    # set_symbol_size
+    # =================================================================
+
+    @mcp.tool()
+    def set_symbol_size(
+        size: float,
+        plot_index: int = 0,
+        graph_name: str | None = None,
+    ) -> dict:
+        """设置指定曲线的数据点符号大小。
+
+        何时使用：需要调整散点图或折线+符号图中数据点的大小时使用。
+        何时不用：使用默认大小时无需调用。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - plot_index 默认为 0（第一条曲线）
+
+        示例：
+        - set_symbol_size(size=12)
+        - set_symbol_size(size=8.5, plot_index=1)
+        """
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _set(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                plot = _get_plot(gr[0], plot_index)
+                plot.symbol_size = size
+
+                return {
+                    "graph_name": target_name,
+                    "plot_index": plot_index,
+                    "symbol_size": size,
+                }
+
+            result = manager.execute(_set)
+
+            return success_response(
+                message=f"曲线 {plot_index} 的符号大小已设置为 {size}。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["set_plot_color", "set_plot_symbols", "export_graph"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置符号大小失败: {e}",
+                error_type="internal_error",
+                target="size",
+                value=size,
+                hint="请检查参数值。",
+            )
+
+    # =================================================================
+    # set_fill_area
+    # =================================================================
+
+    @mcp.tool()
+    def set_fill_area(
+        above_color: int,
+        fill_type: int = 9,
+        below_color: int | None = None,
+        plot_index: int = 0,
+        graph_name: str | None = None,
+    ) -> dict:
+        """设置折线图曲线下方的填充区域。
+
+        何时使用：需要在折线图的曲线下方填充颜色时使用（如展示面积、置信区间等）。
+        何时不用：散点图或不需要填充效果时无需调用。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - plot_index 默认为 0（第一条曲线）
+        - fill_type 默认为 9（填充到下一条曲线）
+
+        参数说明：
+        - above_color: 上方填充颜色编号
+        - fill_type: 填充选项（9=填充到下一条曲线）
+        - below_color: 下方填充颜色编号（可选）
+
+        示例：
+        - set_fill_area(above_color=2)
+        - set_fill_area(above_color=2, fill_type=9, below_color=3)
+        """
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _set(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                plot = _get_plot(gr[0], plot_index)
+                if below_color is not None:
+                    plot.set_fill_area(above_color, fill_type, below_color)
+                else:
+                    plot.set_fill_area(above_color, fill_type)
+
+                return {
+                    "graph_name": target_name,
+                    "plot_index": plot_index,
+                    "above_color": above_color,
+                    "fill_type": fill_type,
+                    "below_color": below_color,
+                }
+
+            result = manager.execute(_set)
+
+            return success_response(
+                message=f"曲线 {plot_index} 的填充区域已设置。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["set_plot_color", "export_graph"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置填充区域失败: {e}",
+                error_type="internal_error",
+                target="fill_area",
+                hint="请检查参数值。此功能仅适用于折线图。",
+            )
+
+    # =================================================================
+    # get_graph_info
+    # =================================================================
+
+    @mcp.tool()
+    def get_graph_info(
+        graph_name: str | None = None,
+    ) -> dict:
+        """获取图表的详细信息，包括图层数、曲线列表和数据源。
+
+        何时使用：需要了解图表中有哪些曲线、各曲线的数据源和样式信息时使用。
+        何时不用：只需知道图表列表时请用 list_graphs。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+
+        示例：
+        - get_graph_info()
+        - get_graph_info(graph_name="Graph1")
+        """
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _info(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+
+                layers = []
+                for li in range(len(gr)):
+                    gl = gr[li]
+                    plots = []
+                    try:
+                        plot_items = gl.plot_list()
+                        for pi, plot in enumerate(plot_items):
+                            plot_info: dict[str, Any] = {
+                                "index": pi,
+                                "range": plot.lt_range() if hasattr(plot, 'lt_range') else None,
+                            }
+                            try:
+                                r, g, b = plot.color
+                                plot_info["color"] = f"#{r:02x}{g:02x}{b:02x}"
+                            except Exception:
+                                pass
+                            plots.append(plot_info)
+                    except Exception:
+                        pass
+
+                    layer_info: dict[str, Any] = {
+                        "index": li,
+                        "plot_count": len(plots),
+                        "plots": plots,
+                    }
+                    layers.append(layer_info)
+
+                return {
+                    "graph_name": target_name,
+                    "layer_count": len(layers),
+                    "layers": layers,
+                }
+
+            result = manager.execute(_info)
+
+            total_plots = sum(l["plot_count"] for l in result["layers"])
+
+            return success_response(
+                message=(
+                    f"图表 '{target_name}' 共 {result['layer_count']} 个图层，"
+                    f"{total_plots} 条曲线。"
+                ),
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=[
+                    "set_plot_color",
+                    "set_axis_title",
+                    "export_graph",
+                ],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"获取图表信息失败: {e}",
+                error_type="internal_error",
+                target="graph_name",
+                hint="请检查图表名称。调用 list_graphs 查看可用图表。",
+            )
+
+    # =================================================================
+    # add_text_label
+    # =================================================================
+
+    @mcp.tool()
+    def add_text_label(
+        text: str,
+        x: float | None = None,
+        y: float | None = None,
+        graph_name: str | None = None,
+    ) -> dict:
+        """在图表上添加文字标注。
+
+        何时使用：需要在图表上标注峰位、拐点、说明文字等注释时使用。
+        何时不用：设置坐标轴标题请用 set_axis_title。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - x, y 省略时由 Origin 自动放置
+
+        参数说明：
+        - text: 标注文字内容
+        - x, y: 标注位置坐标（图层坐标系）
+
+        示例：
+        - add_text_label(text="Peak A")
+        - add_text_label(text="Transition Point", x=3.5, y=100)
+        """
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _add(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                gl = gr[0]
+                label_obj = gl.add_label(text, x, y)
+                label_name = label_obj.name if hasattr(label_obj, 'name') else None
+
+                return {
+                    "graph_name": target_name,
+                    "text": text,
+                    "x": x,
+                    "y": y,
+                    "label_name": label_name,
+                }
+
+            result = manager.execute(_add)
+
+            return success_response(
+                message=f"已在图表 '{target_name}' 上添加文字标注 '{text}'。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["add_line_to_graph", "export_graph"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"添加文字标注失败: {e}",
+                error_type="internal_error",
+                target="text",
+                hint="请检查图表是否存在。",
+            )
+
+    # =================================================================
+    # add_line_to_graph
+    # =================================================================
+
+    @mcp.tool()
+    def add_line_to_graph(
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        line_width: float = 1.0,
+        arrow: bool = False,
+        graph_name: str | None = None,
+    ) -> dict:
+        """在图表上添加线条或箭头。
+
+        何时使用：需要在图表上绘制参考线、指示线或箭头时使用。
+        何时不用：设置坐标轴请用 set_axis_range。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - arrow 为 True 时在终点添加箭头
+
+        参数说明：
+        - x1, y1: 起点坐标
+        - x2, y2: 终点坐标
+        - line_width: 线宽
+        - arrow: 是否在终点添加箭头
+
+        示例：
+        - add_line_to_graph(x1=0, y1=0, x2=10, y2=10)
+        - add_line_to_graph(x1=5, y1=0, x2=5, y2=100, arrow=True)
+        """
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _add(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                gl = gr[0]
+                line_obj = gl.add_line(x1, y1, x2, y2)
+                if hasattr(line_obj, 'width'):
+                    line_obj.width = line_width
+                if arrow and hasattr(line_obj, 'set_int'):
+                    line_obj.set_int('arrowendshape', 2)
+
+                return {
+                    "graph_name": target_name,
+                    "start": [x1, y1],
+                    "end": [x2, y2],
+                    "line_width": line_width,
+                    "arrow": arrow,
+                }
+
+            result = manager.execute(_add)
+
+            desc = "箭头" if arrow else "线条"
+            return success_response(
+                message=f"已在图表 '{target_name}' 上添加{desc} ({x1},{y1})->({x2},{y2})。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["add_text_label", "export_graph"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"添加线条失败: {e}",
+                error_type="internal_error",
+                target="line",
+                hint="请检查坐标值和图表是否存在。",
+            )
+
+    # =================================================================
+    # remove_graph_label
+    # =================================================================
+
+    @mcp.tool()
+    def remove_graph_label(
+        label_name: str,
+        graph_name: str | None = None,
+    ) -> dict:
+        """移除图表上的标签/注释对象。
+
+        何时使用：需要删除之前添加的文字标注或其他标签对象时使用。
+        何时不用：不确定标签名称时先调用 get_graph_info 查看。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+
+        参数说明：
+        - label_name: 要移除的标签名称（如 "xb" 为X轴标题标签）
+
+        示例：
+        - remove_graph_label(label_name="Text1")
+        - remove_graph_label(label_name="xb")
+        """
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _remove(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                gl = gr[0]
+                gl.remove_label(label_name)
+
+                return {
+                    "graph_name": target_name,
+                    "removed_label": label_name,
+                }
+
+            result = manager.execute(_remove)
+
+            return success_response(
+                message=f"已移除标签 '{label_name}'。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["add_text_label", "get_graph_info"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"移除标签失败: {e}",
+                error_type="internal_error",
+                target="label_name",
+                value=label_name,
+                hint="请检查标签名称是否正确。",
+            )
+
+    # =================================================================
+    # set_graph_title
+    # =================================================================
+
+    @mcp.tool()
+    def set_graph_title(
+        title: str,
+        graph_name: str | None = None,
+    ) -> dict:
+        """设置图表的大标题（图层标题）。
+
+        何时使用：需要为图表设置或修改主标题时使用。
+        何时不用：设置坐标轴标题请用 set_axis_title。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+
+        示例：
+        - set_graph_title(title="Temperature vs Time")
+        - set_graph_title(title="Fig. 1", graph_name="Graph1")
+        """
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _set_title(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                gr.lname = title
+
+                return {
+                    "graph_name": target_name,
+                    "title": title,
+                }
+
+            result = manager.execute(_set_title)
+
+            return success_response(
+                message=f"图表标题已设置为 '{title}'。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["set_axis_title", "export_graph"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置图表标题失败: {e}",
+                error_type="internal_error",
+                target="title",
+                hint="请检查图表是否存在。",
+            )
+
+    # =================================================================
+    # set_axis_step
+    # =================================================================
+
+    @mcp.tool()
+    def set_axis_step(
+        axis: str,
+        step: float,
+        graph_name: str | None = None,
+    ) -> dict:
+        """设置坐标轴的刻度步长（增量）。
+
+        何时使用：需要精确控制坐标轴刻度间距时使用。
+        何时不用：只需设置范围请用 set_axis_range。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+
+        参数说明：
+        - axis: 轴标识，"x" 或 "y"
+        - step: 刻度步长值
+
+        示例：
+        - set_axis_step(axis="x", step=0.5)
+        - set_axis_step(axis="y", step=10)
+        """
+        if axis not in ("x", "y", "z"):
+            return error_response(
+                message=f"不支持的轴标识 '{axis}'",
+                error_type="invalid_input",
+                target="axis",
+                value=axis,
+                hint="支持的轴: x, y, z",
+            )
+
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _set(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                gl = gr[0]
+
+                if axis == "x":
+                    gl.set_xlim(step=step)
+                elif axis == "y":
+                    gl.set_ylim(step=step)
+                elif axis == "z":
+                    gl.set_zlim(step=step)
+
+                return {
+                    "graph_name": target_name,
+                    "axis": axis,
+                    "step": step,
+                }
+
+            result = manager.execute(_set)
+
+            return success_response(
+                message=f"{axis.upper()} 轴刻度步长已设置为 {step}。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["set_axis_range", "export_graph"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置轴步长失败: {e}",
+                error_type="internal_error",
+                target="step",
+                value=step,
+                hint="请检查步长值是否合理。",
+            )
+
+    # =================================================================
+    # set_symbol_interior
+    # =================================================================
+
+    @mcp.tool()
+    def set_symbol_interior(
+        interior: int,
+        plot_index: int = 0,
+        graph_name: str | None = None,
+    ) -> dict:
+        """设置数据点符号的内部填充类型。
+
+        何时使用：需要区分多条曲线时使用（如实心 vs 空心符号）。
+        何时不用：使用默认填充时无需调用。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - plot_index 默认为 0（第一条曲线）
+
+        参数说明：
+        - interior: 填充类型编号
+            - 0 = 无符号
+            - 1 = 实心
+            - 2 = 空心
+            - 3 = 圆点中心
+
+        示例：
+        - set_symbol_interior(interior=2)
+        - set_symbol_interior(interior=1, plot_index=1)
+        """
+        if interior not in (0, 1, 2, 3):
+            return error_response(
+                message="interior 必须是 0, 1, 2, 3 之一",
+                error_type="invalid_input",
+                target="interior",
+                value=interior,
+                hint="0=无符号, 1=实心, 2=空心, 3=圆点中心",
+            )
+
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _set(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                plot = _get_plot(gr[0], plot_index)
+                plot.symbol_interior = interior
+
+                interiors = {0: "无符号", 1: "实心", 2: "空心", 3: "圆点中心"}
+                return {
+                    "graph_name": target_name,
+                    "plot_index": plot_index,
+                    "interior": interior,
+                    "interior_name": interiors.get(interior, ""),
+                }
+
+            result = manager.execute(_set)
+
+            return success_response(
+                message=f"曲线 {plot_index} 的符号填充已设为 {result['interior_name']}。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["set_symbol_size", "set_plot_color"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置符号填充失败: {e}",
+                error_type="internal_error",
+                target="interior",
+                value=interior,
+                hint="请检查参数值。",
+            )
+
+    # =================================================================
+    # set_color_increment
+    # =================================================================
+
+    @mcp.tool()
+    def set_color_increment(
+        increment: int,
+        plot_index: int = 0,
+        graph_name: str | None = None,
+    ) -> dict:
+        """设置分组曲线的颜色增量。
+
+        何时使用：多条分组曲线需要自动递增颜色时使用。
+        何时不用：手动设置每条曲线颜色时请用 set_plot_color。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - plot_index 默认为 0（通常设在组头曲线上）
+
+        参数说明：
+        - increment: 颜色增量值（1=每条曲线递增一个颜色）
+
+        示例：
+        - set_color_increment(increment=1)
+        """
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _set(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                plot = _get_plot(gr[0], plot_index)
+                plot.colorinc = increment
+
+                return {
+                    "graph_name": target_name,
+                    "plot_index": plot_index,
+                    "color_increment": increment,
+                }
+
+            result = manager.execute(_set)
+
+            return success_response(
+                message=f"曲线 {plot_index} 的颜色增量已设置为 {increment}。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["set_symbol_increment", "set_plot_color"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置颜色增量失败: {e}",
+                error_type="internal_error",
+                target="increment",
+                value=increment,
+                hint="请检查参数值。",
+            )
+
+    # =================================================================
+    # set_symbol_increment
+    # =================================================================
+
+    @mcp.tool()
+    def set_symbol_increment(
+        increment: int,
+        plot_index: int = 0,
+        graph_name: str | None = None,
+    ) -> dict:
+        """设置分组曲线的符号形状增量。
+
+        何时使用：多条分组曲线需要自动递增符号形状时使用。
+        何时不用：手动设置每条曲线符号时请用 set_plot_symbols。
+
+        默认行为：
+        - graph_name 省略时使用当前活动图表
+        - plot_index 默认为 0（通常设在组头曲线上）
+
+        参数说明：
+        - increment: 符号形状增量值（1=每条曲线递增一个形状）
+
+        示例：
+        - set_symbol_increment(increment=1)
+        """
+        try:
+            target_name = _resolve_graph_name(graph_name, manager)
+
+            def _set(op: Any) -> dict[str, Any]:
+                gr = _find_graph(op, target_name)
+                plot = _get_plot(gr[0], plot_index)
+                plot.symbol_kindinc = increment
+
+                return {
+                    "graph_name": target_name,
+                    "plot_index": plot_index,
+                    "symbol_increment": increment,
+                }
+
+            result = manager.execute(_set)
+
+            return success_response(
+                message=f"曲线 {plot_index} 的符号形状增量已设置为 {increment}。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["set_color_increment", "set_plot_symbols"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置符号增量失败: {e}",
+                error_type="internal_error",
+                target="increment",
+                value=increment,
+                hint="请检查参数值。",
+            )

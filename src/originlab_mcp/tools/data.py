@@ -819,3 +819,452 @@ def register_data_tools(mcp: Any) -> None:
                 value=col,
                 hint="请检查列索引和参数值。",
             )
+
+    # =================================================================
+    # sort_worksheet
+    # =================================================================
+
+    @mcp.tool()
+    def sort_worksheet(
+        col: int,
+        descending: bool = False,
+        sheet_name: str | None = None,
+    ) -> dict:
+        """按指定列排序工作表数据。
+
+        何时使用：需要对工作表数据按某列进行升序或降序排列时使用。
+        何时不用：只需查看数据时请用 get_worksheet_data。
+
+        默认行为：
+        - sheet_name 省略时使用当前活动工作表
+        - descending 默认为 False（升序）
+
+        示例：
+        - sort_worksheet(col=0)
+        - sort_worksheet(col=1, descending=True)
+        """
+        try:
+            target_name = _resolve_worksheet_name(sheet_name, manager)
+
+            def _sort(op: Any) -> dict[str, Any]:
+                wks = _find_worksheet(op, target_name)
+                # originpro sort 使用 1-offset 索引
+                wks.sort(col, descending)
+                return {
+                    "sheet_name": target_name,
+                    "sort_col": col,
+                    "descending": descending,
+                }
+
+            result = manager.execute(_sort)
+            order = "降序" if descending else "升序"
+
+            return success_response(
+                message=f"工作表已按列 {col} {order}排序。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["get_worksheet_data", "create_plot"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"排序工作表失败: {e}",
+                error_type="internal_error",
+                target="col",
+                value=col,
+                hint="请检查列索引是否正确。",
+            )
+
+    # =================================================================
+    # clear_worksheet
+    # =================================================================
+
+    @mcp.tool()
+    def clear_worksheet(
+        sheet_name: str | None = None,
+        start_col: int | None = None,
+        end_col: int | None = None,
+    ) -> dict:
+        """清除工作表数据。
+
+        何时使用：需要清除工作表中全部或部分列的数据时使用。
+        何时不用：需要删除整列（含结构）请用 delete_columns。
+
+        默认行为：
+        - sheet_name 省略时使用当前活动工作表
+        - 不指定 start_col 和 end_col 时清除全部数据
+
+        示例：
+        - clear_worksheet()
+        - clear_worksheet(start_col=1, end_col=3)
+        """
+        try:
+            target_name = _resolve_worksheet_name(sheet_name, manager)
+
+            def _clear(op: Any) -> dict[str, Any]:
+                wks = _find_worksheet(op, target_name)
+                if start_col is not None and end_col is not None:
+                    wks.clear(start_col, c2=end_col)
+                elif start_col is not None:
+                    wks.clear(start_col)
+                else:
+                    wks.clear()
+                return {
+                    "sheet_name": target_name,
+                    "start_col": start_col,
+                    "end_col": end_col,
+                }
+
+            result = manager.execute(_clear)
+
+            if start_col is not None:
+                msg = f"已清除列 {start_col}"
+                if end_col is not None:
+                    msg += f" 至 {end_col}"
+                msg += " 的数据。"
+            else:
+                msg = "已清除工作表全部数据。"
+
+            return success_response(
+                message=msg,
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["import_csv", "import_data_from_text"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"清除工作表失败: {e}",
+                error_type="internal_error",
+                target="sheet_name",
+                hint="请检查工作表名称和列索引。",
+            )
+
+    # =================================================================
+    # set_column_formula
+    # =================================================================
+
+    @mcp.tool()
+    def set_column_formula(
+        col: int | str,
+        formula: str,
+        sheet_name: str | None = None,
+    ) -> dict:
+        """设置工作表列的计算公式。
+
+        何时使用：需要通过公式计算列数据时使用（如基于其他列的数学运算）。
+        何时不用：直接导入数据请用 import_csv 或 import_data_from_text。
+
+        默认行为：
+        - sheet_name 省略时使用当前活动工作表
+
+        参数说明：
+        - formula: Origin 列公式表达式，引用列名（如 "A+1", "sin(A)*2", "B/C"）
+
+        示例：
+        - set_column_formula(col=1, formula="A+1")
+        - set_column_formula(col="C", formula="sin(A)*B")
+        """
+        if not formula:
+            return error_response(
+                message="formula 不能为空",
+                error_type="invalid_input",
+                target="formula",
+                hint="请提供 Origin 列公式表达式，如 'A+1'。",
+            )
+
+        try:
+            target_name = _resolve_worksheet_name(sheet_name, manager)
+
+            def _set_formula(op: Any) -> dict[str, Any]:
+                wks = _find_worksheet(op, target_name)
+                wks.set_formula(col, formula)
+                return {
+                    "sheet_name": target_name,
+                    "col": col,
+                    "formula": formula,
+                }
+
+            result = manager.execute(_set_formula)
+
+            return success_response(
+                message=f"列 {col} 的公式已设置为 '{formula}'。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["get_worksheet_data", "create_plot"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"设置列公式失败: {e}",
+                error_type="internal_error",
+                target="formula",
+                value=formula,
+                hint="请检查公式语法是否正确。公式中可引用列名（如 A, B, C）。",
+            )
+
+    # =================================================================
+    # get_cell_value
+    # =================================================================
+
+    @mcp.tool()
+    def get_cell_value(
+        row: int,
+        col: int | str,
+        sheet_name: str | None = None,
+    ) -> dict:
+        """读取工作表中指定单元格的值。
+
+        何时使用：需要精确读取某个单元格数据时使用。
+        何时不用：需要查看多行数据请用 get_worksheet_data。
+
+        默认行为：
+        - sheet_name 省略时使用当前活动工作表
+
+        示例：
+        - get_cell_value(row=0, col=0)
+        - get_cell_value(row=5, col="B")
+        """
+        try:
+            target_name = _resolve_worksheet_name(sheet_name, manager)
+
+            def _get_cell(op: Any) -> dict[str, Any]:
+                wks = _find_worksheet(op, target_name)
+                value = wks.cell(row, col)
+                return {
+                    "sheet_name": target_name,
+                    "row": row,
+                    "col": col,
+                    "value": value,
+                }
+
+            result = manager.execute(_get_cell)
+
+            return success_response(
+                message=f"单元格 ({row}, {col}) 的值为 '{result['value']}'。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["get_worksheet_data"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"读取单元格失败: {e}",
+                error_type="internal_error",
+                target="cell",
+                hint="请检查行列索引是否在范围内。",
+            )
+
+    # =================================================================
+    # delete_columns
+    # =================================================================
+
+    @mcp.tool()
+    def delete_columns(
+        col: int | str,
+        count: int = 1,
+        sheet_name: str | None = None,
+    ) -> dict:
+        """删除工作表中的列。
+
+        何时使用：需要删除工作表中不需要的列时使用。
+        何时不用：只需清除列数据（保留列结构）请用 clear_worksheet。
+
+        默认行为：
+        - sheet_name 省略时使用当前活动工作表
+        - count 默认为 1（删除一列）
+
+        示例：
+        - delete_columns(col=0)
+        - delete_columns(col=2, count=3)
+        """
+        try:
+            target_name = _resolve_worksheet_name(sheet_name, manager)
+
+            def _del(op: Any) -> dict[str, Any]:
+                wks = _find_worksheet(op, target_name)
+                wks.del_col(col, count)
+                return {
+                    "sheet_name": target_name,
+                    "deleted_from": col,
+                    "count": count,
+                    "remaining_cols": wks.cols,
+                }
+
+            result = manager.execute(_del)
+
+            return success_response(
+                message=f"已删除 {count} 列，剩余 {result['remaining_cols']} 列。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["get_worksheet_info"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"删除列失败: {e}",
+                error_type="internal_error",
+                target="col",
+                value=col,
+                hint="请检查列索引是否正确。",
+            )
+
+    # =================================================================
+    # add_worksheet
+    # =================================================================
+
+    @mcp.tool()
+    def add_worksheet(
+        sheet_name: str | None = None,
+        book_name: str | None = None,
+    ) -> dict:
+        """在工作簿中添加新的工作表。
+
+        何时使用：需要在已有工作簿中创建新工作表时使用。
+        何时不用：导入数据时会自动创建工作表，无需手动调用。
+
+        默认行为：
+        - book_name 省略时使用当前活动工作表所在的工作簿
+        - sheet_name 省略时自动命名
+
+        示例：
+        - add_worksheet(sheet_name="Results")
+        - add_worksheet(sheet_name="Summary", book_name="Book1")
+        """
+        try:
+            def _add(op: Any) -> dict[str, Any]:
+                if book_name:
+                    # 查找指定的工作簿
+                    target_book = None
+                    for book in op.pages("Book"):
+                        if book.name == book_name:
+                            target_book = book
+                            break
+                    if target_book is None:
+                        raise ToolError(
+                            f"工作簿 '{book_name}' 不存在",
+                            error_type="not_found",
+                            target="book_name",
+                            value=book_name,
+                            hint="请调用 list_worksheets 查看可用的工作簿。",
+                        )
+                    new_wks = target_book.add_sheet(sheet_name or "")
+                else:
+                    # 使用活动工作表所在的工作簿
+                    active_name = manager.active_worksheet
+                    if active_name:
+                        wks = op.find_sheet("w", active_name)
+                        if wks:
+                            target_book = wks.get_book()
+                            new_wks = target_book.add_sheet(sheet_name or "")
+                        else:
+                            new_wks = op.new_sheet(lname=sheet_name)
+                    else:
+                        new_wks = op.new_sheet(lname=sheet_name)
+
+                actual_book = new_wks.get_book().name
+                actual_name = new_wks.name
+                full_name = f"[{actual_book}]{actual_name}"
+                manager.active_worksheet = full_name
+
+                return {
+                    "book_name": actual_book,
+                    "sheet_name": actual_name,
+                    "full_name": full_name,
+                }
+
+            result = manager.execute(_add)
+
+            return success_response(
+                message=f"新工作表 '{result['full_name']}' 已创建。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=[
+                    "import_data_from_text",
+                    "set_column_designations",
+                ],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"添加工作表失败: {e}",
+                error_type="internal_error",
+                target="add_worksheet",
+                hint="请检查工作簿名称是否正确。",
+            )
+
+    # =================================================================
+    # export_worksheet_to_csv
+    # =================================================================
+
+    @mcp.tool()
+    def export_worksheet_to_csv(
+        output_path: str,
+        sheet_name: str | None = None,
+    ) -> dict:
+        """将工作表数据导出为 CSV 文件。
+
+        何时使用：需要将 Origin 工作表的数据保存为 CSV 文件时使用。
+        何时不用：只需在 Origin 内查看数据时请用 get_worksheet_data。
+
+        默认行为：
+        - sheet_name 省略时使用当前活动工作表
+
+        示例：
+        - export_worksheet_to_csv(output_path="C:\\\\output\\\\data.csv")
+        """
+        if not output_path:
+            return error_response(
+                message="output_path 不能为空",
+                error_type="invalid_input",
+                target="output_path",
+                hint="请提供输出文件路径。",
+            )
+
+        try:
+            target_name = _resolve_worksheet_name(sheet_name, manager)
+
+            def _export(op: Any) -> dict[str, Any]:
+                wks = _find_worksheet(op, target_name)
+
+                # 确保输出目录存在
+                output_dir = os.path.dirname(output_path)
+                if output_dir and not os.path.isdir(output_dir):
+                    os.makedirs(output_dir, exist_ok=True)
+
+                # 使用 to_df 转为 DataFrame 再导出
+                df = wks.to_df()
+                df.to_csv(output_path, index=False)
+
+                return {
+                    "sheet_name": target_name,
+                    "output_path": os.path.abspath(output_path),
+                    "rows": wks.rows,
+                    "cols": wks.cols,
+                }
+
+            result = manager.execute(_export)
+
+            return success_response(
+                message=f"工作表数据已导出到 '{result['output_path']}'。",
+                data=result,
+                resource=manager.get_resource_context(),
+                next_suggestions=["save_project"],
+            )
+        except ToolError as e:
+            return error_response_from_exception(e)
+        except Exception as e:
+            return error_response(
+                message=f"导出工作表失败: {e}",
+                error_type="internal_error",
+                target="output_path",
+                value=output_path,
+                hint="请检查输出路径是否有效，且 pandas 已安装。",
+            )
+

@@ -121,3 +121,33 @@ class PlotIndexError(ToolError):
             value=plot_index,
             hint="请检查图表中的曲线数量。plot_index 从 0 开始。",
         )
+
+
+class FitFunctionNotFoundError(ToolError):
+    """拟合函数不存在。"""
+
+    def __init__(self, function_name: str) -> None:
+        super().__init__(
+            f"拟合函数 '{function_name}' 不存在或不可用",
+            error_type="not_found",
+            target="function_name",
+            value=function_name,
+            hint="请调用 list_fit_functions 查看可用的拟合函数。",
+        )
+
+
+class FitConvergenceError(ToolError):
+    """拟合未收敛。"""
+
+    def __init__(self, function_name: str, detail: str = "") -> None:
+        msg = f"使用函数 '{function_name}' 拟合未收敛"
+        if detail:
+            msg += f": {detail}"
+        super().__init__(
+            msg,
+            error_type="internal_error",
+            target="fit",
+            value=function_name,
+            hint="请尝试调整初始参数值或选择其他拟合函数。",
+        )
+
