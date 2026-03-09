@@ -101,7 +101,16 @@ def register_plot_tools(mcp: Any) -> None:
         if not target_name:
             return error_response_from_exception(NoActiveWorksheetError())
 
-        y_col_list = normalize_y_cols(y_cols)
+        try:
+            y_col_list = normalize_y_cols(y_cols)
+        except ValueError as e:
+            return error_response(
+                message=str(e),
+                error_type="invalid_input",
+                target="y_cols",
+                value=y_cols,
+                hint="请传入单个整数列索引，或整数列表。",
+            )
 
         try:
             def _plot(op: Any) -> dict[str, Any]:
@@ -218,7 +227,16 @@ def register_plot_tools(mcp: Any) -> None:
         if not target_sheet:
             return error_response_from_exception(NoActiveWorksheetError())
 
-        y_col_list = normalize_y_cols(y_cols)
+        try:
+            y_col_list = normalize_y_cols(y_cols)
+        except ValueError as e:
+            return error_response(
+                message=str(e),
+                error_type="invalid_input",
+                target="y_cols",
+                value=y_cols,
+                hint="请传入单个整数列索引，或整数列表。",
+            )
 
         try:
             def _add(op: Any) -> dict[str, Any]:

@@ -170,13 +170,26 @@ def validate_export_format(fmt: str) -> str | None:
 
 
 def normalize_y_cols(y_cols: int | list[int]) -> list[int]:
-    """将 y_cols 统一为 list[int]。
+    """将 y_cols 统一为 list[int]，并执行显式类型校验。
 
-    支持传入单个整数或整数数组。
+    支持传入单个整数或整数列表；其他类型会抛出 ValueError。
     """
+    if isinstance(y_cols, bool):
+        raise ValueError("y_cols 必须是 int 或 list[int]，不能是布尔值")
+
     if isinstance(y_cols, int):
         return [y_cols]
-    return list(y_cols)
+
+    if not isinstance(y_cols, list):
+        raise ValueError(f"y_cols 必须是 int 或 list[int]，当前类型: {type(y_cols).__name__}")
+
+    for i, col in enumerate(y_cols):
+        if isinstance(col, bool) or not isinstance(col, int):
+            raise ValueError(
+                f"y_cols[{i}] 必须是 int，当前值: {col!r}（{type(col).__name__}）"
+            )
+
+    return y_cols.copy()
 
 
 def error_response_from_exception(exc: Exception) -> dict[str, Any]:
