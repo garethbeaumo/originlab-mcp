@@ -178,6 +178,22 @@ class TestNormalizeYCols:
     def test_empty_list(self):
         assert normalize_y_cols([]) == []
 
+    def test_rejects_non_list_sequence(self):
+        with pytest.raises(ValueError):
+            normalize_y_cols((1, 2))
+
+    def test_rejects_string(self):
+        with pytest.raises(ValueError):
+            normalize_y_cols("12")  # type: ignore[arg-type]
+
+    def test_rejects_non_int_element(self):
+        with pytest.raises(ValueError):
+            normalize_y_cols([1, "2"])  # type: ignore[list-item]
+
+    def test_rejects_bool(self):
+        with pytest.raises(ValueError):
+            normalize_y_cols(True)  # type: ignore[arg-type]
+
 
 class DummyMCP:
     def __init__(self):
@@ -309,6 +325,22 @@ class TestToolRegressions:
         assert op.sheet.applied == "XYE"
         assert result["data"]["designations"] == "XYE"
         assert result["data"]["requested_designations"] == "XYYErr"
+
+    def test_create_plot_invalid_y_cols_returns_invalid_input(self, fresh_manager):
+        mcp = DummyMCP()
+        register_data_tools(mcp)
+        manager = OriginManager()
+        manager.active_worksheet = "[Book1]Sheet1"
+
+        from originlab_mcp.tools.plot import register_plot_tools
+
+        register_plot_tools(mcp)
+
+        result = mcp.tools["create_plot"](x_col=0, y_cols="1")
+
+        assert result["ok"] is False
+        assert result["error"]["type"] == "invalid_input"
+        assert result["error"]["target"] == "y_cols"
 
     def test_set_axis_scale_uses_origin_scale_strings(self, fresh_manager):
         mcp = DummyMCP()
