@@ -38,7 +38,7 @@
 
 ### 📝 文档
 
-- **README**：更新功能表格，tool 总数 53 → 56，修正各分类计数（data 14、customize 22、export 6），补齐 v0.2 新增的 4 个定制工具
+- **README**：重构格式（HTML 表格 → Markdown），tool 总数 56 → 59，补齐 system 分类（1 → 4），添加 shields.io 徽章
 - **CHANGELOG**：新增 v0.2.1 条目
 
 ---

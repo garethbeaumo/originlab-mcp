@@ -7,6 +7,13 @@
     通过 <a href="https://modelcontextprotocol.io">MCP 协议</a> 将 OriginLab 的数据分析与可视化能力无缝接入 Antigravity、Claude、Cursor 等 AI 客户端
   </p>
   <p align="center">
+    <a href="https://github.com/garethbeaumo/originlab-mcp/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+    <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
+    <img src="https://img.shields.io/badge/version-0.2.1-green.svg" alt="Version">
+    <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
+    <img src="https://img.shields.io/badge/tools-59-orange.svg" alt="Tools">
+  </p>
+  <p align="center">
     <a href="#-快速开始">快速开始</a> · <a href="#-功能一览">功能一览</a> · <a href="#-使用示例">使用示例</a> · <a href="#-客户端配置">客户端配置</a>
   </p>
 </p>
@@ -37,17 +44,17 @@ AI：好的，我来帮你完成。
 AI 客户端 (Antigravity / Claude / Cursor)
        ↓ MCP 协议 (stdio)
 OriginLab MCP Server (Python)
-       ↓ originpro
-OriginLab (COM)
+       ↓ originpro + COM
+OriginLab
 ```
 
 ## 📋 前置条件
 
-| 条件      | 要求                            |
-| --------- | ------------------------------- |
-| 操作系统  | Windows                         |
+| 条件 | 要求 |
+| :--- | :--- |
+| 操作系统 | Windows |
 | OriginLab | 2021 或更新版本，持有有效许可证 |
-| Python    | 3.10+                           |
+| Python | 3.10+ |
 
 ## 🚀 快速开始
 
@@ -77,7 +84,7 @@ uv run originlab-mcp
 
 </details>
 
-<details open>
+<details>
 <summary><b>方式 B：使用 pip</b></summary>
 
 **1. 创建虚拟环境（可选但推荐）**
@@ -106,110 +113,85 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 
 ## 🧰 功能一览
 
-共提供 **56 个工具**，覆盖 OriginLab 的数据全流程。
+共提供 **59 个工具**，覆盖 OriginLab 的数据全流程：
 
-<table>
-<tr>
-<td width="140"><b>📊 数据管理</b><br/><sub>14 个工具</sub></td>
-<td>
+### 📊 数据管理（14 个工具）
 
-**导入**：`import_csv` · `import_excel` · `import_data_from_text`<br/>
-**查看**：`list_worksheets` · `get_worksheet_info` · `get_worksheet_data` · `get_cell_value`<br/>
-**编辑**：`set_column_designations` · `set_column_labels` · `set_column_formula`<br/>
-**管理**：`add_worksheet` · `sort_worksheet` · `clear_worksheet` · `delete_columns`
+| 分类 | 工具 |
+| :--- | :--- |
+| 导入 | `import_csv` · `import_excel` · `import_data_from_text` |
+| 查看 | `list_worksheets` · `get_worksheet_info` · `get_worksheet_data` · `get_cell_value` |
+| 编辑 | `set_column_designations` · `set_column_labels` · `set_column_formula` |
+| 管理 | `add_worksheet` · `sort_worksheet` · `clear_worksheet` · `delete_columns` |
 
-</td>
-</tr>
-<tr>
-<td><b>📈 绘图</b><br/><sub>10 个工具</sub></td>
-<td>
+### 📈 绘图（10 个工具）
 
-**创建**：`create_plot` · `create_double_y_plot`<br/>
-**修改**：`add_plot_to_graph` · `remove_plot_from_graph` · `change_plot_data`<br/>
-**图层**：`add_graph_layer` · `group_plots`<br/>
-**查看**：`list_graphs` · `list_graph_templates` · `get_graph_info`<br/>
-**剪贴板**：`copy_graph_to_clipboard`
+| 分类 | 工具 |
+| :--- | :--- |
+| 创建 | `create_plot` · `create_double_y_plot` |
+| 修改 | `add_plot_to_graph` · `remove_plot_from_graph` · `change_plot_data` |
+| 图层 | `add_graph_layer` · `group_plots` |
+| 查看 | `list_graphs` · `list_graph_templates` · `get_graph_info` |
 
-</td>
-</tr>
-<tr>
-<td><b>🎨 图表定制</b><br/><sub>22 个工具</sub></td>
-<td>
+### 🎨 图表定制（22 个工具）
 
-**坐标轴**：`set_axis_range` · `set_axis_scale` · `set_axis_step` · `set_axis_title`<br/>
-**线条**：`set_plot_line_style` · `set_plot_line_width`<br/>
-**颜色**：`set_plot_color` · `set_plot_colormap` · `set_plot_transparency`<br/>
-**符号**：`set_plot_symbols` · `set_symbol_size` · `set_symbol_interior`<br/>
-**分组递增**：`set_color_increment` · `set_symbol_increment`<br/>
-**误差棒**：`set_error_bar_style`<br/>
-**填充**：`set_fill_area`<br/>
-**图例**：`set_legend`<br/>
-**标注**：`set_graph_title` · `add_text_label` · `add_line_to_graph` · `remove_graph_label`
+| 分类 | 工具 |
+| :--- | :--- |
+| 坐标轴 | `set_axis_range` · `set_axis_scale` · `set_axis_step` · `set_axis_title` |
+| 线条 | `set_plot_line_style` · `set_plot_line_width` |
+| 颜色 | `set_plot_color` · `set_plot_colormap` · `set_plot_transparency` |
+| 符号 | `set_plot_symbols` · `set_symbol_size` · `set_symbol_interior` |
+| 分组递增 | `set_color_increment` · `set_symbol_increment` |
+| 误差棒 | `set_error_bar_style` |
+| 填充 | `set_fill_area` |
+| 图例 | `set_legend` |
+| 标注 | `set_graph_title` · `add_text_label` · `add_line_to_graph` · `remove_graph_label` |
 
-</td>
-</tr>
-<tr>
-<td><b>📐 数据分析</b><br/><sub>3 个工具</sub></td>
-<td>
+### 📐 数据分析（3 个工具）
 
-**拟合**：`linear_fit` · `nonlinear_fit`<br/>
-**查询**：`list_fit_functions`<br/>
-<sub>支持 Gauss、Lorentz、ExpDec1、Boltzmann 等常用拟合函数，可固定参数、设置初始值、带误差棒拟合</sub>
+`linear_fit` · `nonlinear_fit` · `list_fit_functions`
 
-</td>
-</tr>
-<tr>
-<td><b>💾 导出与项目</b><br/><sub>5 个工具</sub></td>
-<td>
+> 支持 Gauss、Lorentz、ExpDec1、Boltzmann 等常用拟合函数，可固定参数、设置初始值、带误差棒拟合。
+
+### 💾 导出与项目（5 个工具）
 
 `export_graph` · `export_worksheet_to_csv` · `save_project` · `open_project` · `new_project`
 
-</td>
-</tr>
-<tr>
-<td><b>🔧 系统状态</b><br/><sub>1 个工具</sub></td>
-<td>
+### 🔧 系统管理（4 个工具）
 
-`get_origin_info`
+`get_origin_info` · `release_origin` · `reconnect_origin` · `close_origin`
 
-</td>
-</tr>
-<tr>
-<td><b>⚡ 高级</b><br/><sub>1 个工具</sub></td>
-<td>
+### ⚡ 高级（1 个工具）
 
 `execute_labtalk` — 执行任意 LabTalk 命令（逃生舱）
-
-</td>
-</tr>
-</table>
 
 ## 💬 使用示例
 
 配置好客户端后，在 AI 对话中直接用自然语言操作：
 
-| 你说的话                                    | AI 调用的 tool                           |
-| ------------------------------------------- | ---------------------------------------- |
-| 「把 data.csv 导入 Origin」                 | `import_csv`                             |
-| 「这个表有几列？列头是什么？」              | `get_worksheet_info`                     |
-| 「第一列设 X，第二三列设 Y」                | `set_column_designations`                |
-| 「画个散点图」                              | `create_plot`                            |
-| 「再加一条第三列的曲线」                    | `add_plot_to_graph`                      |
-| 「X 轴标题改成 Time (s)，曲线改红色」       | `set_axis_title` + `set_plot_color`      |
-| 「做个高斯拟合」                            | `nonlinear_fit`                          |
-| 「把 Y 轴改成对数刻度」                     | `set_axis_scale`                         |
-| 「导出 PNG 到桌面」                         | `export_graph`                           |
-| 「复制到剪贴板，我要粘贴到 PPT」           | `copy_graph_to_clipboard`                |
+| 你说的话 | AI 调用的 tool |
+| :--- | :--- |
+| 「把 data.csv 导入 Origin」 | `import_csv` |
+| 「这个表有几列？列头是什么？」 | `get_worksheet_info` |
+| 「第一列设 X，第二三列设 Y」 | `set_column_designations` |
+| 「画个散点图」 | `create_plot` |
+| 「再加一条第三列的曲线」 | `add_plot_to_graph` |
+| 「X 轴标题改成 Time (s)，曲线改红色」 | `set_axis_title` + `set_plot_color` |
+| 「做个高斯拟合」 | `nonlinear_fit` |
+| 「把 Y 轴改成对数刻度」 | `set_axis_scale` |
+| 「导出 PNG 到桌面」 | `export_graph` |
+| 「操作完了，释放 Origin 给我手动用」 | `release_origin` |
 
 典型的完整工作流：
 
-```text
+```
 导入数据 → 查看结构 → 设置列角色 → 创建图表 → 定制外观 → 数据分析 → 导出结果
 ```
 
 ## 🔌 客户端配置
 
-> **你不需要手动启动 MCP Server。** 配置好后，AI 客户端会在需要 OriginLab 工具时自动在后台拉起子进程，通过 stdin/stdout 通信，整个过程对用户无感知。
+> [!NOTE]
+> **你不需要手动启动 MCP Server。** 配置好后，AI 客户端会在需要时自动拉起 Server 子进程，通过 stdin/stdout 通信，整个过程对用户无感知。
 
 路径请替换为你的实际项目路径。
 
@@ -282,26 +264,25 @@ originlab-mcp/
 ├── pyproject.toml                # 项目配置与依赖
 ├── CHANGELOG.md                  # 版本变更记录
 ├── src/originlab_mcp/
-│   ├── server.py                 # MCP Server 入口 & 依赖注入源头
+│   ├── server.py                 # MCP Server 入口 & 依赖注入
 │   ├── origin_manager.py         # Origin COM 连接管理（线程安全）
-│   ├── exceptions.py             # 自定义异常类（含 LayerIndexError 等）
+│   ├── exceptions.py             # 自定义异常类
 │   ├── types.py                  # Protocol 类型定义
 │   ├── tools/
-│   │   ├── data.py               # 📊 数据导入与工作表管理（14 tools）
-│   │   ├── plot.py               # 📈 图表创建与管理（10 tools）
-│   │   ├── customize.py          # 🎨 图表外观定制（22 tools，支持多图层）
-│   │   ├── analysis.py           # 📐 数据分析 — 线性/非线性拟合（3 tools）
-│   │   ├── export.py             # 💾 导出与项目管理（5 tools）
-│   │   ├── system.py             # 🔧 系统状态（1 tool）
-│   │   └── advanced.py           # ⚡ LabTalk 逃生舱（1 tool）
+│   │   ├── data.py               # 📊 数据导入与工作表管理 (14)
+│   │   ├── plot.py               # 📈 图表创建与管理 (10)
+│   │   ├── customize.py          # 🎨 图表外观定制 (22)
+│   │   ├── analysis.py           # 📐 线性/非线性拟合 (3)
+│   │   ├── export.py             # 💾 导出与项目管理 (5)
+│   │   ├── system.py             # 🔧 系统与连接管理 (4)
+│   │   └── advanced.py           # ⚡ LabTalk 逃生舱 (1)
 │   └── utils/
 │       ├── constants.py          # 枚举、默认值、拟合函数定义
 │       ├── helpers.py            # 图层/工作表/图表解析、错误处理装饰器
 │       └── validators.py         # 参数校验与统一返回结构
 └── tests/
-    ├── test_helpers.py            # helpers 辅助函数测试
-    ├── test_tools.py              # tool 注册与集成测试
-    └── test_phase3.py             # 安全性与一致性测试
+    ├── test_helpers.py           # helpers 辅助函数测试
+    └── test_tools.py             # tool 注册与集成测试
 ```
 
 ## ❓ 常见问题
