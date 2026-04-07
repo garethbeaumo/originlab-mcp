@@ -66,3 +66,38 @@ def register_system_tools(mcp, manager) -> None:
                 target="origin_connection",
                 hint="请检查 Origin 是否在运行，或尝试重启 MCP Server。",
             )
+
+    @mcp.tool()
+    def close_origin() -> dict:
+        """正确断开 COM 连接并关闭 Origin。
+
+        何时使用：需要关闭 Origin 应用程序时使用。会先释放 COM 连接，再退出 Origin。
+        何时不用：仅需断开连接而不关闭 Origin 时无需调用。
+
+        ⚠️ 注意：此操作会关闭 Origin 并丢失未保存的数据，请先调用 save_project 保存。
+
+        示例：
+        - close_origin()
+        """
+        if not manager.is_connected:
+            return success_response(
+                message="Origin 未连接，无需关闭。",
+                data={"was_connected": False},
+                resource=manager.get_resource_context(),
+            )
+
+        try:
+            manager.close_and_exit()
+            return success_response(
+                message="Origin 已正确关闭，COM 连接已释放。",
+                data={"was_connected": True, "closed": True},
+                resource=manager.get_resource_context(),
+            )
+        except Exception as e:
+            return error_response(
+                message=f"关闭 Origin 时出错: {e}",
+                error_type="internal_error",
+                target="origin_connection",
+                hint="可尝试在任务管理器中手动结束 Origin64.exe 进程。",
+            )
+

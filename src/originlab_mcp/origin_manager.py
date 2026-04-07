@@ -69,14 +69,35 @@ class OriginManager:
             self._connected = False
             raise RuntimeError(f"连接 Origin 失败: {e}") from e
 
+    def _detach(self) -> None:
+        """释放 COM 控制权但不关闭 Origin，允许用户自由操作。"""
+        if self._op is not None:
+            try:
+                self._op.detach()
+                logger.debug("已释放 Origin COM 控制权")
+            except Exception as e:
+                logger.debug("detach 时出错（可忽略）: %s", e)
+
     def disconnect(self) -> None:
-        """释放 Origin COM 连接。"""
+        """释放 Origin COM 连接（不关闭 Origin）。"""
+        if self._op is not None:
+            try:
+                self._op.detach()
+                logger.info("已断开 Origin 连接（Origin 保持运行）")
+            except Exception as e:
+                logger.warning("断开连接时出错: %s", e)
+            finally:
+                self._connected = False
+                self._op = None
+
+    def close_and_exit(self) -> None:
+        """关闭 Origin 应用程序并释放连接。"""
         if self._op is not None:
             try:
                 self._op.exit()
-                logger.info("已断开 Origin 连接")
+                logger.info("已关闭 Origin")
             except Exception as e:
-                logger.warning("断开连接时出错: %s", e)
+                logger.warning("关闭 Origin 时出错: %s", e)
             finally:
                 self._connected = False
                 self._op = None
@@ -122,6 +143,8 @@ class OriginManager:
         """在 COM 锁保护下执行函数。
 
         自动确保连接有效，并在 COM 锁内串行执行。
+        执行完成后自动 detach，释放 Origin 控制权，
+        允许用户在操作间隙自由关闭 Origin。
 
         Parameters
         ----------
@@ -132,7 +155,10 @@ class OriginManager:
         """
         with self._com_lock:
             self.ensure_connected()
-            return func(self._op, *args, **kwargs)
+            try:
+                return func(self._op, *args, **kwargs)
+            finally:
+                self._detach()
 
     # -----------------------------------------------------------------
     # 活动对象追踪

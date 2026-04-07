@@ -197,10 +197,11 @@ def get_plot(gl: Any, plot_index: int) -> Any:
     if plot_index < 0:
         raise PlotIndexError(plot_index)
 
-    plot = gl.plot(plot_index)
-    if plot is None:
+    # GLayer 没有 .plot() 方法，需通过 plot_list() 获取列表后按索引访问
+    plots = gl.plot_list()
+    if plot_index >= len(plots):
         raise PlotIndexError(plot_index)
-    return plot
+    return plots[plot_index]
 
 
 def validate_axis(
