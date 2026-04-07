@@ -14,19 +14,17 @@ from typing import Any
 
 from originlab_mcp.exceptions import (
     FitConvergenceError,
-    NoActiveWorksheetError,
     ToolError,
-    WorksheetNotFoundError,
 )
 from originlab_mcp.utils.constants import COMMON_FIT_FUNCTIONS
 from originlab_mcp.utils.helpers import (
     find_worksheet as _find_worksheet,
+)
+from originlab_mcp.utils.helpers import (
     resolve_worksheet_name,
     tool_error_handler,
 )
 from originlab_mcp.utils.validators import (
-    error_response,
-    error_response_from_exception,
     success_response,
 )
 
@@ -212,7 +210,7 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
                     target="function_name",
                     value=function_name,
                     hint="请调用 list_fit_functions 查看常用函数名，或确认 Origin 中已安装该拟合函数。",
-                )
+                ) from e
 
             # 设置数据
             if yerr_col is not None:
@@ -234,7 +232,7 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
             try:
                 model.fit()
             except Exception as e:
-                raise FitConvergenceError(function_name, str(e))
+                raise FitConvergenceError(function_name, str(e)) from e
 
             # 获取结果
             fit_result: dict[str, Any] = {

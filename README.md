@@ -106,18 +106,17 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 
 ## 🧰 功能一览
 
-共提供 **53 个工具**，覆盖 OriginLab 的数据全流程。
+共提供 **56 个工具**，覆盖 OriginLab 的数据全流程。
 
 <table>
 <tr>
-<td width="140"><b>📊 数据管理</b><br/><sub>15 个工具</sub></td>
+<td width="140"><b>📊 数据管理</b><br/><sub>14 个工具</sub></td>
 <td>
 
 **导入**：`import_csv` · `import_excel` · `import_data_from_text`<br/>
 **查看**：`list_worksheets` · `get_worksheet_info` · `get_worksheet_data` · `get_cell_value`<br/>
 **编辑**：`set_column_designations` · `set_column_labels` · `set_column_formula`<br/>
-**管理**：`add_worksheet` · `sort_worksheet` · `clear_worksheet` · `delete_columns`<br/>
-**导出**：`export_worksheet_to_csv`
+**管理**：`add_worksheet` · `sort_worksheet` · `clear_worksheet` · `delete_columns`
 
 </td>
 </tr>
@@ -134,16 +133,18 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 </td>
 </tr>
 <tr>
-<td><b>🎨 图表定制</b><br/><sub>18 个工具</sub></td>
+<td><b>🎨 图表定制</b><br/><sub>22 个工具</sub></td>
 <td>
 
 **坐标轴**：`set_axis_range` · `set_axis_scale` · `set_axis_step` · `set_axis_title`<br/>
+**线条**：`set_plot_line_style` · `set_plot_line_width`<br/>
 **颜色**：`set_plot_color` · `set_plot_colormap` · `set_plot_transparency`<br/>
 **符号**：`set_plot_symbols` · `set_symbol_size` · `set_symbol_interior`<br/>
 **分组递增**：`set_color_increment` · `set_symbol_increment`<br/>
+**误差棒**：`set_error_bar_style`<br/>
 **填充**：`set_fill_area`<br/>
-**标注**：`set_graph_title` · `add_text_label` · `add_line_to_graph` · `remove_graph_label`<br/>
-**查看**：`get_graph_info`
+**图例**：`set_legend`<br/>
+**标注**：`set_graph_title` · `add_text_label` · `add_line_to_graph` · `remove_graph_label`
 
 </td>
 </tr>
@@ -286,7 +287,7 @@ originlab-mcp/
 │   ├── exceptions.py             # 自定义异常类（含 LayerIndexError 等）
 │   ├── types.py                  # Protocol 类型定义
 │   ├── tools/
-│   │   ├── data.py               # 📊 数据导入与工作表管理（15 tools）
+│   │   ├── data.py               # 📊 数据导入与工作表管理（14 tools）
 │   │   ├── plot.py               # 📈 图表创建与管理（10 tools）
 │   │   ├── customize.py          # 🎨 图表外观定制（22 tools，支持多图层）
 │   │   ├── analysis.py           # 📐 数据分析 — 线性/非线性拟合（3 tools）

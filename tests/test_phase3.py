@@ -1,17 +1,13 @@
 """测试 Phase 3 新增功能：sanitize_labtalk_name、统一 resolve 范式等。"""
 
-from types import MethodType
 
 import pytest
 
 from originlab_mcp.exceptions import (
-    NoActiveGraphError,
-    NoActiveWorksheetError,
     ToolError,
 )
 from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.helpers import sanitize_labtalk_name
-
 
 # ===================================================================
 # DummyMCP 复用
@@ -55,11 +51,6 @@ class TestSanitizeLabtalkName:
         with pytest.raises(ToolError) as exc_info:
             sanitize_labtalk_name("")
         assert exc_info.value.error_type == "invalid_input"
-
-    def test_none_like_empty(self):
-        """空字符串应抛出异常。"""
-        with pytest.raises(ToolError):
-            sanitize_labtalk_name("")
 
     def test_injection_semicolon(self):
         """分号注入应被拦截。"""

@@ -22,3 +22,10 @@ Desktop.ini
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Lint cache
+.ruff_cache/
+.mypy_cache/
+
+# Output
+out/
