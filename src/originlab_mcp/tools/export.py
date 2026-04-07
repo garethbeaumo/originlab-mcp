@@ -56,19 +56,19 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
         output_format: str | None = None,
         width: int = DEFAULT_EXPORT_WIDTH,
     ) -> dict:
-        """导出图表为图片文件。
+        r"""Export a graph as an image file.
 
-        何时使用：需要将图表导出为 PNG/SVG/PDF 文件时使用。
-        何时不用：只想在 Origin 中查看图表时无需调用。
+        When to use: To export a graph as PNG/SVG/PDF file.
+        When not to use: To only view the graph in Origin.
 
-        默认行为：
-        - graph_name 省略时使用当前活动图表
-        - output_format 省略时根据 output_path 的扩展名推断（默认 png）
-        - width 默认 800 像素
+        Default behavior:
+        - graph_name omitted: uses current active graph
+        - output_format omitted: inferred from output_path extension (defaults to png)
+        - width defaults to 800 pixels
 
-        示例：
-        - export_graph(output_path="C:\\\\output\\\\chart.png")
-        - export_graph(output_path="C:\\\\output\\\\chart.svg", output_format="svg", width=1200)
+        Examples:
+        - export_graph(output_path="C:\output\chart.png")
+        - export_graph(output_path="C:\output\chart.svg", output_format="svg", width=1200)
         """
         # 推断格式
         fmt = output_format
@@ -131,16 +131,16 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
         output_path: str,
         sheet_name: str | None = None,
     ) -> dict:
-        """将工作表数据导出为 CSV 文件。
+        r"""Export worksheet data as a CSV file.
 
-        何时使用：需要将 Origin 工作表的数据保存为 CSV 文件时使用。
-        何时不用：只需在 Origin 内查看数据时请用 get_worksheet_data。
+        When to use: To save Origin worksheet data as a CSV file.
+        When not to use: To only view data within Origin, use get_worksheet_data.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
 
-        示例：
-        - export_worksheet_to_csv(output_path="C:\\\\output\\\\data.csv")
+        Examples:
+        - export_worksheet_to_csv(output_path="C:\output\data.csv")
         """
         target_name = resolve_worksheet_name(sheet_name, manager)
 
@@ -196,17 +196,17 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     @mcp.tool()
     @tool_error_handler("保存项目", "请检查文件路径和写入权限。")
     def save_project(file_path: str | None = None) -> dict:
-        """保存当前 Origin 项目。
+        """Save the current Origin project.
 
-        何时使用：需要将当前工作保存到 .opju 文件时使用。
-        何时不用：只是临时查看数据不需要持久化时无需调用。
+        When to use: To save current work to a .opju file.
+        When not to use: For temporary data viewing without need for persistence.
 
-        默认行为：
-        - file_path 省略时保存到当前项目路径（如果有的话）
+        Default behavior:
+        - file_path omitted: saves to current project path (if any)
 
-        示例：
+        Examples:
         - save_project()
-        - save_project(file_path="C:\\\\data\\\\analysis.opju")
+        - save_project(file_path="C:\\data\analysis.opju")
         """
         def _save(op: Any) -> str:
             if file_path:
@@ -234,17 +234,17 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     @mcp.tool()
     @tool_error_handler("打开项目", "请检查文件是否为有效的 Origin 项目文件。")
     def open_project(file_path: str, readonly: bool = False) -> dict:
-        """打开 Origin 项目文件。
+        """Open an Origin project file.
 
-        何时使用：需要打开一个已有的 .opju 项目文件时使用。
-        何时不用：当前已在项目中工作且不需要切换项目时无需调用。
+        When to use: To open an existing .opju project file.
+        When not to use: When already working in a project and no project switch is needed.
 
-        默认行为：
-        - readonly 默认为 false
+        Default behavior:
+        - readonly defaults to false
 
-        示例：
-        - open_project(file_path="C:\\\\data\\\\analysis.opju")
-        - open_project(file_path="C:\\\\data\\\\analysis.opju", readonly=True)
+        Examples:
+        - open_project(file_path="C:\\data\analysis.opju")
+        - open_project(file_path="C:\\data\analysis.opju", readonly=True)
         """
         err = validate_file_path(file_path)
         if err:
@@ -290,12 +290,12 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     @mcp.tool()
     @tool_error_handler("新建项目", "请检查 Origin 连接状态。")
     def new_project() -> dict:
-        """新建空白 Origin 项目。
+        """Create a new blank Origin project.
 
-        何时使用：需要从零开始一个全新的项目时使用。注意这会清除当前项目中所有未保存的内容。
-        何时不用：在当前项目继续工作时不要调用。请先用 save_project 保存。
+        When to use: To start a completely new project from scratch. Note: this will clear all unsaved content in the current project.
+        When not to use: When continuing work in the current project. Use save_project first.
 
-        示例：
+        Examples:
         - new_project()
         """
         def _new(op: Any) -> None:

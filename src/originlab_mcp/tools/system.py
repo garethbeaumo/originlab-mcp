@@ -1,7 +1,7 @@
-"""系统状态类 tools
+"""System tools
 
-让 AI 能判断当前连接状态和运行环境，
-并能主动管理 Origin COM 控制权的获取与释放。
+Manage Origin connection status, environment info,
+and COM control lifecycle.
 """
 
 from __future__ import annotations
@@ -10,28 +10,29 @@ from originlab_mcp.utils.validators import error_response, success_response
 
 
 def register_system_tools(mcp, manager) -> None:
-    """注册系统状态类 tools 到 MCP Server。
+    """Register system tools to the MCP Server.
 
     Args:
-        mcp: FastMCP 实例。
-        manager: OriginManager 实例（依赖注入）。
+        mcp: FastMCP instance.
+        manager: OriginManager instance (dependency injection).
     """
 
     @mcp.tool()
     def get_origin_info() -> dict:
-        """返回 Origin 连接状态和基础环境信息。
+        """Return Origin connection status and environment info.
 
-        何时使用：需要确认 Origin 是否已连接、查看安装路径或当前项目概况时使用。
-        何时不用：已知 Origin 连接正常且不需要环境信息时无需调用。
+        When to use: To check if Origin is connected, view installation path,
+        or get current project overview.
+        When not to use: If Origin connection is known to be working and no
+        environment info is needed.
 
-        默认行为：
-        - 自动建立连接（如尚未连接）
+        Default behavior:
+        - Automatically connects if not yet connected
 
-        示例：
-        - get_origin_info() -> 返回连接状态、安装路径、当前工作表和图表数量
+        Examples:
+        - get_origin_info() -> Returns connection status, install path,
+          current worksheet and graph count
         """
-        # 注意：此函数不使用 @tool_error_handler，
-        # 因为它需要特殊处理 RuntimeError（连接失败）以给出安装提示。
         try:
             manager.connect()
             info = manager.get_info()
@@ -70,21 +71,22 @@ def register_system_tools(mcp, manager) -> None:
 
     @mcp.tool()
     def release_origin() -> dict:
-        """释放 Origin COM 控制权，使用户可自由操作或关闭 Origin。
+        """Release Origin COM control so the user can freely operate or close Origin.
 
-        何时使用：当一批操作完成后，用户希望手动操作 Origin 时调用此工具。
-        释放后 Origin 保持运行，用户可自由操作甚至关闭 Origin。
-        下次调用其他 tool 时会自动重新连接。
+        When to use: After completing a batch of operations, call this to let
+        the user interact with Origin manually. Origin stays running and the
+        user can freely operate or even close it. Next tool call will
+        automatically reconnect.
 
-        何时不用：如果还有后续操作要执行，不需要调用此工具。
-        连接空闲超过 5 分钟会自动释放。
+        When not to use: If there are more operations to follow, no need to
+        call this. The connection auto-releases after 5 minutes of idle time.
 
-        ⚠️ 与 close_origin 的区别：
-        - release_origin：仅释放控制权，Origin 保持运行
-        - close_origin：释放控制权并关闭 Origin 应用
+        ⚠️ Difference from close_origin:
+        - release_origin: Only releases COM control; Origin keeps running
+        - close_origin: Releases control AND closes Origin application
 
-        示例：
-        - release_origin() -> 释放控制权，用户可自由操作 Origin
+        Examples:
+        - release_origin() -> Releases control; user can freely operate Origin
         """
         released = manager.release()
 
@@ -111,16 +113,16 @@ def register_system_tools(mcp, manager) -> None:
 
     @mcp.tool()
     def reconnect_origin() -> dict:
-        """重新连接 Origin COM。
+        """Reconnect to Origin COM after releasing control.
 
-        何时使用：在调用 release_origin 释放控制权后，
-        需要恢复对 Origin 的操作时使用。
-        注意：大多数 tool 会自动重连，通常不需要显式调用此工具。
+        When to use: After calling release_origin, use this to resume
+        Origin operations. Note: most tools auto-reconnect, so explicit
+        call is usually not needed.
 
-        何时不用：已连接状态下无需调用。
+        When not to use: If already connected.
 
-        示例：
-        - reconnect_origin() -> 重新建立 COM 连接
+        Examples:
+        - reconnect_origin() -> Re-establishes COM connection
         """
         try:
             manager.connect()
@@ -153,14 +155,17 @@ def register_system_tools(mcp, manager) -> None:
 
     @mcp.tool()
     def close_origin() -> dict:
-        """正确断开 COM 连接并关闭 Origin。
+        """Disconnect COM and close the Origin application.
 
-        何时使用：需要关闭 Origin 应用程序时使用。会先释放 COM 连接，再退出 Origin。
-        何时不用：仅需释放控制权而不关闭 Origin 时请使用 release_origin。
+        When to use: To shut down Origin completely. Disconnects COM first,
+        then exits Origin.
+        When not to use: To only release COM control without closing Origin,
+        use release_origin instead.
 
-        ⚠️ 注意：此操作会关闭 Origin 并丢失未保存的数据，请先调用 save_project 保存。
+        ⚠️ WARNING: This will close Origin and lose unsaved data.
+        Call save_project first.
 
-        示例：
+        Examples:
         - close_origin()
         """
         if not manager.is_connected:

@@ -133,15 +133,16 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     @mcp.tool()
     @tool_error_handler("导入CSV", "请检查文件格式是否为有效的 CSV。")
     def import_csv(file_path: str, sheet_name: str | None = None) -> dict:
-        """导入 CSV 文件到工作表。
+        """Import a CSV file into a worksheet.
 
-        何时使用：需要将本地 CSV 文件导入 Origin 工作表时使用。
-        何时不用：导入 Excel 文件请用 import_excel；直接传入文本数据请用 import_data_from_text。
+        When to use: To import a local CSV file into an Origin worksheet.
+        When not to use: For Excel files use import_excel; for inline text
+        data use import_data_from_text.
 
-        默认行为：
-        - sheet_name 省略时创建新工作表
+        Default behavior:
+        - sheet_name omitted: creates a new worksheet
 
-        示例：
+        Examples:
         - import_csv(file_path="C:\\data\\exp.csv")
         - import_csv(file_path="C:\\data\\exp.csv", sheet_name="RawData")
         """
@@ -203,16 +204,17 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     @mcp.tool()
     @tool_error_handler("导入Excel", "请检查文件格式是否为有效的 Excel 文件。")
     def import_excel(file_path: str, sheet_name: str | None = None) -> dict:
-        """导入 Excel 文件到工作表。
+        """Import an Excel file into a worksheet.
 
-        何时使用：需要将本地 Excel (.xlsx/.xls) 文件导入 Origin 工作表时使用。
-        何时不用：导入 CSV 请用 import_csv。
+        When to use: To import a local Excel (.xlsx/.xls) file into an
+        Origin worksheet.
+        When not to use: For CSV files use import_csv.
 
-        默认行为：
-        - sheet_name 省略时创建新工作表
-        - 默认导入 Excel 文件的第一个工作页
+        Default behavior:
+        - sheet_name omitted: creates a new worksheet
+        - Imports the first sheet of the Excel file by default
 
-        示例：
+        Examples:
         - import_excel(file_path="C:\\data\\results.xlsx")
         """
         err = validate_file_path(file_path)
@@ -274,17 +276,20 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         sheet_name: str | None = None,
         has_header: bool = DEFAULT_HAS_HEADER,
     ) -> dict:
-        """从文本数据创建工作表。适用于用户直接贴数据或 AI 生成的小样本数据。
+        """Create a worksheet from inline text data. Suitable for user-pasted
+        data or AI-generated sample data.
 
-        何时使用：用户在聊天中直接提供数据文本，或 AI 需要快速创建示例数据时使用。
-        何时不用：数据保存在本地文件中时，请用 import_csv 或 import_excel。
+        When to use: When the user provides data text directly in chat,
+        or when AI needs to quickly create sample data.
+        When not to use: For data in local files, use import_csv or
+        import_excel.
 
-        默认行为：
-        - separator 默认为 ","
-        - has_header 默认为 true，第一行作为列名
-        - sheet_name 省略时自动命名
+        Default behavior:
+        - separator defaults to ","
+        - has_header defaults to true (first row as column names)
+        - sheet_name omitted: auto-named
 
-        示例：
+        Examples:
         - import_data_from_text(data="Name,Value\\nA,1\\nB,2\\nC,3")
         - import_data_from_text(data="X\\tY\\n1\\t10\\n2\\t20", separator="\\t")
         """
@@ -384,12 +389,12 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     @mcp.tool()
     @tool_error_handler("列出工作表", "请确认 Origin 已连接。可调用 get_origin_info 检查状态。")
     def list_worksheets() -> dict:
-        """列出当前项目中的所有工作表。
+        """List all worksheets in the current project.
 
-        何时使用：需要查看有哪些可用的工作表，或确认工作表名称时使用。
-        何时不用：已经知道工作表名称时无需调用。
+        When to use: To see available worksheets or confirm worksheet names.
+        When not to use: If worksheet name is already known.
 
-        示例：
+        Examples:
         - list_worksheets()
         """
         def _list(op: Any) -> list[dict[str, Any]]:
@@ -421,15 +426,16 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     @mcp.tool()
     @tool_error_handler("获取工作表信息", "请确认工作表名称正确。调用 list_worksheets 查看可用工作表。")
     def get_worksheet_info(sheet_name: str | None = None) -> dict:
-        """返回工作表的结构信息（列名、列角色、行列数等）。
+        """Return worksheet structure info (column names, designations, row/col counts).
 
-        何时使用：需要了解工作表有多少列、列名是什么、列角色如何设置时使用。
-        何时不用：只需看工作表数据内容时，请用 get_worksheet_data。
+        When to use: To understand how many columns, their names, and their
+        designation roles.
+        When not to use: To view actual data content, use get_worksheet_data.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
 
-        示例：
+        Examples:
         - get_worksheet_info()
         - get_worksheet_info(sheet_name="Sheet1")
         """
@@ -503,16 +509,17 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         sheet_name: str | None = None,
         max_rows: int = DEFAULT_MAX_PREVIEW_ROWS,
     ) -> dict:
-        """返回工作表的样本数据（用于预览）。
+        """Return sample data from a worksheet (for preview).
 
-        何时使用：需要查看工作表中的实际数据内容时使用。
-        何时不用：只需了解列结构和角色，请用 get_worksheet_info。
+        When to use: To view actual data content in the worksheet.
+        When not to use: To only view column structure and designations,
+        use get_worksheet_info.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
-        - max_rows 默认 20，最多返回指定行数的数据
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
+        - max_rows defaults to 20; returns at most the specified number of rows
 
-        示例：
+        Examples:
         - get_worksheet_data()
         - get_worksheet_data(sheet_name="Sheet1", max_rows=10)
         """
@@ -587,18 +594,19 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         designations: str,
         sheet_name: str | None = None,
     ) -> dict:
-        """设置工作表的列角色。
+        """Set column designation roles for a worksheet.
 
-        何时使用：需要指定哪些列是 X、Y、Z 或误差列时使用。
-        何时不用：只需查看列角色时，请用 get_worksheet_info。
+        When to use: To specify which columns are X, Y, Z, or error columns.
+        When not to use: To only view designations, use get_worksheet_info.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
 
-        参数说明：
-        - designations: 列角色字符串，如 "XYY" 表示第一列为 X，后两列为 Y
+        Parameter notes:
+        - designations: designation string, e.g. "XYY" means first column
+          is X, next two are Y
 
-        示例：
+        Examples:
         - set_column_designations(designations="XYY")
         - set_column_designations(designations="XYYY", sheet_name="Sheet1")
         """
@@ -666,16 +674,18 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         units: str | None = None,
         comments: str | None = None,
     ) -> dict:
-        """设置指定列的长名、单位和注释。
+        """Set long name, units, and comments for a specified column.
 
-        何时使用：需要为列设置描述性的长名(Long Name)、单位(Units)或注释(Comments)时使用。
-        何时不用：设置列的 X/Y 角色请用 set_column_designations。
+        When to use: To set descriptive Long Name, Units, or Comments
+        for a column.
+        When not to use: To set X/Y designation roles,
+        use set_column_designations.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
-        - 未提供的标签不会被修改
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
+        - Labels not provided will not be modified
 
-        示例：
+        Examples:
         - set_column_labels(col=1, lname="Voltage", units="mV")
         - set_column_labels(col=0, lname="Time", units="s", comments="elapsed time")
         """
@@ -724,16 +734,17 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         descending: bool = False,
         sheet_name: str | None = None,
     ) -> dict:
-        """按指定列排序工作表数据。
+        """Sort worksheet data by a specified column.
 
-        何时使用：需要对工作表数据按某列进行升序或降序排列时使用。
-        何时不用：只需查看数据时请用 get_worksheet_data。
+        When to use: To sort worksheet data in ascending or descending
+        order by a column.
+        When not to use: To only view data, use get_worksheet_data.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
-        - descending 默认为 False（升序）
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
+        - descending defaults to False (ascending)
 
-        示例：
+        Examples:
         - sort_worksheet(col=0)
         - sort_worksheet(col=1, descending=True)
         """
@@ -773,16 +784,17 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         start_col: int | None = None,
         end_col: int | None = None,
     ) -> dict:
-        """清除工作表数据。
+        """Clear worksheet data.
 
-        何时使用：需要清除工作表中全部或部分列的数据时使用。
-        何时不用：需要删除整列（含结构）请用 delete_columns。
+        When to use: To clear all or partial column data from a worksheet.
+        When not to use: To delete entire columns (including structure),
+        use delete_columns.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
-        - 不指定 start_col 和 end_col 时清除全部数据
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
+        - Without start_col and end_col, clears all data
 
-        示例：
+        Examples:
         - clear_worksheet()
         - clear_worksheet(start_col=1, end_col=3)
         """
@@ -830,18 +842,21 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         formula: str,
         sheet_name: str | None = None,
     ) -> dict:
-        """设置工作表列的计算公式。
+        """Set a calculation formula for a worksheet column.
 
-        何时使用：需要通过公式计算列数据时使用（如基于其他列的数学运算）。
-        何时不用：直接导入数据请用 import_csv 或 import_data_from_text。
+        When to use: To compute column data via formula (e.g. math
+        operations based on other columns).
+        When not to use: To import data directly, use import_csv or
+        import_data_from_text.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
 
-        参数说明：
-        - formula: Origin 列公式表达式，引用列名（如 "A+1", "sin(A)*2", "B/C"）
+        Parameter notes:
+        - formula: Origin column formula expression referencing column
+          names (e.g. "A+1", "sin(A)*2", "B/C")
 
-        示例：
+        Examples:
         - set_column_formula(col=1, formula="A+1")
         - set_column_formula(col="C", formula="sin(A)*B")
         """
@@ -884,15 +899,15 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         col: int | str,
         sheet_name: str | None = None,
     ) -> dict:
-        """读取工作表中指定单元格的值。
+        """Read the value of a specific cell in a worksheet.
 
-        何时使用：需要精确读取某个单元格数据时使用。
-        何时不用：需要查看多行数据请用 get_worksheet_data。
+        When to use: To precisely read a single cell value.
+        When not to use: To view multiple rows, use get_worksheet_data.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
 
-        示例：
+        Examples:
         - get_cell_value(row=0, col=0)
         - get_cell_value(row=5, col="B")
         """
@@ -928,16 +943,17 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         count: int = 1,
         sheet_name: str | None = None,
     ) -> dict:
-        """删除工作表中的列。
+        """Delete columns from a worksheet.
 
-        何时使用：需要删除工作表中不需要的列时使用。
-        何时不用：只需清除列数据（保留列结构）请用 clear_worksheet。
+        When to use: To remove unneeded columns from a worksheet.
+        When not to use: To only clear column data (keep structure),
+        use clear_worksheet.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
-        - count 默认为 1（删除一列）
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
+        - count defaults to 1 (delete one column)
 
-        示例：
+        Examples:
         - delete_columns(col=0)
         - delete_columns(col=2, count=3)
         """
@@ -972,16 +988,17 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         sheet_name: str | None = None,
         book_name: str | None = None,
     ) -> dict:
-        """在工作簿中添加新的工作表。
+        """Add a new worksheet to a workbook.
 
-        何时使用：需要在已有工作簿中创建新工作表时使用。
-        何时不用：导入数据时会自动创建工作表，无需手动调用。
+        When to use: To create a new worksheet in an existing workbook.
+        When not to use: Data import automatically creates worksheets;
+        no need to call manually.
 
-        默认行为：
-        - book_name 省略时使用当前活动工作表所在的工作簿
-        - sheet_name 省略时自动命名
+        Default behavior:
+        - book_name omitted: uses the workbook of current active worksheet
+        - sheet_name omitted: auto-named
 
-        示例：
+        Examples:
         - add_worksheet(sheet_name="Results")
         - add_worksheet(sheet_name="Summary", book_name="Book1")
         """

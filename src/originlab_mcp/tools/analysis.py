@@ -52,16 +52,16 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
         fix_intercept: float | None = None,
         confidence_band: bool = False,
     ) -> dict:
-        """对工作表数据执行线性拟合（y = Intercept + Slope * x）。
+        """Perform linear fit on worksheet data (y = Intercept + Slope * x).
 
-        何时使用：需要对数据做线性回归分析、获取斜率和截距时使用。
-        何时不用：数据明显非线性时请用 nonlinear_fit。
+        When to use: For linear regression analysis to obtain slope and intercept.
+        When not to use: For clearly non-linear data, use nonlinear_fit.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
-        - 返回斜率、截距及其误差，以及 R² 等统计量
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
+        - Returns slope, intercept with errors, and R² statistics
 
-        示例：
+        Examples:
         - linear_fit(x_col=0, y_col=1)
         - linear_fit(x_col=0, y_col=1, yerr_col=2, confidence_band=True)
         - linear_fit(x_col=0, y_col=1, fix_intercept=0)
@@ -177,21 +177,21 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
         fixed_params: dict | None = None,
         generate_report: bool = False,
     ) -> dict:
-        """对工作表数据执行非线性曲线拟合。
+        """Perform nonlinear curve fitting on worksheet data.
 
-        何时使用：需要用特定函数（如 Gauss, Lorentz, ExpDec1 等）拟合数据时使用。
-        何时不用：简单线性关系请用 linear_fit。
+        When to use: To fit data with specific functions (e.g. Gauss, Lorentz, ExpDec1).
+        When not to use: For simple linear relationships, use linear_fit.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
-        - function_name 必须是 Origin 内置的拟合函数名
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
+        - function_name must be an Origin built-in fit function name
 
-        参数说明：
-        - function_name: Origin 内置函数名（如 "Gauss", "Lorentz", "ExpDec1", "Boltzmann"）
-        - initial_params: 可选，初始参数值字典（如 {"xc": 0.5, "w": 1.0}）
-        - fixed_params: 可选，固定参数字典（如 {"y0": 0}）。值为 false 表示取消固定
+        Parameter notes:
+        - function_name: Origin built-in function name (e.g. "Gauss", "Lorentz", "ExpDec1", "Boltzmann")
+        - initial_params: optional initial parameter values dict (e.g. {"xc": 0.5, "w": 1.0})
+        - fixed_params: optional fixed parameter dict (e.g. {"y0": 0}). Value of false unfixes the parameter
 
-        示例：
+        Examples:
         - nonlinear_fit(function_name="Gauss", x_col=0, y_col=1)
         - nonlinear_fit(function_name="ExpDec1", x_col=0, y_col=1, initial_params={"t1": 5.0})
         - nonlinear_fit(function_name="Gauss", x_col=0, y_col=1, fixed_params={"y0": 0})
@@ -310,12 +310,12 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
 
     @mcp.tool()
     def list_fit_functions() -> dict:
-        """列出常用的拟合函数及其参数说明。
+        """List commonly used fit functions with parameter descriptions.
 
-        何时使用：不确定该使用哪个拟合函数时，查看可用函数列表和参数描述。
-        何时不用：已知要使用的拟合函数名时无需调用。
+        When to use: When unsure which fit function to use; browse available functions and parameter info.
+        When not to use: If the fit function name is already known.
 
-        示例：
+        Examples:
         - list_fit_functions()
         """
         functions = []

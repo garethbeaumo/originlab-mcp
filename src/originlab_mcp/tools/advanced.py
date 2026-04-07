@@ -23,16 +23,16 @@ def register_advanced_tools(mcp, manager) -> None:
     @mcp.tool()
     @tool_error_handler("LabTalk命令执行", "请检查 LabTalk 命令语法是否正确。")
     def execute_labtalk(command: str) -> dict:
-        """执行任意 LabTalk 命令（高风险，仅在标准 tool 不足时使用）。
+        """Execute an arbitrary LabTalk command (high risk, use only when standard tools are insufficient).
 
-        ⚠️ 高风险工具：此工具直接执行 LabTalk 命令，可能对 Origin 项目产生不可预测的影响。
+        ⚠️ HIGH RISK TOOL: This tool directly executes LabTalk commands and may cause unpredictable effects on the Origin project.
 
-        何时使用：仅在所有标准 tool（import_csv, create_plot, set_axis_title 等）都无法满足需求时，作为最后手段使用。
-        何时不用：任何可以用标准 tool 完成的操作，都不应使用此工具。
+        When to use: ONLY when all standard tools (import_csv, create_plot, set_axis_title, etc.) cannot fulfill the requirement, as a last resort.
+        When not to use: Any operation achievable with standard tools should NOT use this tool.
 
-        示例：
+        Examples:
         - execute_labtalk(command="window -a Graph1")
-        - execute_labtalk(command="type -a \\"hello\\"")
+        - execute_labtalk(command="type -a \"hello\"")
         """
         if not command or not command.strip():
             return error_response(

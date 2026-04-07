@@ -74,18 +74,19 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         yerr_col: int | None = None,
         xerr_col: int | None = None,
     ) -> dict:
-        """创建新图表（支持单条或多条曲线）。
+        """Create a new graph (supports single or multiple curves).
 
-        何时使用：需要从零开始创建一个新图表时使用。
-        何时不用：如果要在已有图表上追加曲线，请使用 add_plot_to_graph。
+        When to use: To create a graph from scratch.
+        When not to use: To add curves to an existing graph,
+        use add_plot_to_graph.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
-        - plot_type 省略时默认为 line
-        - yerr_col 省略时不绘制 Y 方向误差棒
-        - xerr_col 省略时不绘制 X 方向误差棒
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
+        - plot_type omitted: defaults to line
+        - yerr_col omitted: no Y error bars
+        - xerr_col omitted: no X error bars
 
-        示例：
+        Examples:
         - create_plot(x_col=0, y_cols=1)
         - create_plot(x_col=0, y_cols=[1, 2], plot_type="scatter")
         - create_plot(x_col=0, y_cols=1, yerr_col=2)
@@ -192,18 +193,18 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         yerr_col: int | None = None,
         xerr_col: int | None = None,
     ) -> dict:
-        """在已有图表上追加一条或多条曲线。
+        """Add one or more curves to an existing graph.
 
-        何时使用：需要在已存在的图表上叠加新的数据曲线时使用。
-        何时不用：如果需要创建全新图表，请使用 create_plot。
+        When to use: To overlay new data curves on an existing graph.
+        When not to use: To create a new graph, use create_plot.
 
-        默认行为：
-        - graph_name 省略时使用当前活动图表
-        - sheet_name 省略时使用当前活动工作表
-        - yerr_col 省略时不绘制 Y 方向误差棒
-        - xerr_col 省略时不绘制 X 方向误差棒
+        Default behavior:
+        - graph_name omitted: uses current active graph
+        - sheet_name omitted: uses current active worksheet
+        - yerr_col omitted: no Y error bars
+        - xerr_col omitted: no X error bars
 
-        示例：
+        Examples:
         - add_plot_to_graph(x_col=0, y_cols=2)
         - add_plot_to_graph(x_col=0, y_cols=[3, 4], graph_name="Graph1")
         - add_plot_to_graph(x_col=0, y_cols=1, yerr_col=2)
@@ -299,16 +300,18 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         y2_col: int,
         sheet_name: str | None = None,
     ) -> dict:
-        """创建双 Y 轴图。
+        """Create a double-Y-axis graph.
 
-        何时使用：需要在同一图表中用左右两个 Y 轴展示不同量级或单位的数据时使用。
-        何时不用：如果所有 Y 列量级相近，使用 create_plot 即可。
+        When to use: To display data with different scales or units using
+        left and right Y axes in a single graph.
+        When not to use: If all Y columns have similar scales,
+        use create_plot instead.
 
-        默认行为：
-        - sheet_name 省略时使用当前活动工作表
-        - y1_col 绑定左 Y 轴，y2_col 绑定右 Y 轴
+        Default behavior:
+        - sheet_name omitted: uses current active worksheet
+        - y1_col binds to left Y axis, y2_col binds to right Y axis
 
-        示例：
+        Examples:
         - create_double_y_plot(x_col=0, y1_col=1, y2_col=2)
         """
         target_name = _resolve_worksheet_name(sheet_name, manager)
@@ -353,12 +356,12 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     @mcp.tool()
     @tool_error_handler("列出图表", "请确认 Origin 已连接。")
     def list_graphs() -> dict:
-        """列出当前项目中的所有图表。
+        """List all graphs in the current project.
 
-        何时使用：需要查看有哪些图表、获取图表名称时使用。
-        何时不用：已知图表名称时无需调用。
+        When to use: To see available graphs or get graph names.
+        When not to use: If graph name is already known.
 
-        示例：
+        Examples:
         - list_graphs()
         """
         def _list(op: Any) -> list[dict[str, Any]]:
@@ -395,12 +398,13 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
 
     @mcp.tool()
     def list_graph_templates() -> dict:
-        """列出支持的图表模板及推荐使用场景。
+        """List supported graph templates with recommended use cases.
 
-        何时使用：不确定应该使用什么图表类型时，查看可用模板和使用建议。
-        何时不用：已知要使用的 plot_type 时无需调用。
+        When to use: When unsure which graph type to use; browse available
+        templates and recommendations.
+        When not to use: If the desired plot_type is already known.
 
-        示例：
+        Examples:
         - list_graph_templates()
         """
         templates = [
@@ -435,15 +439,15 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         plot_index: int,
         graph_name: str | None = None,
     ) -> dict:
-        """从图表中移除指定的曲线。
+        """Remove a specified curve from a graph.
 
-        何时使用：需要从图表中删除某条不需要的曲线时使用。
-        何时不用：需要删除整个图表时无需调用此工具。
+        When to use: To delete an unwanted curve from a graph.
+        When not to use: To delete the entire graph, this tool is not needed.
 
-        默认行为：
-        - graph_name 省略时使用当前活动图表
+        Default behavior:
+        - graph_name omitted: uses current active graph
 
-        示例：
+        Examples:
         - remove_plot_from_graph(plot_index=0)
         - remove_plot_from_graph(plot_index=2, graph_name="Graph1")
         """
@@ -485,23 +489,25 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         layer_type: int = 2,
         graph_name: str | None = None,
     ) -> dict:
-        """为图表添加新的图层（如右 Y 轴、顶 X 轴等）。
+        """Add a new layer to a graph (e.g. right Y axis, top X axis).
 
-        何时使用：需要在同一图表上使用多个 Y 轴或 X 轴展示不同量纲数据时使用。
-        何时不用：只需单个 Y 轴的简单图表无需调用。如需双 Y 轴，也可直接用 create_double_y_plot。
+        When to use: To display data with different scales using multiple
+        Y or X axes on the same graph.
+        When not to use: For simple single-Y-axis graphs. For double Y
+        axis, can also use create_double_y_plot directly.
 
-        默认行为：
-        - graph_name 省略时使用当前活动图表
-        - layer_type 默认为 2（右 Y 轴）
+        Default behavior:
+        - graph_name omitted: uses current active graph
+        - layer_type defaults to 2 (right Y axis)
 
-        参数说明：
-        - layer_type: 图层类型编号
-            - 2 = 右 Y 轴 (righty)
-            - 3 = 顶 X 轴 (topx)
-            - 4 = 右 Y + 顶 X (rightytopx)
-            - 其他值参见 Origin layadd 文档
+        Parameter notes:
+        - layer_type: layer type number
+            - 2 = right Y axis (righty)
+            - 3 = top X axis (topx)
+            - 4 = right Y + top X (rightytopx)
+            - See Origin layadd documentation for other values
 
-        示例：
+        Examples:
         - add_graph_layer()
         - add_graph_layer(layer_type=3, graph_name="Graph1")
         """
@@ -548,17 +554,18 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         sheet_name: str | None = None,
         graph_name: str | None = None,
     ) -> dict:
-        """更换图表中已有曲线的数据源。
+        """Change the data source of an existing curve in a graph.
 
-        何时使用：需要替换曲线绑定的数据列（不重新创建图表）时使用。
-        何时不用：需要添加新曲线请用 add_plot_to_graph。
+        When to use: To replace the data columns bound to a curve without
+        recreating the graph.
+        When not to use: To add a new curve, use add_plot_to_graph.
 
-        默认行为：
-        - graph_name 省略时使用当前活动图表
-        - sheet_name 省略时使用当前活动工作表
-        - plot_index 默认为 0（第一条曲线）
+        Default behavior:
+        - graph_name omitted: uses current active graph
+        - sheet_name omitted: uses current active worksheet
+        - plot_index defaults to 0 (first curve)
 
-        示例：
+        Examples:
         - change_plot_data(x_col=0, y_col=2)
         - change_plot_data(x_col="A", y_col="D", plot_index=1)
         """
@@ -605,21 +612,22 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         dpi: int = 300,
         graph_name: str | None = None,
     ) -> dict:
-        """将图表复制到系统剪贴板（可直接粘贴到 Word/PPT）。
+        """Copy graph to system clipboard (paste directly into Word/PPT).
 
-        何时使用：需要将图表快速粘贴到文档或演示文稿中时使用。
-        何时不用：需要保存为文件请用 export_graph。
+        When to use: To quickly paste a graph into a document or
+        presentation.
+        When not to use: To save as a file, use export_graph.
 
-        默认行为：
-        - graph_name 省略时使用当前活动图表
-        - format 默认为 "png"
-        - dpi 默认为 300
+        Default behavior:
+        - graph_name omitted: uses current active graph
+        - format defaults to "png"
+        - dpi defaults to 300
 
-        参数说明：
-        - format: 图片格式（"png", "emf", "dib", "jpg"）
-        - dpi: 分辨率
+        Parameter notes:
+        - format: image format ("png", "emf", "dib", "jpg")
+        - dpi: resolution
 
-        示例：
+        Examples:
         - copy_graph_to_clipboard()
         - copy_graph_to_clipboard(format="emf", dpi=600)
         """
@@ -659,20 +667,21 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         end: int = -1,
         graph_name: str | None = None,
     ) -> dict:
-        """对图表中的曲线进行分组（使其联动颜色/符号递增）。
+        """Group curves in a graph (enabling linked color/symbol increments).
 
-        何时使用：多条曲线需要统一的颜色/符号递增方案时使用。
-        何时不用：不需要分组递增的独立曲线无需调用。
+        When to use: When multiple curves need a unified color/symbol
+        increment scheme.
+        When not to use: For independent curves that don't need grouping.
 
-        默认行为：
-        - graph_name 省略时使用当前活动图表
-        - begin=0, end=-1 表示将所有曲线分为一组
+        Default behavior:
+        - graph_name omitted: uses current active graph
+        - begin=0, end=-1 groups all curves together
 
-        参数说明：
-        - begin: 起始曲线索引（0-offset）
-        - end: 结束曲线索引（-1 表示到最后一条）
+        Parameter notes:
+        - begin: starting curve index (0-based)
+        - end: ending curve index (-1 means last curve)
 
-        示例：
+        Examples:
         - group_plots()
         - group_plots(begin=0, end=2)
         - group_plots(begin=3, end=5)
