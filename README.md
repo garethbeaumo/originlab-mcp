@@ -12,7 +12,7 @@
 </p>
 
 > [!WARNING]
-> **v0.1 早期版本** — 本项目仍处于早期开发阶段，功能和 API 可能随时变更，已知问题较多。欢迎试用和反馈，但请勿用于生产环境。
+> **v0.2 早期版本** — 本项目仍处于早期开发阶段，功能和 API 可能随时变更。欢迎试用和反馈，但请勿用于生产环境。
 
 ---
 
@@ -279,25 +279,28 @@ pytest tests/ -v
 ```
 originlab-mcp/
 ├── pyproject.toml                # 项目配置与依赖
+├── CHANGELOG.md                  # 版本变更记录
 ├── src/originlab_mcp/
-│   ├── server.py                 # MCP Server 入口
-│   ├── origin_manager.py         # Origin COM 连接管理（单例 + 线程安全）
-│   ├── exceptions.py             # 自定义异常类
+│   ├── server.py                 # MCP Server 入口 & 依赖注入源头
+│   ├── origin_manager.py         # Origin COM 连接管理（线程安全）
+│   ├── exceptions.py             # 自定义异常类（含 LayerIndexError 等）
 │   ├── types.py                  # Protocol 类型定义
 │   ├── tools/
 │   │   ├── data.py               # 📊 数据导入与工作表管理（15 tools）
 │   │   ├── plot.py               # 📈 图表创建与管理（10 tools）
-│   │   ├── customize.py          # 🎨 图表外观定制（18 tools）
+│   │   ├── customize.py          # 🎨 图表外观定制（22 tools，支持多图层）
 │   │   ├── analysis.py           # 📐 数据分析 — 线性/非线性拟合（3 tools）
 │   │   ├── export.py             # 💾 导出与项目管理（5 tools）
 │   │   ├── system.py             # 🔧 系统状态（1 tool）
 │   │   └── advanced.py           # ⚡ LabTalk 逃生舱（1 tool）
 │   └── utils/
 │       ├── constants.py          # 枚举、默认值、拟合函数定义
-│       ├── helpers.py            # 工作表/图表解析、错误处理装饰器
+│       ├── helpers.py            # 图层/工作表/图表解析、错误处理装饰器
 │       └── validators.py         # 参数校验与统一返回结构
 └── tests/
-    └── test_tools.py             # 单元测试
+    ├── test_helpers.py            # helpers 辅助函数测试
+    ├── test_tools.py              # tool 注册与集成测试
+    └── test_phase3.py             # 安全性与一致性测试
 ```
 
 ## ❓ 常见问题

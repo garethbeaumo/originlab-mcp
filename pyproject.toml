@@ -1,6 +1,6 @@
 [project]
 name = "originlab-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "OriginLab MCP Server - AI 驱动的 OriginLab 自动化控制"
 readme = "README.md"
 license = { text = "MIT" }

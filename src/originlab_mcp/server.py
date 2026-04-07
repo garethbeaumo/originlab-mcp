@@ -3,6 +3,7 @@ OriginLab MCP Server 主入口
 
 负责：
 - 创建 FastMCP 实例
+- 创建唯一的 OriginManager 实例并注入到各 tool 模块
 - 注册全部 tools（按能力域分组）
 - 处理服务启动与关闭生命周期
 """
@@ -35,10 +36,14 @@ logging.basicConfig(
 logger = logging.getLogger("originlab-mcp")
 
 # ---------------------------------------------------------------------------
-# 生命周期管理
+# 创建唯一的 OriginManager 实例（依赖注入源头）
 # ---------------------------------------------------------------------------
 
 _manager = OriginManager()
+
+# ---------------------------------------------------------------------------
+# 生命周期管理
+# ---------------------------------------------------------------------------
 
 
 @asynccontextmanager
@@ -71,16 +76,16 @@ mcp = FastMCP(
 )
 
 # ---------------------------------------------------------------------------
-# 注册所有 tools
+# 注册所有 tools（通过依赖注入传递 manager）
 # ---------------------------------------------------------------------------
 
-register_system_tools(mcp)      # 系统状态类
-register_data_tools(mcp)        # 数据类（导入、工作表操作、排序、公式、导出）
-register_analysis_tools(mcp)    # 数据分析类（线性/非线性拟合）
-register_plot_tools(mcp)        # 绘图类
-register_customize_tools(mcp)   # 图表定制类（轴、颜色、符号、透明度、填充）
-register_export_tools(mcp)      # 导出与项目管理类
-register_advanced_tools(mcp)    # 高级逃生舱
+register_system_tools(mcp, _manager)      # 系统状态类
+register_data_tools(mcp, _manager)        # 数据类（导入、工作表操作、排序、公式、导出）
+register_analysis_tools(mcp, _manager)    # 数据分析类（线性/非线性拟合）
+register_plot_tools(mcp, _manager)        # 绘图类
+register_customize_tools(mcp, _manager)   # 图表定制类（轴、颜色、符号、透明度、填充）
+register_export_tools(mcp, _manager)      # 导出与项目管理类
+register_advanced_tools(mcp, _manager)    # 高级逃生舱
 
 logger.info("所有 tools 已注册完成")
 

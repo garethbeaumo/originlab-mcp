@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import re
 from typing import Any, Callable
 
 from originlab_mcp.exceptions import (
@@ -158,6 +159,27 @@ def find_graph(op: OriginProProtocol, graph_name: str) -> GraphProtocol:
     return gr
 
 
+def get_graph_layer(gr: Any, layer_index: int = 0) -> Any:
+    """获取图表的指定图层，越界时抛出异常。
+
+    Args:
+        gr: 图表对象。
+        layer_index: 图层索引（0-based），默认 0 为主图层。
+
+    Returns:
+        图层对象。
+
+    Raises:
+        LayerIndexError: 图层索引越界时。
+    """
+    from originlab_mcp.exceptions import LayerIndexError
+
+    total = len(gr)
+    if layer_index < 0 or layer_index >= total:
+        raise LayerIndexError(layer_index, total)
+    return gr[layer_index]
+
+
 def get_plot(gl: Any, plot_index: int) -> Any:
     """获取指定索引的曲线，不存在时抛出异常。
 
@@ -212,3 +234,39 @@ def validate_column_indices(col_indices: list[int], total_cols: int) -> None:
     for idx in col_indices:
         if idx < 0 or idx >= total_cols:
             raise ColumnIndexError(idx, total_cols)
+
+
+# 合法的 Origin 对象名：字母、数字、下划线，首字符为字母或下划线
+_SAFE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def sanitize_labtalk_name(name: str, param_name: str = "name") -> str:
+    """验证 Origin 对象名是否安全，防止 LabTalk 命令注入。
+
+    Args:
+        name: 要验证的对象名（图表名、工作表名等）。
+        param_name: 参数名称，用于错误提示。
+
+    Returns:
+        通过验证的原始名称。
+
+    Raises:
+        ToolError: 名称包含非法字符时。
+    """
+    if not name:
+        raise ToolError(
+            f"{param_name} 不能为空",
+            error_type="invalid_input",
+            target=param_name,
+            hint=f"请提供有效的 {param_name}。",
+        )
+    if not _SAFE_NAME_RE.match(name):
+        raise ToolError(
+            f"{param_name} '{name}' 包含非法字符，仅允许字母、数字和下划线",
+            error_type="invalid_input",
+            target=param_name,
+            value=name,
+            hint="Origin 对象名只能包含英文字母、数字和下划线，且不能以数字开头。",
+        )
+    return name
+

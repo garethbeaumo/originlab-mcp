@@ -123,6 +123,19 @@ class PlotIndexError(ToolError):
         )
 
 
+class LayerIndexError(ToolError):
+    """图层索引不存在。"""
+
+    def __init__(self, layer_index: int, total_layers: int) -> None:
+        super().__init__(
+            f"图层索引 {layer_index} 不存在，当前图表共 {total_layers} 个图层",
+            error_type="invalid_input",
+            target="layer_index",
+            value=layer_index,
+            hint="layer_index 从 0 开始，默认为 0（主图层）。使用 get_graph_info 查看图层信息。",
+        )
+
+
 class FitFunctionNotFoundError(ToolError):
     """拟合函数不存在。"""
 

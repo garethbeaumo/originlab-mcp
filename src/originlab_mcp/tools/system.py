@@ -1,19 +1,20 @@
-"""
-系统状态类 tools
+"""系统状态类 tools
 
 让 AI 能判断当前连接状态和运行环境。
 """
 
 from __future__ import annotations
 
-from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.validators import error_response, success_response
 
 
-def register_system_tools(mcp) -> None:
-    """注册系统状态类 tools 到 MCP Server。"""
+def register_system_tools(mcp, manager) -> None:
+    """注册系统状态类 tools 到 MCP Server。
 
-    manager = OriginManager()
+    Args:
+        mcp: FastMCP 实例。
+        manager: OriginManager 实例（依赖注入）。
+    """
 
     @mcp.tool()
     def get_origin_info() -> dict:
@@ -28,6 +29,8 @@ def register_system_tools(mcp) -> None:
         示例：
         - get_origin_info() -> 返回连接状态、安装路径、当前工作表和图表数量
         """
+        # 注意：此函数不使用 @tool_error_handler，
+        # 因为它需要特殊处理 RuntimeError（连接失败）以给出安装提示。
         try:
             manager.connect()
             info = manager.get_info()

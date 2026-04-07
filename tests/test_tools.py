@@ -24,8 +24,6 @@ from originlab_mcp.utils.validators import (
     error_response,
     normalize_y_cols,
     success_response,
-    validate_column_index,
-    validate_column_indices,
     validate_designation,
     validate_export_format,
     validate_plot_type,
@@ -94,31 +92,6 @@ class TestErrorResponse:
 # ===================================================================
 # 验证函数测试
 # ===================================================================
-
-
-class TestValidateColumnIndex:
-    def test_valid(self):
-        assert validate_column_index(0, 3) is None
-        assert validate_column_index(2, 3) is None
-
-    def test_out_of_range(self):
-        err = validate_column_index(5, 3)
-        assert err is not None
-        assert "5" in err
-        assert "3" in err
-
-    def test_negative(self):
-        err = validate_column_index(-1, 3)
-        assert err is not None
-
-
-class TestValidateColumnIndices:
-    def test_valid(self):
-        assert validate_column_indices([0, 1, 2], 3) is None
-
-    def test_one_bad(self):
-        err = validate_column_indices([0, 1, 5], 3)
-        assert err is not None
 
 
 class TestValidatePlotType:
@@ -209,10 +182,7 @@ class DummyMCP:
 
 @pytest.fixture
 def fresh_manager():
-    OriginManager.reset_for_testing()
-    manager = OriginManager()
-    yield manager
-    OriginManager.reset_for_testing()
+    return OriginManager()
 
 
 class TestToolRegressions:
@@ -221,8 +191,8 @@ class TestToolRegressions:
         fresh_manager,
     ):
         mcp = DummyMCP()
-        register_data_tools(mcp)
-        manager = OriginManager()
+        manager = fresh_manager
+        register_data_tools(mcp, manager)
         manager.active_worksheet = "[Book1]Sheet1"
 
         class StubCol:
@@ -280,8 +250,8 @@ class TestToolRegressions:
 
     def test_set_column_designations_normalizes_legacy_yerr(self, fresh_manager):
         mcp = DummyMCP()
-        register_data_tools(mcp)
-        manager = OriginManager()
+        manager = fresh_manager
+        register_data_tools(mcp, manager)
         manager.active_worksheet = "[Book1]Sheet1"
 
         class StubCol:
@@ -328,13 +298,13 @@ class TestToolRegressions:
 
     def test_create_plot_invalid_y_cols_returns_invalid_input(self, fresh_manager):
         mcp = DummyMCP()
-        register_data_tools(mcp)
-        manager = OriginManager()
+        manager = fresh_manager
+        register_data_tools(mcp, manager)
         manager.active_worksheet = "[Book1]Sheet1"
 
         from originlab_mcp.tools.plot import register_plot_tools
 
-        register_plot_tools(mcp)
+        register_plot_tools(mcp, manager)
 
         result = mcp.tools["create_plot"](x_col=0, y_cols="1")
 
@@ -344,8 +314,8 @@ class TestToolRegressions:
 
     def test_set_axis_scale_uses_origin_scale_strings(self, fresh_manager):
         mcp = DummyMCP()
-        register_customize_tools(mcp)
-        manager = OriginManager()
+        manager = fresh_manager
+        register_customize_tools(mcp, manager)
         manager.active_graph = "Graph1"
 
         class StubLayer:
@@ -375,6 +345,9 @@ class TestToolRegressions:
             def __getitem__(self, index: int) -> StubLayer:
                 return self.layer
 
+            def __len__(self) -> int:
+                return 1
+
         class StubOp:
             def __init__(self, layer: StubLayer):
                 self.layer = layer
@@ -400,8 +373,8 @@ class TestToolRegressions:
 
     def test_export_graph_passes_explicit_type(self, fresh_manager):
         mcp = DummyMCP()
-        register_export_tools(mcp)
-        manager = OriginManager()
+        manager = fresh_manager
+        register_export_tools(mcp, manager)
         manager.active_graph = "Graph1"
 
         class StubGraph:

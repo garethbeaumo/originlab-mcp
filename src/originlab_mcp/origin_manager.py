@@ -22,26 +22,12 @@ T = TypeVar("T")
 class OriginManager:
     """Origin COM 连接的统一管理入口。
 
-    使用单例模式，保证整个 MCP Server 生命周期内只有一个管理器实例。
+    通过依赖注入方式传递给各 tool 注册函数，
+    保证整个 MCP Server 生命周期内只有一个管理器实例。
     所有 COM 操作通过 `execute` 方法串行执行。
     """
 
-    _instance: OriginManager | None = None
-    _init_lock = threading.Lock()
-
-    def __new__(cls) -> OriginManager:
-        with cls._init_lock:
-            if cls._instance is None:
-                instance = super().__new__(cls)
-                instance._initialized = False
-                cls._instance = instance
-            return cls._instance
-
     def __init__(self) -> None:
-        if self._initialized:
-            return
-        self._initialized = True
-
         self._com_lock = threading.Lock()
         self._connected = False
         self._op = None  # originpro 模块引用
@@ -230,22 +216,9 @@ class OriginManager:
     # -----------------------------------------------------------------
 
     def shutdown(self) -> None:
-        """MCP Server 关闭时调用，清理资源。
-
-        注意：不重置单例实例，避免已持有引用的 tool 函数拿到失效对象。
-        """
+        """MCP Server 关闭时调用，清理资源。"""
         logger.info("OriginManager 正在关闭...")
         self.disconnect()
         self._active_worksheet = None
         self._active_graph = None
         logger.info("OriginManager 已关闭")
-
-    @classmethod
-    def reset_for_testing(cls) -> None:
-        """仅用于测试：重置单例，允许创建新实例。
-
-        生产代码中不要调用此方法。
-        """
-        if cls._instance is not None:
-            cls._instance.disconnect()
-        cls._instance = None

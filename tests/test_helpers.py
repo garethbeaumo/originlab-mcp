@@ -19,6 +19,7 @@ from originlab_mcp.utils.helpers import (
     get_plot,
     resolve_graph_name,
     resolve_worksheet_name,
+    sanitize_labtalk_name,
     tool_error_handler,
     validate_axis,
     validate_column_indices,
@@ -26,11 +27,9 @@ from originlab_mcp.utils.helpers import (
 
 
 @pytest.fixture
-def fresh_manager():
-    OriginManager.reset_for_testing()
-    manager = OriginManager()
-    yield manager
-    OriginManager.reset_for_testing()
+def manager():
+    """创建一个全新的 OriginManager 实例（不依赖单例）。"""
+    return OriginManager()
 
 
 # ===================================================================
@@ -39,22 +38,22 @@ def fresh_manager():
 
 
 class TestResolveWorksheetName:
-    def test_explicit_name(self, fresh_manager):
-        result = resolve_worksheet_name("Sheet1", fresh_manager)
+    def test_explicit_name(self, manager):
+        result = resolve_worksheet_name("Sheet1", manager)
         assert result == "Sheet1"
 
-    def test_active_worksheet(self, fresh_manager):
-        fresh_manager.active_worksheet = "[Book1]Sheet1"
-        result = resolve_worksheet_name(None, fresh_manager)
+    def test_active_worksheet(self, manager):
+        manager.active_worksheet = "[Book1]Sheet1"
+        result = resolve_worksheet_name(None, manager)
         assert result == "[Book1]Sheet1"
 
-    def test_no_active_raises(self, fresh_manager):
+    def test_no_active_raises(self, manager):
         with pytest.raises(NoActiveWorksheetError):
-            resolve_worksheet_name(None, fresh_manager)
+            resolve_worksheet_name(None, manager)
 
-    def test_explicit_overrides_active(self, fresh_manager):
-        fresh_manager.active_worksheet = "[Book1]Sheet1"
-        result = resolve_worksheet_name("Sheet2", fresh_manager)
+    def test_explicit_overrides_active(self, manager):
+        manager.active_worksheet = "[Book1]Sheet1"
+        result = resolve_worksheet_name("Sheet2", manager)
         assert result == "Sheet2"
 
 
@@ -64,18 +63,18 @@ class TestResolveWorksheetName:
 
 
 class TestResolveGraphName:
-    def test_explicit_name(self, fresh_manager):
-        result = resolve_graph_name("Graph1", fresh_manager)
+    def test_explicit_name(self, manager):
+        result = resolve_graph_name("Graph1", manager)
         assert result == "Graph1"
 
-    def test_active_graph(self, fresh_manager):
-        fresh_manager.active_graph = "Graph2"
-        result = resolve_graph_name(None, fresh_manager)
+    def test_active_graph(self, manager):
+        manager.active_graph = "Graph2"
+        result = resolve_graph_name(None, manager)
         assert result == "Graph2"
 
-    def test_no_active_raises(self, fresh_manager):
+    def test_no_active_raises(self, manager):
         with pytest.raises(NoActiveGraphError):
-            resolve_graph_name(None, fresh_manager)
+            resolve_graph_name(None, manager)
 
 
 # ===================================================================
@@ -178,7 +177,6 @@ class TestValidateAxis:
 
 class TestValidateColumnIndices:
     def test_valid(self):
-        # 不抛异常即通过
         validate_column_indices([0, 1, 2], 3)
 
     def test_out_of_range_raises(self):
@@ -191,6 +189,35 @@ class TestValidateColumnIndices:
 
     def test_empty_list_ok(self):
         validate_column_indices([], 0)
+
+
+# ===================================================================
+# sanitize_labtalk_name 测试
+# ===================================================================
+
+
+class TestSanitizeLabtalkName:
+    def test_valid_name(self):
+        assert sanitize_labtalk_name("Graph1") == "Graph1"
+
+    def test_valid_underscore(self):
+        assert sanitize_labtalk_name("my_sheet") == "my_sheet"
+
+    def test_empty_raises(self):
+        with pytest.raises(ToolError):
+            sanitize_labtalk_name("")
+
+    def test_injection_raises(self):
+        with pytest.raises(ToolError):
+            sanitize_labtalk_name('Graph1"; delete -all;')
+
+    def test_space_raises(self):
+        with pytest.raises(ToolError):
+            sanitize_labtalk_name("Graph 1")
+
+    def test_digit_start_raises(self):
+        with pytest.raises(ToolError):
+            sanitize_labtalk_name("1Graph")
 
 
 # ===================================================================
@@ -253,3 +280,62 @@ class TestToolErrorHandler:
         assert result["ok"] is False
         assert result["error"]["type"] == "not_found"
         assert result["error"]["value"] == "Graph99"
+
+
+# ===================================================================
+# get_graph_layer 测试
+# ===================================================================
+
+
+class TestGetGraphLayer:
+    def test_default_layer_zero(self):
+        from originlab_mcp.utils.helpers import get_graph_layer
+
+        class StubGraph:
+            def __getitem__(self, idx):
+                return f"layer_{idx}"
+            def __len__(self):
+                return 3
+
+        result = get_graph_layer(StubGraph(), 0)
+        assert result == "layer_0"
+
+    def test_non_zero_layer(self):
+        from originlab_mcp.utils.helpers import get_graph_layer
+
+        class StubGraph:
+            def __getitem__(self, idx):
+                return f"layer_{idx}"
+            def __len__(self):
+                return 3
+
+        result = get_graph_layer(StubGraph(), 2)
+        assert result == "layer_2"
+
+    def test_out_of_range_raises(self):
+        from originlab_mcp.exceptions import LayerIndexError
+        from originlab_mcp.utils.helpers import get_graph_layer
+
+        class StubGraph:
+            def __getitem__(self, idx):
+                return f"layer_{idx}"
+            def __len__(self):
+                return 1
+
+        with pytest.raises(LayerIndexError) as exc_info:
+            get_graph_layer(StubGraph(), 3)
+        assert exc_info.value.error_type == "invalid_input"
+        assert "3" in str(exc_info.value)
+
+    def test_negative_raises(self):
+        from originlab_mcp.exceptions import LayerIndexError
+        from originlab_mcp.utils.helpers import get_graph_layer
+
+        class StubGraph:
+            def __getitem__(self, idx):
+                return f"layer_{idx}"
+            def __len__(self):
+                return 1
+
+        with pytest.raises(LayerIndexError):
+            get_graph_layer(StubGraph(), -1)

@@ -18,7 +18,6 @@ from originlab_mcp.exceptions import (
     ToolError,
     WorksheetNotFoundError,
 )
-from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.constants import COMMON_FIT_FUNCTIONS
 from originlab_mcp.utils.helpers import (
     find_worksheet as _find_worksheet,
@@ -32,10 +31,13 @@ from originlab_mcp.utils.validators import (
 )
 
 
-def register_analysis_tools(mcp: Any) -> None:
-    """注册数据分析类 tools 到 MCP Server。"""
+def register_analysis_tools(mcp: Any, manager: Any) -> None:
+    """注册数据分析类 tools 到 MCP Server。
 
-    manager = OriginManager()
+    Args:
+        mcp: FastMCP 实例。
+        manager: OriginManager 实例（依赖注入）。
+    """
 
     # =================================================================
     # linear_fit

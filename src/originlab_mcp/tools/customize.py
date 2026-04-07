@@ -26,15 +26,17 @@ from originlab_mcp.exceptions import (
     PlotIndexError,
     ToolError,
 )
-from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.constants import (
     SCALE_TYPE_TO_ORIGIN,
     ScaleType,
 )
 from originlab_mcp.utils.helpers import (
     find_graph as _find_graph,
+    get_graph_layer as _get_layer,
     get_plot as _get_plot,
     resolve_graph_name as _resolve_graph_name,
+    sanitize_labtalk_name as _sanitize_name,
+    tool_error_handler,
     validate_axis as _validate_axis,
 )
 from originlab_mcp.utils.validators import (
@@ -48,21 +50,55 @@ from originlab_mcp.utils.validators import (
 # 注: _resolve_graph_name, _find_graph, _get_plot, _validate_axis 从 utils.helpers 导入
 
 
-def register_customize_tools(mcp: Any) -> None:
-    """注册图表定制类 tools 到 MCP Server。"""
+# =====================================================================
+# 公共辅助函数：LabTalk 命令封装
+# =====================================================================
 
-    manager = OriginManager()
 
+def _activate_plot(op: Any, graph_name: str, plot_index: int) -> None:
+    """激活指定图表的第一个图层和指定曲线。
+
+    多处 customize tool 需要通过 LabTalk 设置曲线属性，
+    都需要先激活图表窗口和目标曲线，此函数消除重复代码。
+    """
+    safe_name = _sanitize_name(graph_name, "graph_name")
+    op.lt_exec(f'win -a {safe_name}')
+    op.lt_exec('layer -s 1')
+    op.lt_exec(f'layer.plot = {plot_index + 1}')
+
+
+# 线型编号映射
+LINE_STYLE_MAP = {
+    "solid": 1,
+    "dash": 2,
+    "dot": 3,
+    "dashdot": 4,
+    "dashdotdot": 5,
+    "short_dash": 6,
+    "short_dot": 7,
+    "short_dashdot": 8,
+}
+
+
+def register_customize_tools(mcp: Any, manager: Any) -> None:
+    """注册图表定制类 tools 到 MCP Server。
+
+    Args:
+        mcp: FastMCP 实例。
+        manager: OriginManager 实例（依赖注入）。
+    """
     # =================================================================
     # set_axis_range
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置轴范围", "请检查参数值。")
     def set_axis_range(
         axis: str,
         min_val: float,
         max_val: float,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置图表坐标轴的范围。
 
@@ -76,55 +112,47 @@ def register_customize_tools(mcp: Any) -> None:
         - set_axis_range(axis="x", min_val=0, max_val=100)
         - set_axis_range(axis="y", min_val=-5, max_val=50, graph_name="Graph1")
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
-            normalized_axis = _validate_axis(axis)
+        target_name = _resolve_graph_name(graph_name, manager)
+        normalized_axis = _validate_axis(axis)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                gl = gr[0]
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gl = _get_layer(gr, layer_index)
 
-                if normalized_axis == "x":
-                    gl.set_xlim(min_val, max_val)
-                else:
-                    gl.set_ylim(min_val, max_val)
+            if normalized_axis == "x":
+                gl.set_xlim(min_val, max_val)
+            else:
+                gl.set_ylim(min_val, max_val)
 
-                return {
-                    "graph_name": target_name,
-                    "axis": axis,
-                    "min": min_val,
-                    "max": max_val,
-                }
+            return {
+                "graph_name": target_name,
+                "axis": axis,
+                "min": min_val,
+                "max": max_val,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"轴范围已设置: {axis} = [{min_val}, {max_val}]。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "set_axis_title", "set_axis_scale", "export_graph",
-                ],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置轴范围失败: {e}",
-                error_type="internal_error",
-                target="axis",
-                hint="请检查参数值。",
-            )
+        return success_response(
+            message=f"轴范围已设置: {axis} = [{min_val}, {max_val}]。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_axis_title", "set_axis_scale", "export_graph",
+            ],
+        )
 
     # =================================================================
     # set_axis_scale
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置轴缩放", "请检查参数值。")
     def set_axis_scale(
         axis: str,
         scale_type: str,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置坐标轴的缩放类型。
 
@@ -148,55 +176,47 @@ def register_customize_tools(mcp: Any) -> None:
                 hint=f"支持的类型: {[e.value for e in ScaleType]}",
             )
 
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
-            normalized_axis = _validate_axis(axis)
+        target_name = _resolve_graph_name(graph_name, manager)
+        normalized_axis = _validate_axis(axis)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                gl = gr[0]
-                scale_val = SCALE_TYPE_TO_ORIGIN[scale_type]
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gl = _get_layer(gr, layer_index)
+            scale_val = SCALE_TYPE_TO_ORIGIN[scale_type]
 
-                if normalized_axis == "x":
-                    gl.xscale = scale_val
-                else:
-                    gl.yscale = scale_val
+            if normalized_axis == "x":
+                gl.xscale = scale_val
+            else:
+                gl.yscale = scale_val
 
-                return {
-                    "graph_name": target_name,
-                    "axis": axis,
-                    "scale_type": scale_type,
-                }
+            return {
+                "graph_name": target_name,
+                "axis": axis,
+                "scale_type": scale_type,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"轴缩放已设置: {axis} = {scale_type}。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "set_axis_range", "set_axis_title", "export_graph",
-                ],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置轴缩放失败: {e}",
-                error_type="internal_error",
-                target="axis",
-                hint="请检查参数值。",
-            )
+        return success_response(
+            message=f"轴缩放已设置: {axis} = {scale_type}。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_axis_range", "set_axis_title", "export_graph",
+            ],
+        )
 
     # =================================================================
     # set_axis_title
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置轴标题", "请检查参数值。")
     def set_axis_title(
         axis: str,
         title: str,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置坐标轴标题。
 
@@ -210,51 +230,43 @@ def register_customize_tools(mcp: Any) -> None:
         - set_axis_title(axis="x", title="Time (s)")
         - set_axis_title(axis="y", title="Voltage (mV)", graph_name="Graph1")
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
-            normalized_axis = _validate_axis(axis, ("x", "y", "z"))
+        target_name = _resolve_graph_name(graph_name, manager)
+        normalized_axis = _validate_axis(axis, ("x", "y", "z"))
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                gl = gr[0]
-                ax = gl.axis(normalized_axis)
-                ax.title = title
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gl = _get_layer(gr, layer_index)
+            ax = gl.axis(normalized_axis)
+            ax.title = title
 
-                return {
-                    "graph_name": target_name,
-                    "axis": axis,
-                    "title": title,
-                }
+            return {
+                "graph_name": target_name,
+                "axis": axis,
+                "title": title,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"{axis.upper()} 轴标题已设置为 '{title}'。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "set_plot_color", "set_axis_range", "export_graph",
-                ],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置轴标题失败: {e}",
-                error_type="internal_error",
-                target="axis",
-                hint="请检查参数值。",
-            )
+        return success_response(
+            message=f"{axis.upper()} 轴标题已设置为 '{title}'。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_plot_color", "set_axis_range", "export_graph",
+            ],
+        )
 
     # =================================================================
     # set_plot_color
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置颜色", "请使用十六进制颜色值，如 '#ff5833'。")
     def set_plot_color(
         color: str,
         plot_index: int = 0,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置指定曲线的颜色。
 
@@ -272,50 +284,41 @@ def register_customize_tools(mcp: Any) -> None:
         - set_plot_color(color="#ff0000")
         - set_plot_color(color="#0000ff", plot_index=1, graph_name="Graph1")
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                plot = _get_plot(gr[0], plot_index)
-                plot.color = color
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            plot = _get_plot(_get_layer(gr, layer_index), plot_index)
+            plot.color = color
 
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    "color": color,
-                }
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                "color": color,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的颜色已设置为 {color}。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "set_axis_title", "set_plot_symbols", "export_graph",
-                ],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置颜色失败: {e}",
-                error_type="internal_error",
-                target="color",
-                value=color,
-                hint="请使用十六进制颜色值，如 '#ff5833'。",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的颜色已设置为 {color}。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_axis_title", "set_plot_symbols", "export_graph",
+            ],
+        )
 
     # =================================================================
     # set_plot_colormap
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置颜色映射", "请检查 colormap 名称是否正确。")
     def set_plot_colormap(
         colormap: str,
         plot_index: int = 0,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置指定曲线的颜色映射表。
 
@@ -330,48 +333,39 @@ def register_customize_tools(mcp: Any) -> None:
         - set_plot_colormap(colormap="Candy")
         - set_plot_colormap(colormap="Rainbow", plot_index=0)
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                plot = _get_plot(gr[0], plot_index)
-                plot.colormap = colormap
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            plot = _get_plot(_get_layer(gr, layer_index), plot_index)
+            plot.colormap = colormap
 
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    "colormap": colormap,
-                }
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                "colormap": colormap,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的颜色映射已设置为 '{colormap}'。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["set_plot_color", "export_graph"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置颜色映射失败: {e}",
-                error_type="internal_error",
-                target="colormap",
-                value=colormap,
-                hint="请检查 colormap 名称是否正确。",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的颜色映射已设置为 '{colormap}'。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["set_plot_color", "export_graph"],
+        )
 
     # =================================================================
     # set_plot_symbols
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置符号", "请检查 shape_list 格式。")
     def set_plot_symbols(
         shape_list: list[int],
         plot_index: int = 0,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置指定曲线的数据点符号形状。
 
@@ -388,48 +382,39 @@ def register_customize_tools(mcp: Any) -> None:
         示例：
         - set_plot_symbols(shape_list=[3, 2, 1])
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                plot = _get_plot(gr[0], plot_index)
-                plot.shapelist = shape_list
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            plot = _get_plot(_get_layer(gr, layer_index), plot_index)
+            plot.shapelist = shape_list
 
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    "shape_list": shape_list,
-                }
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                "shape_list": shape_list,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的符号形状已更新。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["set_plot_color", "export_graph"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置符号失败: {e}",
-                error_type="internal_error",
-                target="shape_list",
-                value=shape_list,
-                hint="请检查 shape_list 格式。",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的符号形状已更新。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["set_plot_color", "export_graph"],
+        )
 
     # =================================================================
     # set_plot_transparency
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置透明度", "请检查参数值。")
     def set_plot_transparency(
         transparency: int,
         plot_index: int = 0,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置指定曲线的透明度。
 
@@ -456,48 +441,39 @@ def register_customize_tools(mcp: Any) -> None:
                 hint="0=完全不透明，100=完全透明。",
             )
 
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                plot = _get_plot(gr[0], plot_index)
-                plot.transparency = transparency
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            plot = _get_plot(_get_layer(gr, layer_index), plot_index)
+            plot.transparency = transparency
 
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    "transparency": transparency,
-                }
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                "transparency": transparency,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的透明度已设置为 {transparency}%。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["set_plot_color", "export_graph"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置透明度失败: {e}",
-                error_type="internal_error",
-                target="transparency",
-                value=transparency,
-                hint="请检查参数值。",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的透明度已设置为 {transparency}%。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["set_plot_color", "export_graph"],
+        )
 
     # =================================================================
     # set_symbol_size
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置符号大小", "请检查参数值。")
     def set_symbol_size(
         size: float,
         plot_index: int = 0,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置指定曲线的数据点符号大小。
 
@@ -512,50 +488,41 @@ def register_customize_tools(mcp: Any) -> None:
         - set_symbol_size(size=12)
         - set_symbol_size(size=8.5, plot_index=1)
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                plot = _get_plot(gr[0], plot_index)
-                plot.symbol_size = size
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            plot = _get_plot(_get_layer(gr, layer_index), plot_index)
+            plot.symbol_size = size
 
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    "symbol_size": size,
-                }
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                "symbol_size": size,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的符号大小已设置为 {size}。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["set_plot_color", "set_plot_symbols", "export_graph"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置符号大小失败: {e}",
-                error_type="internal_error",
-                target="size",
-                value=size,
-                hint="请检查参数值。",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的符号大小已设置为 {size}。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["set_plot_color", "set_plot_symbols", "export_graph"],
+        )
 
     # =================================================================
     # set_fill_area
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置填充区域", "请检查参数值。此功能仅适用于折线图。")
     def set_fill_area(
         above_color: int,
         fill_type: int = 9,
         below_color: int | None = None,
         plot_index: int = 0,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置折线图曲线下方的填充区域。
 
@@ -576,50 +543,42 @@ def register_customize_tools(mcp: Any) -> None:
         - set_fill_area(above_color=2)
         - set_fill_area(above_color=2, fill_type=9, below_color=3)
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                plot = _get_plot(gr[0], plot_index)
-                if below_color is not None:
-                    plot.set_fill_area(above_color, fill_type, below_color)
-                else:
-                    plot.set_fill_area(above_color, fill_type)
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            plot = _get_plot(_get_layer(gr, layer_index), plot_index)
+            if below_color is not None:
+                plot.set_fill_area(above_color, fill_type, below_color)
+            else:
+                plot.set_fill_area(above_color, fill_type)
 
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    "above_color": above_color,
-                    "fill_type": fill_type,
-                    "below_color": below_color,
-                }
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                "above_color": above_color,
+                "fill_type": fill_type,
+                "below_color": below_color,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的填充区域已设置。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["set_plot_color", "export_graph"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置填充区域失败: {e}",
-                error_type="internal_error",
-                target="fill_area",
-                hint="请检查参数值。此功能仅适用于折线图。",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的填充区域已设置。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["set_plot_color", "export_graph"],
+        )
 
     # =================================================================
     # get_graph_info
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("获取图表信息", "请检查图表名称。调用 list_graphs 查看可用图表。")
     def get_graph_info(
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """获取图表的详细信息，包括图层数、曲线列表和数据源。
 
@@ -633,82 +592,74 @@ def register_customize_tools(mcp: Any) -> None:
         - get_graph_info()
         - get_graph_info(graph_name="Graph1")
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _info(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
+        def _info(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
 
-                layers = []
-                for li in range(len(gr)):
-                    gl = gr[li]
-                    plots = []
-                    try:
-                        plot_items = gl.plot_list()
-                        for pi, plot in enumerate(plot_items):
-                            plot_info: dict[str, Any] = {
-                                "index": pi,
-                                "range": plot.lt_range() if hasattr(plot, 'lt_range') else None,
-                            }
-                            try:
-                                r, g, b = plot.color
-                                plot_info["color"] = f"#{r:02x}{g:02x}{b:02x}"
-                            except Exception:
-                                pass
-                            plots.append(plot_info)
-                    except Exception:
-                        pass
+            layers = []
+            for li in range(len(gr)):
+                gl = gr[li]
+                plots = []
+                try:
+                    plot_items = gl.plot_list()
+                    for pi, plot in enumerate(plot_items):
+                        plot_info: dict[str, Any] = {
+                            "index": pi,
+                            "range": plot.lt_range() if hasattr(plot, 'lt_range') else None,
+                        }
+                        try:
+                            r, g, b = plot.color
+                            plot_info["color"] = f"#{r:02x}{g:02x}{b:02x}"
+                        except Exception:
+                            pass
+                        plots.append(plot_info)
+                except Exception:
+                    pass
 
-                    layer_info: dict[str, Any] = {
-                        "index": li,
-                        "plot_count": len(plots),
-                        "plots": plots,
-                    }
-                    layers.append(layer_info)
-
-                return {
-                    "graph_name": target_name,
-                    "layer_count": len(layers),
-                    "layers": layers,
+                layer_info: dict[str, Any] = {
+                    "index": li,
+                    "plot_count": len(plots),
+                    "plots": plots,
                 }
+                layers.append(layer_info)
 
-            result = manager.execute(_info)
+            return {
+                "graph_name": target_name,
+                "layer_count": len(layers),
+                "layers": layers,
+            }
 
-            total_plots = sum(l["plot_count"] for l in result["layers"])
+        result = manager.execute(_info)
 
-            return success_response(
-                message=(
-                    f"图表 '{target_name}' 共 {result['layer_count']} 个图层，"
-                    f"{total_plots} 条曲线。"
-                ),
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "set_plot_color",
-                    "set_axis_title",
-                    "export_graph",
-                ],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"获取图表信息失败: {e}",
-                error_type="internal_error",
-                target="graph_name",
-                hint="请检查图表名称。调用 list_graphs 查看可用图表。",
-            )
+        total_plots = sum(l["plot_count"] for l in result["layers"])
+
+        return success_response(
+            message=(
+                f"图表 '{target_name}' 共 {result['layer_count']} 个图层，"
+                f"{total_plots} 条曲线。"
+            ),
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_plot_color",
+                "set_axis_title",
+                "export_graph",
+            ],
+        )
 
     # =================================================================
     # add_text_label
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("添加文字标注", "请检查图表是否存在。")
     def add_text_label(
         text: str,
         x: float | None = None,
         y: float | None = None,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """在图表上添加文字标注。
 
@@ -727,46 +678,37 @@ def register_customize_tools(mcp: Any) -> None:
         - add_text_label(text="Peak A")
         - add_text_label(text="Transition Point", x=3.5, y=100)
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _add(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                gl = gr[0]
-                label_obj = gl.add_label(text, x, y)
-                label_name = label_obj.name if hasattr(label_obj, 'name') else None
+        def _add(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gl = _get_layer(gr, layer_index)
+            label_obj = gl.add_label(text, x, y)
+            label_name = label_obj.name if hasattr(label_obj, 'name') else None
 
-                return {
-                    "graph_name": target_name,
-                    "text": text,
-                    "x": x,
-                    "y": y,
-                    "label_name": label_name,
-                }
+            return {
+                "graph_name": target_name,
+                "text": text,
+                "x": x,
+                "y": y,
+                "label_name": label_name,
+            }
 
-            result = manager.execute(_add)
+        result = manager.execute(_add)
 
-            return success_response(
-                message=f"已在图表 '{target_name}' 上添加文字标注 '{text}'。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["add_line_to_graph", "export_graph"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"添加文字标注失败: {e}",
-                error_type="internal_error",
-                target="text",
-                hint="请检查图表是否存在。",
-            )
+        return success_response(
+            message=f"已在图表 '{target_name}' 上添加文字标注 '{text}'。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["add_line_to_graph", "export_graph"],
+        )
 
     # =================================================================
     # add_line_to_graph
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("添加线条", "请检查坐标值和图表是否存在。")
     def add_line_to_graph(
         x1: float,
         y1: float,
@@ -775,6 +717,7 @@ def register_customize_tools(mcp: Any) -> None:
         line_width: float = 1.0,
         arrow: bool = False,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """在图表上添加线条或箭头。
 
@@ -795,53 +738,45 @@ def register_customize_tools(mcp: Any) -> None:
         - add_line_to_graph(x1=0, y1=0, x2=10, y2=10)
         - add_line_to_graph(x1=5, y1=0, x2=5, y2=100, arrow=True)
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _add(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                gl = gr[0]
-                line_obj = gl.add_line(x1, y1, x2, y2)
-                if hasattr(line_obj, 'width'):
-                    line_obj.width = line_width
-                if arrow and hasattr(line_obj, 'set_int'):
-                    line_obj.set_int('arrowendshape', 2)
+        def _add(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gl = _get_layer(gr, layer_index)
+            line_obj = gl.add_line(x1, y1, x2, y2)
+            if hasattr(line_obj, 'width'):
+                line_obj.width = line_width
+            if arrow and hasattr(line_obj, 'set_int'):
+                line_obj.set_int('arrowendshape', 2)
 
-                return {
-                    "graph_name": target_name,
-                    "start": [x1, y1],
-                    "end": [x2, y2],
-                    "line_width": line_width,
-                    "arrow": arrow,
-                }
+            return {
+                "graph_name": target_name,
+                "start": [x1, y1],
+                "end": [x2, y2],
+                "line_width": line_width,
+                "arrow": arrow,
+            }
 
-            result = manager.execute(_add)
+        result = manager.execute(_add)
 
-            desc = "箭头" if arrow else "线条"
-            return success_response(
-                message=f"已在图表 '{target_name}' 上添加{desc} ({x1},{y1})->({x2},{y2})。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["add_text_label", "export_graph"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"添加线条失败: {e}",
-                error_type="internal_error",
-                target="line",
-                hint="请检查坐标值和图表是否存在。",
-            )
+        desc = "箭头" if arrow else "线条"
+        return success_response(
+            message=f"已在图表 '{target_name}' 上添加{desc} ({x1},{y1})->({x2},{y2})。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["add_text_label", "export_graph"],
+        )
 
     # =================================================================
     # remove_graph_label
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("移除标签", "请检查标签名称是否正确。")
     def remove_graph_label(
         label_name: str,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """移除图表上的标签/注释对象。
 
@@ -858,46 +793,37 @@ def register_customize_tools(mcp: Any) -> None:
         - remove_graph_label(label_name="Text1")
         - remove_graph_label(label_name="xb")
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _remove(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                gl = gr[0]
-                gl.remove_label(label_name)
+        def _remove(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gl = _get_layer(gr, layer_index)
+            gl.remove_label(label_name)
 
-                return {
-                    "graph_name": target_name,
-                    "removed_label": label_name,
-                }
+            return {
+                "graph_name": target_name,
+                "removed_label": label_name,
+            }
 
-            result = manager.execute(_remove)
+        result = manager.execute(_remove)
 
-            return success_response(
-                message=f"已移除标签 '{label_name}'。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["add_text_label", "get_graph_info"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"移除标签失败: {e}",
-                error_type="internal_error",
-                target="label_name",
-                value=label_name,
-                hint="请检查标签名称是否正确。",
-            )
+        return success_response(
+            message=f"已移除标签 '{label_name}'。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["add_text_label", "get_graph_info"],
+        )
 
     # =================================================================
     # set_graph_title
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置图表标题", "请检查图表是否存在。")
     def set_graph_title(
         title: str,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置图表的大标题（图层标题）。
 
@@ -911,45 +837,37 @@ def register_customize_tools(mcp: Any) -> None:
         - set_graph_title(title="Temperature vs Time")
         - set_graph_title(title="Fig. 1", graph_name="Graph1")
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set_title(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                gr.lname = title
+        def _set_title(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gr.lname = title
 
-                return {
-                    "graph_name": target_name,
-                    "title": title,
-                }
+            return {
+                "graph_name": target_name,
+                "title": title,
+            }
 
-            result = manager.execute(_set_title)
+        result = manager.execute(_set_title)
 
-            return success_response(
-                message=f"图表标题已设置为 '{title}'。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["set_axis_title", "export_graph"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置图表标题失败: {e}",
-                error_type="internal_error",
-                target="title",
-                hint="请检查图表是否存在。",
-            )
+        return success_response(
+            message=f"图表标题已设置为 '{title}'。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["set_axis_title", "export_graph"],
+        )
 
     # =================================================================
     # set_axis_step
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置轴步长", "请检查步长值是否合理。")
     def set_axis_step(
         axis: str,
         step: float,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置坐标轴的刻度步长（增量）。
 
@@ -976,54 +894,45 @@ def register_customize_tools(mcp: Any) -> None:
                 hint="支持的轴: x, y, z",
             )
 
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                gl = gr[0]
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gl = _get_layer(gr, layer_index)
 
-                if axis == "x":
-                    gl.set_xlim(step=step)
-                elif axis == "y":
-                    gl.set_ylim(step=step)
-                elif axis == "z":
-                    gl.set_zlim(step=step)
+            if axis == "x":
+                gl.set_xlim(step=step)
+            elif axis == "y":
+                gl.set_ylim(step=step)
+            elif axis == "z":
+                gl.set_zlim(step=step)
 
-                return {
-                    "graph_name": target_name,
-                    "axis": axis,
-                    "step": step,
-                }
+            return {
+                "graph_name": target_name,
+                "axis": axis,
+                "step": step,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"{axis.upper()} 轴刻度步长已设置为 {step}。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["set_axis_range", "export_graph"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置轴步长失败: {e}",
-                error_type="internal_error",
-                target="step",
-                value=step,
-                hint="请检查步长值是否合理。",
-            )
+        return success_response(
+            message=f"{axis.upper()} 轴刻度步长已设置为 {step}。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["set_axis_range", "export_graph"],
+        )
 
     # =================================================================
     # set_symbol_interior
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置符号填充", "请检查参数值。")
     def set_symbol_interior(
         interior: int,
         plot_index: int = 0,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置数据点符号的内部填充类型。
 
@@ -1054,50 +963,41 @@ def register_customize_tools(mcp: Any) -> None:
                 hint="0=无符号, 1=实心, 2=空心, 3=圆点中心",
             )
 
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                plot = _get_plot(gr[0], plot_index)
-                plot.symbol_interior = interior
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            plot = _get_plot(_get_layer(gr, layer_index), plot_index)
+            plot.symbol_interior = interior
 
-                interiors = {0: "无符号", 1: "实心", 2: "空心", 3: "圆点中心"}
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    "interior": interior,
-                    "interior_name": interiors.get(interior, ""),
-                }
+            interiors = {0: "无符号", 1: "实心", 2: "空心", 3: "圆点中心"}
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                "interior": interior,
+                "interior_name": interiors.get(interior, ""),
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的符号填充已设为 {result['interior_name']}。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["set_symbol_size", "set_plot_color"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置符号填充失败: {e}",
-                error_type="internal_error",
-                target="interior",
-                value=interior,
-                hint="请检查参数值。",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的符号填充已设为 {result['interior_name']}。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["set_symbol_size", "set_plot_color"],
+        )
 
     # =================================================================
     # set_color_increment
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置颜色增量", "请检查参数值。")
     def set_color_increment(
         increment: int,
         plot_index: int = 0,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置分组曲线的颜色增量。
 
@@ -1114,48 +1014,39 @@ def register_customize_tools(mcp: Any) -> None:
         示例：
         - set_color_increment(increment=1)
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                plot = _get_plot(gr[0], plot_index)
-                plot.colorinc = increment
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            plot = _get_plot(_get_layer(gr, layer_index), plot_index)
+            plot.colorinc = increment
 
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    "color_increment": increment,
-                }
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                "color_increment": increment,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的颜色增量已设置为 {increment}。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["set_symbol_increment", "set_plot_color"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置颜色增量失败: {e}",
-                error_type="internal_error",
-                target="increment",
-                value=increment,
-                hint="请检查参数值。",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的颜色增量已设置为 {increment}。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["set_symbol_increment", "set_plot_color"],
+        )
 
     # =================================================================
     # set_symbol_increment
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置符号增量", "请检查参数值。")
     def set_symbol_increment(
         increment: int,
         plot_index: int = 0,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置分组曲线的符号形状增量。
 
@@ -1172,48 +1063,39 @@ def register_customize_tools(mcp: Any) -> None:
         示例：
         - set_symbol_increment(increment=1)
         """
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                plot = _get_plot(gr[0], plot_index)
-                plot.symbol_kindinc = increment
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            plot = _get_plot(_get_layer(gr, layer_index), plot_index)
+            plot.symbol_kindinc = increment
 
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    "symbol_increment": increment,
-                }
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                "symbol_increment": increment,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的符号形状增量已设置为 {increment}。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["set_color_increment", "set_plot_symbols"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置符号增量失败: {e}",
-                error_type="internal_error",
-                target="increment",
-                value=increment,
-                hint="请检查参数值。",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的符号形状增量已设置为 {increment}。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["set_color_increment", "set_plot_symbols"],
+        )
 
     # =================================================================
     # set_plot_line_width
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置线宽", "请检查参数值。")
     def set_plot_line_width(
         width: float,
         plot_index: int = 0,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置指定曲线的线宽。
 
@@ -1240,69 +1122,46 @@ def register_customize_tools(mcp: Any) -> None:
                 hint="常用线宽值: 0.5, 1, 1.5, 2, 3",
             )
 
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                gl = gr[0]
-                # 验证 plot_index 有效
-                _get_plot(gl, plot_index)
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gl = _get_layer(gr, layer_index)
+            # 验证 plot_index 有效
+            _get_plot(gl, plot_index)
 
-                # 通过 LabTalk 设置线宽
-                op.lt_exec(f'win -a {gr.name}')
-                op.lt_exec(f'layer -s 1')
-                op.lt_exec(f'layer.plot = {plot_index + 1}')
-                op.lt_exec(f'set %C -w {width}')
+            # 通过 LabTalk 设置线宽
+            _activate_plot(op, gr.name, plot_index)
+            op.lt_exec(f'set %C -w {width}')
 
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    "width": width,
-                }
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                "width": width,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的线宽已设置为 {width}。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "set_plot_line_style", "set_plot_color", "export_graph",
-                ],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置线宽失败: {e}",
-                error_type="internal_error",
-                target="width",
-                value=width,
-                hint="请检查参数值。",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的线宽已设置为 {width}。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_plot_line_style", "set_plot_color", "export_graph",
+            ],
+        )
 
     # =================================================================
     # set_plot_line_style
     # =================================================================
 
-    # 线型编号映射
-    LINE_STYLE_MAP = {
-        "solid": 1,
-        "dash": 2,
-        "dot": 3,
-        "dashdot": 4,
-        "dashdotdot": 5,
-        "short_dash": 6,
-        "short_dot": 7,
-        "short_dashdot": 8,
-    }
-
     @mcp.tool()
+    @tool_error_handler("设置线型", "请检查线型名称。")
     def set_plot_line_style(
         style: str,
         plot_index: int = 0,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置指定曲线的线型（实线、虚线、点线等）。
 
@@ -1338,53 +1197,41 @@ def register_customize_tools(mcp: Any) -> None:
                 hint=f"支持的线型: {list(LINE_STYLE_MAP.keys())}",
             )
 
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
-            style_code = LINE_STYLE_MAP[style_lower]
+        target_name = _resolve_graph_name(graph_name, manager)
+        style_code = LINE_STYLE_MAP[style_lower]
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                gl = gr[0]
-                _get_plot(gl, plot_index)
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gl = _get_layer(gr, layer_index)
+            _get_plot(gl, plot_index)
 
-                op.lt_exec(f'win -a {gr.name}')
-                op.lt_exec(f'layer -s 1')
-                op.lt_exec(f'layer.plot = {plot_index + 1}')
-                op.lt_exec(f'set %C -d {style_code}')
+            _activate_plot(op, gr.name, plot_index)
+            op.lt_exec(f'set %C -d {style_code}')
 
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    "style": style,
-                    "style_code": style_code,
-                }
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                "style": style,
+                "style_code": style_code,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的线型已设置为 {style}。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "set_plot_line_width", "set_plot_color", "export_graph",
-                ],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置线型失败: {e}",
-                error_type="internal_error",
-                target="style",
-                value=style,
-                hint=f"支持的线型: {list(LINE_STYLE_MAP.keys())}",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的线型已设置为 {style}。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_plot_line_width", "set_plot_color", "export_graph",
+            ],
+        )
 
     # =================================================================
     # set_error_bar_style
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置误差棒样式", "请确认该曲线已添加误差棒（通过 yerr_col 参数创建）。")
     def set_error_bar_style(
         plot_index: int = 0,
         line_width: float | None = None,
@@ -1392,6 +1239,7 @@ def register_customize_tools(mcp: Any) -> None:
         color: str | None = None,
         direction: str | None = None,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """设置误差棒的样式（线宽、端帽、颜色、方向）。
 
@@ -1442,88 +1290,78 @@ def register_customize_tools(mcp: Any) -> None:
                 hint="支持: both, plus, minus",
             )
 
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
-                gl = gr[0]
-                _get_plot(gl, plot_index)
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gl = _get_layer(gr, layer_index)
+            _get_plot(gl, plot_index)
 
-                # 激活目标图表和曲线
-                op.lt_exec(f'win -a {gr.name}')
-                op.lt_exec(f'layer -s 1')
-                op.lt_exec(f'layer.plot = {plot_index + 1}')
+            # 激活目标图表和曲线
+            _activate_plot(op, gr.name, plot_index)
 
-                changes = {}
+            changes = {}
 
-                if line_width is not None:
-                    op.lt_exec(f'set %C -ew {line_width}')
-                    changes["line_width"] = line_width
+            if line_width is not None:
+                op.lt_exec(f'set %C -ew {line_width}')
+                changes["line_width"] = line_width
 
-                if cap_width is not None:
-                    op.lt_exec(f'set %C -ecw {cap_width}')
-                    changes["cap_width"] = cap_width
+            if cap_width is not None:
+                op.lt_exec(f'set %C -ecw {cap_width}')
+                changes["cap_width"] = cap_width
 
-                if color is not None:
-                    if color.lower() == "auto":
-                        # 恢复跟随曲线颜色
-                        op.lt_exec('set %C -ecc 0')
-                        changes["color"] = "auto"
-                    else:
-                        # 解析十六进制颜色
-                        c = color.lstrip('#')
-                        r = int(c[0:2], 16)
-                        g = int(c[2:4], 16)
-                        b = int(c[4:6], 16)
-                        # 设置自定义颜色
-                        op.lt_exec('set %C -ecc 1')
-                        op.lt_exec(
-                            f'set %C -ec color(rgb({r},{g},{b}))'
-                        )
-                        changes["color"] = color
+            if color is not None:
+                if color.lower() == "auto":
+                    # 恢复跟随曲线颜色
+                    op.lt_exec('set %C -ecc 0')
+                    changes["color"] = "auto"
+                else:
+                    # 解析十六进制颜色
+                    c = color.lstrip('#')
+                    r = int(c[0:2], 16)
+                    g = int(c[2:4], 16)
+                    b = int(c[4:6], 16)
+                    # 设置自定义颜色
+                    op.lt_exec('set %C -ecc 1')
+                    op.lt_exec(
+                        f'set %C -ec color(rgb({r},{g},{b}))'
+                    )
+                    changes["color"] = color
 
-                if direction is not None:
-                    d_code = direction_map[direction.lower()]
-                    op.lt_exec(f'set %C -ed {d_code}')
-                    changes["direction"] = direction
+            if direction is not None:
+                d_code = direction_map[direction.lower()]
+                op.lt_exec(f'set %C -ed {d_code}')
+                changes["direction"] = direction
 
-                return {
-                    "graph_name": target_name,
-                    "plot_index": plot_index,
-                    **changes,
-                }
+            return {
+                "graph_name": target_name,
+                "plot_index": plot_index,
+                **changes,
+            }
 
-            result = manager.execute(_set)
+        result = manager.execute(_set)
 
-            return success_response(
-                message=f"曲线 {plot_index} 的误差棒样式已更新。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "set_plot_color", "set_plot_line_width", "export_graph",
-                ],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置误差棒样式失败: {e}",
-                error_type="internal_error",
-                target="error_bar_style",
-                hint="请确认该曲线已添加误差棒（通过 yerr_col 参数创建）。",
-            )
+        return success_response(
+            message=f"曲线 {plot_index} 的误差棒样式已更新。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_plot_color", "set_plot_line_width", "export_graph",
+            ],
+        )
 
     # =================================================================
     # set_legend
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("设置图例", "请检查图表是否存在。")
     def set_legend(
         visible: bool | None = None,
         position: str | None = None,
         font_size: float | None = None,
         graph_name: str | None = None,
+        layer_index: int = 0,
     ) -> dict:
         """控制图例的显示、位置和字号。
 
@@ -1578,68 +1416,59 @@ def register_customize_tools(mcp: Any) -> None:
                 value=font_size,
             )
 
-        try:
-            target_name = _resolve_graph_name(graph_name, manager)
+        target_name = _resolve_graph_name(graph_name, manager)
 
-            def _set(op: Any) -> dict[str, Any]:
-                gr = _find_graph(op, target_name)
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
 
-                op.lt_exec(f'win -a {gr.name}')
-                op.lt_exec(f'layer -s 1')
+            safe_name = _sanitize_name(gr.name, "graph_name")
+            op.lt_exec(f'win -a {safe_name}')
+            op.lt_exec('layer -s 1')
 
-                changes = {}
+            changes = {}
 
-                if visible is not None:
-                    if visible:
-                        # 重新生成图例
-                        op.lt_exec('legend -r')
-                        op.lt_exec('legend -s')
-                        changes["visible"] = True
-                    else:
-                        op.lt_exec('legend -h')
-                        changes["visible"] = False
-
-                if position is not None:
-                    pos_key = position.lower()
-                    x_pct, y_pct = position_map[pos_key]
-                    op.lt_exec(f'legend.x = {x_pct}')
-                    op.lt_exec(f'legend.y = {y_pct}')
-                    changes["position"] = position
-
-                if font_size is not None:
-                    op.lt_exec(f'legend.fsize = {font_size}')
-                    changes["font_size"] = font_size
-
-                return {
-                    "graph_name": target_name,
-                    **changes,
-                }
-
-            result = manager.execute(_set)
-
-            parts = []
             if visible is not None:
-                parts.append("已显示" if visible else "已隐藏")
-            if position is not None:
-                parts.append(f"位置={position}")
-            if font_size is not None:
-                parts.append(f"字号={font_size}")
-            desc = "，".join(parts) if parts else "已更新"
+                if visible:
+                    # 重新生成图例
+                    op.lt_exec('legend -r')
+                    op.lt_exec('legend -s')
+                    changes["visible"] = True
+                else:
+                    op.lt_exec('legend -h')
+                    changes["visible"] = False
 
-            return success_response(
-                message=f"图例{desc}。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "set_plot_color", "set_graph_title", "export_graph",
-                ],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"设置图例失败: {e}",
-                error_type="internal_error",
-                target="legend",
-                hint="请检查图表是否存在。",
-            )
+            if position is not None:
+                pos_key = position.lower()
+                x_pct, y_pct = position_map[pos_key]
+                op.lt_exec(f'legend.x = {x_pct}')
+                op.lt_exec(f'legend.y = {y_pct}')
+                changes["position"] = position
+
+            if font_size is not None:
+                op.lt_exec(f'legend.fsize = {font_size}')
+                changes["font_size"] = font_size
+
+            return {
+                "graph_name": target_name,
+                **changes,
+            }
+
+        result = manager.execute(_set)
+
+        parts = []
+        if visible is not None:
+            parts.append("已显示" if visible else "已隐藏")
+        if position is not None:
+            parts.append(f"位置={position}")
+        if font_size is not None:
+            parts.append(f"字号={font_size}")
+        desc = "，".join(parts) if parts else "已更新"
+
+        return success_response(
+            message=f"图例{desc}。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_plot_color", "set_graph_title", "export_graph",
+            ],
+        )

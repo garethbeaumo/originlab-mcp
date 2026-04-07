@@ -20,7 +20,6 @@ from originlab_mcp.exceptions import (
     NoActiveWorksheetError,
     ToolError,
 )
-from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.constants import (
     DEFAULT_EXPORT_FORMAT,
     DEFAULT_EXPORT_WIDTH,
@@ -42,16 +41,20 @@ from originlab_mcp.utils.validators import (
 )
 
 
-def register_export_tools(mcp: Any) -> None:
-    """注册导出与项目管理类 tools 到 MCP Server。"""
+def register_export_tools(mcp: Any, manager: Any) -> None:
+    """注册导出与项目管理类 tools 到 MCP Server。
 
-    manager = OriginManager()
+    Args:
+        mcp: FastMCP 实例。
+        manager: OriginManager 实例（依赖注入）。
+    """
 
     # =================================================================
     # export_graph
     # =================================================================
 
     @mcp.tool()
+    @tool_error_handler("导出图表", "请检查输出路径和格式。")
     def export_graph(
         output_path: str,
         graph_name: str | None = None,
@@ -102,36 +105,26 @@ def register_export_tools(mcp: Any) -> None:
                     hint="请检查输出路径是否有效。",
                 )
 
-        try:
-            target_graph = resolve_graph_name(graph_name, manager)
+        target_graph = resolve_graph_name(graph_name, manager)
 
-            def _export(op: Any) -> dict[str, Any]:
-                gr = find_graph(op, target_graph)
-                gr.save_fig(output_path, type=fmt, width=width)
-                return {
-                    "graph_name": target_graph,
-                    "output_path": os.path.abspath(output_path),
-                    "format": fmt,
-                    "width": width,
-                }
+        def _export(op: Any) -> dict[str, Any]:
+            gr = find_graph(op, target_graph)
+            gr.save_fig(output_path, type=fmt, width=width)
+            return {
+                "graph_name": target_graph,
+                "output_path": os.path.abspath(output_path),
+                "format": fmt,
+                "width": width,
+            }
 
-            result = manager.execute(_export)
+        result = manager.execute(_export)
 
-            return success_response(
-                message=f"图表已导出到 '{result['output_path']}'。",
-                data=result,
-                resource=manager.get_resource_context(),
-                next_suggestions=["save_project"],
-            )
-        except ToolError as e:
-            return error_response_from_exception(e)
-        except Exception as e:
-            return error_response(
-                message=f"导出图表失败: {e}",
-                error_type="internal_error",
-                target="export_graph",
-                hint="请检查输出路径和格式。",
-            )
+        return success_response(
+            message=f"图表已导出到 '{result['output_path']}'。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["save_project"],
+        )
 
     # =================================================================
     # export_worksheet_to_csv

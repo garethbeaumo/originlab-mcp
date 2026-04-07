@@ -112,27 +112,6 @@ def validate_dir_path(dir_path: str) -> str | None:
     return None
 
 
-def validate_column_index(col_index: int, total_cols: int) -> str | None:
-    """验证列索引是否在范围内（0-based）。
-
-    Returns:
-        如果索引越界返回错误描述；否则返回 None。
-    """
-    if col_index < 0 or col_index >= total_cols:
-        return (
-            f"列索引 {col_index} 超出范围，"
-            f"当前工作表共 {total_cols} 列（0-{total_cols - 1}）。"
-        )
-    return None
-
-
-def validate_column_indices(col_indices: list[int], total_cols: int) -> str | None:
-    """验证一组列索引是否全部在范围内。"""
-    for idx in col_indices:
-        err = validate_column_index(idx, total_cols)
-        if err:
-            return err
-    return None
 
 
 def validate_plot_type(plot_type: str) -> str | None:
