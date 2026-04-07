@@ -19,33 +19,36 @@ from __future__ import annotations
 
 from typing import Any
 
-from originlab_mcp.exceptions import (
-    GraphNotFoundError,
-    InvalidAxisError,
-    NoActiveGraphError,
-    PlotIndexError,
-    ToolError,
-)
 from originlab_mcp.utils.constants import (
     SCALE_TYPE_TO_ORIGIN,
     ScaleType,
 )
 from originlab_mcp.utils.helpers import (
     find_graph as _find_graph,
+)
+from originlab_mcp.utils.helpers import (
     get_graph_layer as _get_layer,
+)
+from originlab_mcp.utils.helpers import (
     get_plot as _get_plot,
+)
+from originlab_mcp.utils.helpers import (
     resolve_graph_name as _resolve_graph_name,
+)
+from originlab_mcp.utils.helpers import (
     sanitize_labtalk_name as _sanitize_name,
+)
+from originlab_mcp.utils.helpers import (
     tool_error_handler,
+)
+from originlab_mcp.utils.helpers import (
     validate_axis as _validate_axis,
 )
 from originlab_mcp.utils.validators import (
     error_response,
-    error_response_from_exception,
     success_response,
     validate_scale_type,
 )
-
 
 # 注: _resolve_graph_name, _find_graph, _get_plot, _validate_axis 从 utils.helpers 导入
 
@@ -632,7 +635,9 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
 
         result = manager.execute(_info)
 
-        total_plots = sum(l["plot_count"] for l in result["layers"])
+        total_plots = sum(
+            layer_info["plot_count"] for layer_info in result["layers"]
+        )
 
         return success_response(
             message=(
@@ -1420,10 +1425,11 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
 
         def _set(op: Any) -> dict[str, Any]:
             gr = _find_graph(op, target_name)
+            _get_layer(gr, layer_index)
 
             safe_name = _sanitize_name(gr.name, "graph_name")
             op.lt_exec(f'win -a {safe_name}')
-            op.lt_exec('layer -s 1')
+            op.lt_exec(f"layer -s {layer_index + 1}")
 
             changes = {}
 

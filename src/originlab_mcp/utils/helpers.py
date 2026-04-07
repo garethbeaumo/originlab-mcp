@@ -9,7 +9,8 @@ from __future__ import annotations
 import functools
 import logging
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from originlab_mcp.exceptions import (
     ColumnIndexError,
@@ -193,6 +194,9 @@ def get_plot(gl: Any, plot_index: int) -> Any:
     Raises:
         PlotIndexError: 曲线索引不存在时。
     """
+    if plot_index < 0:
+        raise PlotIndexError(plot_index)
+
     plot = gl.plot(plot_index)
     if plot is None:
         raise PlotIndexError(plot_index)

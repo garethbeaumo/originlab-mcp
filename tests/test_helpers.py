@@ -145,6 +145,14 @@ class TestGetPlot:
         with pytest.raises(PlotIndexError):
             get_plot(StubLayer(), 5)
 
+    def test_negative_raises(self):
+        class StubLayer:
+            def plot(self, idx):
+                return f"plot_{idx}"
+
+        with pytest.raises(PlotIndexError):
+            get_plot(StubLayer(), -1)
+
 
 # ===================================================================
 # validate_axis 测试

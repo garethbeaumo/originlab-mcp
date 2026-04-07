@@ -5,6 +5,7 @@ Tool 基础测试
 这些测试不依赖 Origin COM，可以在任何环境运行。
 """
 
+import csv
 from types import MethodType
 
 import pytest
@@ -29,7 +30,6 @@ from originlab_mcp.utils.validators import (
     validate_plot_type,
     validate_scale_type,
 )
-
 
 # ===================================================================
 # success_response 测试
@@ -403,3 +403,235 @@ class TestToolRegressions:
 
         assert result["ok"] is True
         assert op.graph.calls == [("out/chart", {"type": "svg", "width": 800})]
+
+    def test_export_worksheet_to_csv_escapes_special_characters(
+        self,
+        fresh_manager,
+        tmp_path,
+    ):
+        mcp = DummyMCP()
+        manager = fresh_manager
+        register_export_tools(mcp, manager)
+        manager.active_worksheet = "[Book1]Sheet1"
+
+        class StubCol:
+            def __init__(self, name: str, long_name: str = ""):
+                self.name = name
+                self._long_name = long_name
+
+            def get_label(self, label_type: str) -> str:
+                return self._long_name if label_type == "L" else ""
+
+        class StubSheet:
+            cols = 2
+
+            def get_col(self, index: int) -> StubCol:
+                cols = [StubCol("A", "Name"), StubCol("B", "Note")]
+                return cols[index]
+
+            def to_list(self, index: int) -> list[str]:
+                data = [
+                    ["alpha,beta", 'x"y'],
+                    ["line1\nline2", "plain"],
+                ]
+                return data[index]
+
+        class StubOp:
+            def find_sheet(self, kind: str, name: str) -> StubSheet:
+                assert kind == "w"
+                assert name == "[Book1]Sheet1"
+                return StubSheet()
+
+        output_path = tmp_path / "worksheet.csv"
+        manager.execute = MethodType(
+            lambda self, func, *args, **kwargs: func(
+                StubOp(),
+                *args,
+                **kwargs,
+            ),
+            manager,
+        )
+
+        result = mcp.tools["export_worksheet_to_csv"](str(output_path))
+
+        assert result["ok"] is True
+        with output_path.open("r", encoding="utf-8", newline="") as f:
+            rows = list(csv.reader(f))
+
+        assert rows == [
+            ["Name", "Note"],
+            ["alpha,beta", "line1\nline2"],
+            ['x"y', "plain"],
+        ]
+
+    def test_import_data_from_text_keeps_longest_row_width(self, fresh_manager):
+        mcp = DummyMCP()
+        manager = fresh_manager
+        register_data_tools(mcp, manager)
+
+        class StubBook:
+            name = "Book1"
+
+        class StubSheet:
+            name = "Sheet1"
+
+            def __init__(self):
+                self.calls = []
+
+            def from_list(self, col_idx: int, col_data: list, lname=None) -> None:
+                self.calls.append((col_idx, col_data, lname))
+
+            def get_book(self) -> StubBook:
+                return StubBook()
+
+        class StubOp:
+            def __init__(self):
+                self.sheet = StubSheet()
+
+            def new_sheet(self, **kwargs) -> StubSheet:
+                return self.sheet
+
+        op = StubOp()
+        manager.execute = MethodType(
+            lambda self, func, *args, **kwargs: func(op, *args, **kwargs),
+            manager,
+        )
+
+        result = mcp.tools["import_data_from_text"](
+            "A,B,C\n1,2\n3,4,5",
+            has_header=True,
+        )
+
+        assert result["ok"] is True
+        assert result["data"]["cols"] == 3
+        assert op.sheet.calls == [
+            (0, [1, 3], "A"),
+            (1, [2, 4], "B"),
+            (2, ["", 5], "C"),
+        ]
+
+    def test_sort_worksheet_uses_origin_one_based_index(self, fresh_manager):
+        mcp = DummyMCP()
+        manager = fresh_manager
+        register_data_tools(mcp, manager)
+        manager.active_worksheet = "[Book1]Sheet1"
+
+        class StubSheet:
+            cols = 3
+
+            def __init__(self):
+                self.calls = []
+
+            def sort(self, col: int, descending: bool) -> None:
+                self.calls.append((col, descending))
+
+        class StubOp:
+            def __init__(self):
+                self.sheet = StubSheet()
+
+            def find_sheet(self, kind: str, name: str) -> StubSheet:
+                assert kind == "w"
+                assert name == "[Book1]Sheet1"
+                return self.sheet
+
+        op = StubOp()
+        manager.execute = MethodType(
+            lambda self, func, *args, **kwargs: func(op, *args, **kwargs),
+            manager,
+        )
+
+        result = mcp.tools["sort_worksheet"](col=0, descending=True)
+
+        assert result["ok"] is True
+        assert op.sheet.calls == [(1, True)]
+
+    def test_set_legend_uses_requested_layer_index(self, fresh_manager):
+        mcp = DummyMCP()
+        manager = fresh_manager
+        register_customize_tools(mcp, manager)
+        manager.active_graph = "Graph1"
+
+        class StubGraph:
+            name = "Graph1"
+
+            def __getitem__(self, index: int) -> object:
+                return object()
+
+            def __len__(self) -> int:
+                return 3
+
+        class StubOp:
+            def __init__(self):
+                self.commands = []
+
+            def find_graph(self, name: str) -> StubGraph:
+                assert name == "Graph1"
+                return StubGraph()
+
+            def lt_exec(self, command: str) -> None:
+                self.commands.append(command)
+
+        op = StubOp()
+        manager.execute = MethodType(
+            lambda self, func, *args, **kwargs: func(op, *args, **kwargs),
+            manager,
+        )
+
+        result = mcp.tools["set_legend"](visible=True, layer_index=2)
+
+        assert result["ok"] is True
+        assert op.commands[:4] == [
+            "win -a Graph1",
+            "layer -s 3",
+            "legend -r",
+            "legend -s",
+        ]
+
+    def test_remove_plot_from_graph_rejects_negative_index(self, fresh_manager):
+        mcp = DummyMCP()
+        manager = fresh_manager
+        manager.active_graph = "Graph1"
+
+        from originlab_mcp.tools.plot import register_plot_tools
+
+        register_plot_tools(mcp, manager)
+
+        class StubLayer:
+            def __init__(self):
+                self.removed = []
+
+            def plot(self, index: int):
+                return f"plot_{index}"
+
+            def remove_plot(self, index: int) -> None:
+                self.removed.append(index)
+
+        class StubGraph:
+            def __init__(self):
+                self.layer = StubLayer()
+
+            def __getitem__(self, index: int) -> StubLayer:
+                return self.layer
+
+            def __len__(self) -> int:
+                return 1
+
+        class StubOp:
+            def __init__(self):
+                self.graph = StubGraph()
+
+            def find_graph(self, name: str) -> StubGraph:
+                assert name == "Graph1"
+                return self.graph
+
+        op = StubOp()
+        manager.execute = MethodType(
+            lambda self, func, *args, **kwargs: func(op, *args, **kwargs),
+            manager,
+        )
+
+        result = mcp.tools["remove_plot_from_graph"](plot_index=-1)
+
+        assert result["ok"] is False
+        assert result["error"]["target"] == "plot_index"
+        assert op.graph.layer.removed == []

@@ -12,12 +12,9 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import Any
 
-from originlab_mcp.exceptions import (
-    PlotIndexError,
-    ToolError,
-)
 from originlab_mcp.utils.constants import (
     DEFAULT_PLOT_TYPE,
     PLOT_TYPE_TO_TEMPLATE,
@@ -25,16 +22,30 @@ from originlab_mcp.utils.constants import (
 )
 from originlab_mcp.utils.helpers import (
     find_graph as _find_graph,
+)
+from originlab_mcp.utils.helpers import (
     find_worksheet as _find_worksheet,
+)
+from originlab_mcp.utils.helpers import (
     get_graph_layer as _get_layer,
+)
+from originlab_mcp.utils.helpers import (
+    get_plot as _get_plot,
+)
+from originlab_mcp.utils.helpers import (
     resolve_graph_name as _resolve_graph_name,
+)
+from originlab_mcp.utils.helpers import (
     resolve_worksheet_name as _resolve_worksheet_name,
+)
+from originlab_mcp.utils.helpers import (
     tool_error_handler,
+)
+from originlab_mcp.utils.helpers import (
     validate_column_indices as _validate_cols,
 )
 from originlab_mcp.utils.validators import (
     error_response,
-    error_response_from_exception,
     normalize_y_cols,
     success_response,
     validate_plot_type,
@@ -136,10 +147,8 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
                 curves.append(curve_info)
 
             gl.rescale()
-            try:
+            with suppress(Exception):
                 gl.group()
-            except Exception:
-                pass  # group 在单曲线时可能不需要
 
             graph_name = gr.name
             manager.active_graph = graph_name
@@ -250,10 +259,8 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
                 new_curves.append(curve_info)
 
             gl.rescale()
-            try:
+            with suppress(Exception):
                 gl.group()
-            except Exception:
-                pass
 
             return {
                 "graph_name": target_graph,
@@ -445,9 +452,10 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         def _remove(op: Any) -> dict[str, Any]:
             gr = _find_graph(op, target_graph)
             gl = _get_layer(gr, 0)
+            _get_plot(gl, plot_index)
             gl.remove_plot(plot_index)
 
-            remaining = len(gl.plot_list()) if hasattr(gl, 'plot_list') else 0
+            remaining = len(gl.plot_list()) if hasattr(gl, "plot_list") else 0
 
             return {
                 "graph_name": target_graph,
@@ -501,7 +509,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
 
         def _add_layer(op: Any) -> dict[str, Any]:
             gr = _find_graph(op, target_graph)
-            new_layer = gr.add_layer(layer_type)
+            gr.add_layer(layer_type)
 
             layer_types = {2: "右Y轴", 3: "顶X轴", 4: "右Y+顶X"}
             return {
@@ -562,11 +570,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
             gr = _find_graph(op, target_graph)
             gl = _get_layer(gr, 0)
 
-            plot_items = gl.plot_list()
-            if plot_index >= len(plot_items):
-                raise PlotIndexError(plot_index)
-
-            dp = plot_items[plot_index]
+            dp = _get_plot(gl, plot_index)
             dp.change_data(wks, x=x_col, y=y_col)
             gl.rescale()
 

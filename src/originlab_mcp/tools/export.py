@@ -12,14 +12,10 @@
 
 from __future__ import annotations
 
+import csv
 import os
 from typing import Any
 
-from originlab_mcp.exceptions import (
-    NoActiveGraphError,
-    NoActiveWorksheetError,
-    ToolError,
-)
 from originlab_mcp.utils.constants import (
     DEFAULT_EXPORT_FORMAT,
     DEFAULT_EXPORT_WIDTH,
@@ -34,7 +30,6 @@ from originlab_mcp.utils.helpers import (
 )
 from originlab_mcp.utils.validators import (
     error_response,
-    error_response_from_exception,
     success_response,
     validate_export_format,
     validate_file_path,
@@ -157,8 +152,6 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
         def _export(op: Any) -> dict[str, Any]:
             wks = find_worksheet(op, target_name)
 
-            # 收集数据
-            rows = []
             headers = []
             for ci in range(wks.cols):
                 col = wks.get_col(ci)
@@ -169,15 +162,16 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
             max_rows = max((len(d) for d in data_lists), default=0)
 
             with open(output_path, "w", encoding="utf-8", newline="") as f:
-                f.write(",".join(headers) + "\n")
+                writer = csv.writer(f)
+                writer.writerow(headers)
                 for ri in range(max_rows):
                     row_vals = []
                     for ci in range(wks.cols):
                         if ri < len(data_lists[ci]):
-                            row_vals.append(str(data_lists[ci][ri]))
+                            row_vals.append(data_lists[ci][ri])
                         else:
                             row_vals.append("")
-                    f.write(",".join(row_vals) + "\n")
+                    writer.writerow(row_vals)
 
             return {
                 "sheet_name": target_name,

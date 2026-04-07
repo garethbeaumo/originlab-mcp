@@ -15,33 +15,32 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from originlab_mcp.exceptions import (
     ColumnIndexError,
-    NoActiveWorksheetError,
     ToolError,
-    WorksheetNotFoundError,
 )
 from originlab_mcp.utils.constants import (
-    ColumnDesignation,
     DEFAULT_HAS_HEADER,
     DEFAULT_MAX_PREVIEW_ROWS,
     DEFAULT_SEPARATOR,
+    ColumnDesignation,
 )
 from originlab_mcp.utils.helpers import (
     find_worksheet as _find_worksheet,
+)
+from originlab_mcp.utils.helpers import (
     resolve_worksheet_name as _resolve_worksheet_name,
+)
+from originlab_mcp.utils.helpers import (
     tool_error_handler,
 )
 from originlab_mcp.utils.validators import (
     error_response,
-    error_response_from_exception,
     success_response,
     validate_file_path,
 )
-
 
 # 注: _resolve_worksheet_name 和 _find_worksheet 从 utils.helpers 导入
 
@@ -318,9 +317,12 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
             row = [cell.strip() for cell in line.split(separator)]
             rows_data.append(row)
 
-        num_cols = len(rows_data[0]) if rows_data else (
-            len(header) if header else 0
+        num_cols = max(
+            (len(row) for row in rows_data),
+            default=0,
         )
+        if header:
+            num_cols = max(num_cols, len(header))
 
         def _import(op: Any) -> dict[str, Any]:
             wks = (
@@ -739,8 +741,11 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
 
         def _sort(op: Any) -> dict[str, Any]:
             wks = _find_worksheet(op, target_name)
+            if col < 0 or col >= wks.cols:
+                raise ColumnIndexError(col, wks.cols)
+
             # originpro sort 使用 1-offset 索引
-            wks.sort(col, descending)
+            wks.sort(col + 1, descending)
             return {
                 "sheet_name": target_name,
                 "sort_col": col,
