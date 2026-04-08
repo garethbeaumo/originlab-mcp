@@ -4,12 +4,17 @@
 
 包含：
 - execute_labtalk
+- get_labtalk_variable
 """
 
 from __future__ import annotations
 
+import re
+
 from originlab_mcp.utils.helpers import tool_error_handler
 from originlab_mcp.utils.validators import error_response, success_response
+
+_LABTALK_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\$?$")
 
 
 def register_advanced_tools(mcp, manager) -> None:
@@ -72,5 +77,71 @@ def register_advanced_tools(mcp, manager) -> None:
                 "list_worksheets",
                 "list_graphs",
                 "get_origin_info",
+            ],
+        )
+
+    @mcp.tool()
+    @tool_error_handler("读取 LabTalk 变量", "请检查变量名是否存在。")
+    def get_labtalk_variable(name: str) -> dict:
+        """Read a LabTalk variable value without executing arbitrary commands.
+
+        When to use: To inspect a LabTalk numeric or string variable.
+        When not to use: To modify Origin state or execute scripts, use execute_labtalk.
+
+        Parameter notes:
+        - String variables must end with '$', e.g. "fname$"
+        - Numeric variables should not include '$', e.g. "pi"
+
+        Examples:
+        - get_labtalk_variable(name="fname$")
+        - get_labtalk_variable(name="pi")
+        """
+        normalized_name = name.strip()
+        if not normalized_name:
+            return error_response(
+                message="name 不能为空",
+                error_type="invalid_input",
+                target="name",
+                hint="请提供要读取的 LabTalk 变量名。",
+            )
+        if len(normalized_name) > 128:
+            return error_response(
+                message="变量名过长，最多允许 128 个字符",
+                error_type="invalid_input",
+                target="name",
+                value=name,
+                hint="请提供合法的 LabTalk 变量名。",
+            )
+        if not _LABTALK_VAR_RE.match(normalized_name):
+            return error_response(
+                message=f"变量名 '{name}' 包含非法字符",
+                error_type="invalid_input",
+                target="name",
+                value=name,
+                hint="变量名仅允许字母、数字、下划线，字符串变量可带结尾 '$'。",
+            )
+
+        def _read(op):
+            if normalized_name.endswith("$"):
+                return {
+                    "name": normalized_name,
+                    "value": op.get_lt_str(normalized_name),
+                    "value_type": "string",
+                }
+            return {
+                "name": normalized_name,
+                "value": op.lt_float(normalized_name),
+                "value_type": "numeric",
+            }
+
+        result = manager.execute(_read)
+
+        return success_response(
+            message=f"已读取 LabTalk 变量 '{normalized_name}'。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "get_origin_info",
+                "execute_labtalk",
             ],
         )

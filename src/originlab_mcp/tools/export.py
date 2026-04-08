@@ -4,6 +4,7 @@
 
 包含:
     export_graph: 导出图表为图片
+    export_all_graphs: 批量导出全部图表
     export_worksheet_to_csv: 导出工作表为 CSV
     save_project: 保存项目
     open_project: 打开项目
@@ -34,6 +35,19 @@ from originlab_mcp.utils.validators import (
     validate_export_format,
     validate_file_path,
 )
+
+
+def _ensure_output_dir(path: str) -> str | None:
+    """确保输出目录存在，失败时返回错误消息。"""
+    if not path:
+        return "输出路径不能为空"
+
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError as exc:
+        return f"无法创建输出目录: {exc}"
+
+    return None
 
 
 def register_export_tools(mcp: Any, manager: Any) -> None:
@@ -116,6 +130,95 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
 
         return success_response(
             message=f"图表已导出到 '{result['output_path']}'。",
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=["save_project"],
+        )
+
+    # =================================================================
+    # export_all_graphs
+    # =================================================================
+
+    @mcp.tool()
+    @tool_error_handler("批量导出图表", "请检查输出目录和导出格式。")
+    def export_all_graphs(
+        output_dir: str,
+        output_format: str | None = None,
+        width: int = DEFAULT_EXPORT_WIDTH,
+    ) -> dict:
+        r"""Export all graphs in the current project to image files.
+
+        When to use: To batch export every graph in the project.
+        When not to use: To export only one graph, use export_graph.
+
+        Default behavior:
+        - output_format omitted: defaults to png
+        - width defaults to 800 pixels
+
+        Examples:
+        - export_all_graphs(output_dir="C:\output\figures")
+        - export_all_graphs(output_dir="C:\output\svg", output_format="svg", width=1200)
+        """
+        fmt = (output_format or DEFAULT_EXPORT_FORMAT.value).lower()
+        err = validate_export_format(fmt)
+        if err:
+            return error_response(
+                message=err,
+                error_type="unsupported",
+                target="output_format",
+                value=fmt,
+                hint=f"支持的格式: {[e.value for e in ExportFormat]}",
+            )
+
+        dir_err = _ensure_output_dir(output_dir)
+        if dir_err:
+            return error_response(
+                message=dir_err,
+                error_type="invalid_input",
+                target="output_dir",
+                value=output_dir,
+                hint="请检查输出目录路径是否有效。",
+            )
+
+        def _export_all(op: Any) -> dict[str, Any]:
+            exported: list[dict[str, str]] = []
+            for index, gr in enumerate(op.pages("Graph"), start=1):
+                graph_name = getattr(gr, "name", f"Graph{index}")
+                file_path = os.path.abspath(
+                    os.path.join(output_dir, f"{graph_name}.{fmt}")
+                )
+                gr.save_fig(file_path, type=fmt, width=width)
+                exported.append(
+                    {
+                        "graph_name": graph_name,
+                        "output_path": file_path,
+                    }
+                )
+
+            return {
+                "output_dir": os.path.abspath(output_dir),
+                "format": fmt,
+                "width": width,
+                "count": len(exported),
+                "files": exported,
+            }
+
+        result = manager.execute(_export_all)
+
+        if result["count"] == 0:
+            return success_response(
+                message="当前项目中没有可导出的图表。",
+                data=result,
+                resource=manager.get_resource_context(),
+                warnings=["未发现 Graph 页面，因此没有生成任何文件。"],
+                next_suggestions=["list_graphs", "create_plot"],
+            )
+
+        return success_response(
+            message=(
+                f"已批量导出 {result['count']} 个图表到 "
+                f"'{result['output_dir']}'。"
+            ),
             data=result,
             resource=manager.get_resource_context(),
             next_suggestions=["save_project"],

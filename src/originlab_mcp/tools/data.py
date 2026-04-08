@@ -336,16 +336,16 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
             )
 
             for col_idx in range(num_cols):
-                col_data = []
+                col_data: list[Any] = []
                 for row in rows_data:
-                    val = row[col_idx] if col_idx < len(row) else ""
+                    parsed_value: Any = row[col_idx] if col_idx < len(row) else ""
                     try:
-                        val = float(val)
-                        if val == int(val):
-                            val = int(val)
+                        parsed_value = float(parsed_value)
+                        if parsed_value == int(parsed_value):
+                            parsed_value = int(parsed_value)
                     except (ValueError, TypeError):
                         pass
-                    col_data.append(val)
+                    col_data.append(parsed_value)
 
                 lname = (
                     header[col_idx]

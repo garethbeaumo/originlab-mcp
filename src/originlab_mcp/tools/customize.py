@@ -6,6 +6,9 @@
     set_axis_range: 设置坐标轴范围
     set_axis_scale: 设置坐标轴缩放类型
     set_axis_title: 设置坐标轴标题
+    set_graph_font: 设置图表字体
+    set_tick_style: 设置刻度样式
+    apply_publication_style: 一键应用论文风格
     set_plot_color: 设置曲线颜色
     set_plot_colormap: 设置颜色映射
     set_plot_symbols: 设置数据点符号
@@ -58,7 +61,12 @@ from originlab_mcp.utils.validators import (
 # =====================================================================
 
 
-def _activate_plot(op: Any, graph_name: str, plot_index: int) -> None:
+def _activate_plot(
+    op: Any,
+    graph_name: str,
+    plot_index: int,
+    layer_index: int = 0,
+) -> None:
     """激活指定图表的第一个图层和指定曲线。
 
     多处 customize tool 需要通过 LabTalk 设置曲线属性，
@@ -66,7 +74,7 @@ def _activate_plot(op: Any, graph_name: str, plot_index: int) -> None:
     """
     safe_name = _sanitize_name(graph_name, "graph_name")
     op.lt_exec(f'win -a {safe_name}')
-    op.lt_exec('layer -s 1')
+    op.lt_exec(f"layer -s {layer_index + 1}")
     op.lt_exec(f'layer.plot = {plot_index + 1}')
 
 
@@ -81,6 +89,112 @@ LINE_STYLE_MAP = {
     "short_dot": 7,
     "short_dashdot": 8,
 }
+
+# 色盲友好默认配色与符号序列，用于 publication-style 一键样式
+PUBLICATION_COLORS = (
+    "#0072B2",  # blue
+    "#D55E00",  # vermillion
+    "#009E73",  # green
+    "#E69F00",  # orange
+    "#CC79A7",  # magenta
+    "#56B4E9",  # sky blue
+)
+PUBLICATION_SYMBOLS = (2, 3, 1, 4, 5, 6)
+LEGEND_POSITION_MAP = {
+    "top_left": (15, 15),
+    "top_right": (85, 15),
+    "bottom_left": (15, 85),
+    "bottom_right": (85, 85),
+    "top_center": (50, 10),
+    "bottom_center": (50, 90),
+    "right_center": (85, 50),
+}
+
+
+def _escape_labtalk_text(value: str) -> str:
+    """转义 LabTalk 字符串字面量。"""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _activate_graph_layer(op: Any, graph_name: str, layer_index: int = 0) -> None:
+    """激活指定图表窗口及图层。"""
+    safe_name = _sanitize_name(graph_name, "graph_name")
+    op.lt_exec(f"win -a {safe_name}")
+    op.lt_exec(f"layer -s {layer_index + 1}")
+
+
+def _set_tick_style_commands(
+    op: Any,
+    graph_name: str,
+    layer_index: int,
+    tick_direction: str,
+    major_length: int,
+    minor_count: int,
+    show_minor: bool,
+) -> None:
+    """用统一命令设置刻度方向和长度。"""
+    direction_map = {"in": 1, "out": 2, "both": 3}
+    _activate_graph_layer(op, graph_name, layer_index)
+    minor = minor_count if show_minor else 0
+    direction_value = direction_map[tick_direction]
+    op.lt_exec(f"layer.x.ticks = {direction_value}")
+    op.lt_exec(f"layer.y.ticks = {direction_value}")
+    op.lt_exec(f"layer.x.minor = {minor}")
+    op.lt_exec(f"layer.y.minor = {minor}")
+    op.lt_exec(f"layer.x.majorLen = {major_length}")
+    op.lt_exec(f"layer.y.majorLen = {major_length}")
+
+
+def _set_graph_font_commands(
+    op: Any,
+    graph_name: str,
+    layer_index: int,
+    font_name: str,
+    font_size: int,
+    target: str,
+    tick_font_size: int | None = None,
+    legend_font_size: int | None = None,
+) -> dict[str, Any]:
+    """用统一命令设置图表字体。"""
+    _activate_graph_layer(op, graph_name, layer_index)
+    changes: dict[str, Any] = {
+        "font_name": font_name,
+        "font_size": font_size,
+        "target": target,
+    }
+
+    if target in ("all", "axes"):
+        escaped_font = _escape_labtalk_text(font_name)
+        op.lt_exec(f'xb.font$ = "{escaped_font}"')
+        op.lt_exec(f"xb.fsize = {font_size}")
+        op.lt_exec(f'yl.font$ = "{escaped_font}"')
+        op.lt_exec(f"yl.fsize = {font_size}")
+
+    if target in ("all", "tick"):
+        tick_size = tick_font_size if tick_font_size is not None else max(font_size - 4, 8)
+        op.lt_exec(f"layer.x.label.pt = {tick_size}")
+        op.lt_exec(f"layer.y.label.pt = {tick_size}")
+        op.lt_exec("layer.x.label.bold = 1")
+        op.lt_exec("layer.y.label.bold = 1")
+        changes["tick_font_size"] = tick_size
+
+    if target in ("all", "legend"):
+        escaped_font = _escape_labtalk_text(font_name)
+        legend_size = (
+            legend_font_size
+            if legend_font_size is not None
+            else max(font_size - 4, 8)
+        )
+        op.lt_exec(f'legend.font$ = "{escaped_font}"')
+        op.lt_exec(f"legend.fsize = {legend_size}")
+        changes["legend_font_size"] = legend_size
+
+    if target == "title":
+        escaped_font = _escape_labtalk_text(font_name)
+        op.lt_exec(f'title.font$ = "{escaped_font}"')
+        op.lt_exec(f"title.fsize = {font_size}")
+
+    return changes
 
 
 def register_customize_tools(mcp: Any, manager: Any) -> None:
@@ -1136,7 +1250,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
             _get_plot(gl, plot_index)
 
             # 通过 LabTalk 设置线宽
-            _activate_plot(op, gr.name, plot_index)
+            _activate_plot(op, gr.name, plot_index, layer_index)
             op.lt_exec(f'set %C -w {width}')
 
             return {
@@ -1210,7 +1324,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
             gl = _get_layer(gr, layer_index)
             _get_plot(gl, plot_index)
 
-            _activate_plot(op, gr.name, plot_index)
+            _activate_plot(op, gr.name, plot_index, layer_index)
             op.lt_exec(f'set %C -d {style_code}')
 
             return {
@@ -1303,9 +1417,9 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
             _get_plot(gl, plot_index)
 
             # 激活目标图表和曲线
-            _activate_plot(op, gr.name, plot_index)
+            _activate_plot(op, gr.name, plot_index, layer_index)
 
-            changes = {}
+            changes: dict[str, Any] = {}
 
             if line_width is not None:
                 op.lt_exec(f'set %C -ew {line_width}')
@@ -1394,15 +1508,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
         - set_legend(visible=False)
         - set_legend(font_size=10, position="bottom_left")
         """
-        position_map = {
-            "top_left": (15, 15),
-            "top_right": (85, 15),
-            "bottom_left": (15, 85),
-            "bottom_right": (85, 85),
-            "top_center": (50, 10),
-            "bottom_center": (50, 90),
-            "right_center": (85, 50),
-        }
+        position_map = LEGEND_POSITION_MAP
 
         if position is not None and position.lower() not in position_map:
             return error_response(
@@ -1427,11 +1533,9 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
             gr = _find_graph(op, target_name)
             _get_layer(gr, layer_index)
 
-            safe_name = _sanitize_name(gr.name, "graph_name")
-            op.lt_exec(f'win -a {safe_name}')
-            op.lt_exec(f"layer -s {layer_index + 1}")
+            _activate_graph_layer(op, gr.name, layer_index)
 
-            changes = {}
+            changes: dict[str, Any] = {}
 
             if visible is not None:
                 if visible:
@@ -1476,5 +1580,457 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
             resource=manager.get_resource_context(),
             next_suggestions=[
                 "set_plot_color", "set_graph_title", "export_graph",
+            ],
+        )
+
+    # =================================================================
+    # set_graph_font
+    # =================================================================
+
+    @mcp.tool()
+    @tool_error_handler("设置图表字体", "请检查字体名称和字号。")
+    def set_graph_font(
+        font_name: str = "Arial",
+        font_size: int = 24,
+        target: str = "all",
+        tick_font_size: int | None = None,
+        legend_font_size: int | None = None,
+        graph_name: str | None = None,
+        layer_index: int = 0,
+    ) -> dict:
+        """Set font family and size for graph elements.
+
+        When to use: To unify graph typography for axes, ticks, title, or legend.
+        When not to use: For single axis titles only, use set_axis_title.
+
+        Default behavior:
+        - graph_name omitted: uses current active graph
+        - target defaults to "all"
+
+        Parameter notes:
+        - target: "all", "axes", "title", "legend", or "tick"
+        - tick_font_size: overrides derived tick label size
+        - legend_font_size: overrides derived legend size
+
+        Examples:
+        - set_graph_font(font_name="Arial", font_size=24)
+        - set_graph_font(font_name="Times New Roman", font_size=18, target="legend")
+        """
+        if not font_name.strip():
+            return error_response(
+                message="font_name 不能为空",
+                error_type="invalid_input",
+                target="font_name",
+                value=font_name,
+            )
+        if font_size <= 0:
+            return error_response(
+                message="font_size 必须大于 0",
+                error_type="invalid_input",
+                target="font_size",
+                value=font_size,
+            )
+        if tick_font_size is not None and tick_font_size <= 0:
+            return error_response(
+                message="tick_font_size 必须大于 0",
+                error_type="invalid_input",
+                target="tick_font_size",
+                value=tick_font_size,
+            )
+        if legend_font_size is not None and legend_font_size <= 0:
+            return error_response(
+                message="legend_font_size 必须大于 0",
+                error_type="invalid_input",
+                target="legend_font_size",
+                value=legend_font_size,
+            )
+
+        normalized_target = target.lower()
+        valid_targets = {"all", "axes", "title", "legend", "tick"}
+        if normalized_target not in valid_targets:
+            return error_response(
+                message=f"不支持的 target '{target}'",
+                error_type="invalid_input",
+                target="target",
+                value=target,
+                hint=f"支持的取值: {sorted(valid_targets)}",
+            )
+
+        target_name = _resolve_graph_name(graph_name, manager)
+
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            _get_layer(gr, layer_index)
+            result = _set_graph_font_commands(
+                op=op,
+                graph_name=gr.name,
+                layer_index=layer_index,
+                font_name=font_name,
+                font_size=font_size,
+                target=normalized_target,
+                tick_font_size=tick_font_size,
+                legend_font_size=legend_font_size,
+            )
+            result["graph_name"] = target_name
+            return result
+
+        result = manager.execute(_set)
+
+        return success_response(
+            message=(
+                f"图表字体已更新：{font_name} {font_size}pt "
+                f"（target={normalized_target}）。"
+            ),
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_tick_style",
+                "apply_publication_style",
+                "export_graph",
+            ],
+        )
+
+    # =================================================================
+    # set_tick_style
+    # =================================================================
+
+    @mcp.tool()
+    @tool_error_handler("设置刻度样式", "请检查刻度参数。")
+    def set_tick_style(
+        tick_direction: str = "in",
+        major_length: int = 8,
+        minor_count: int = 4,
+        show_minor: bool = True,
+        graph_name: str | None = None,
+        layer_index: int = 0,
+    ) -> dict:
+        """Set tick mark direction, length, and minor tick count.
+
+        When to use: To standardize graph ticks for presentation or publication.
+        When not to use: When the default tick style is acceptable.
+
+        Default behavior:
+        - graph_name omitted: uses current active graph
+        - tick_direction defaults to "in"
+        - show_minor defaults to true
+
+        Examples:
+        - set_tick_style()
+        - set_tick_style(tick_direction="both", major_length=10, minor_count=2)
+        """
+        normalized_direction = tick_direction.lower()
+        if normalized_direction not in {"in", "out", "both"}:
+            return error_response(
+                message=f"不支持的 tick_direction '{tick_direction}'",
+                error_type="invalid_input",
+                target="tick_direction",
+                value=tick_direction,
+                hint="支持的方向: in, out, both",
+            )
+        if major_length <= 0:
+            return error_response(
+                message="major_length 必须大于 0",
+                error_type="invalid_input",
+                target="major_length",
+                value=major_length,
+            )
+        if minor_count < 0:
+            return error_response(
+                message="minor_count 不能为负数",
+                error_type="invalid_input",
+                target="minor_count",
+                value=minor_count,
+            )
+
+        target_name = _resolve_graph_name(graph_name, manager)
+
+        def _set(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            _get_layer(gr, layer_index)
+            _set_tick_style_commands(
+                op=op,
+                graph_name=gr.name,
+                layer_index=layer_index,
+                tick_direction=normalized_direction,
+                major_length=major_length,
+                minor_count=minor_count,
+                show_minor=show_minor,
+            )
+            return {
+                "graph_name": target_name,
+                "tick_direction": normalized_direction,
+                "major_length": major_length,
+                "minor_count": minor_count if show_minor else 0,
+                "show_minor": show_minor,
+            }
+
+        result = manager.execute(_set)
+
+        return success_response(
+            message=(
+                f"刻度样式已更新：方向={normalized_direction}，"
+                f"主刻度长度={major_length}。"
+            ),
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_graph_font",
+                "apply_publication_style",
+                "export_graph",
+            ],
+        )
+
+    # =================================================================
+    # apply_publication_style
+    # =================================================================
+
+    @mcp.tool()
+    @tool_error_handler("应用论文风格", "请检查图表名称和样式参数。")
+    def apply_publication_style(
+        graph_name: str | None = None,
+        x_label: str = "",
+        y_label: str = "",
+        x_min: float | None = None,
+        x_max: float | None = None,
+        y_min: float | None = None,
+        y_max: float | None = None,
+        legend_position: str = "top_right",
+        legend_visible: bool = True,
+        font_name: str = "Arial",
+        layer_index: int = 0,
+        axis_title_size: int = 28,
+        tick_font_size: int = 20,
+        legend_font_size: int = 20,
+        line_width: float = 2,
+        symbol_size: float = 10,
+        tick_direction: str = "in",
+        major_length: int = 8,
+        minor_count: int = 4,
+        show_minor: bool = True,
+    ) -> dict:
+        """Apply a publication-ready graph style in one call.
+
+        When to use: To quickly standardize a graph for papers or reports.
+        When not to use: When you need fine-grained control over every style detail.
+
+        Default behavior:
+        - graph_name omitted: uses current active graph
+        - legend defaults to visible at top_right
+        - font defaults to Arial
+        - layer_index defaults to 0 (main layer)
+
+        Examples:
+        - apply_publication_style(x_label="Time (s)", y_label="Intensity (a.u.)")
+        - apply_publication_style(graph_name="Graph1", x_min=0, x_max=10, y_min=0)
+        - apply_publication_style(layer_index=1, line_width=3, symbol_size=12)
+        """
+        normalized_position = legend_position.lower()
+        if normalized_position not in LEGEND_POSITION_MAP:
+            return error_response(
+                message=f"不支持的图例位置 '{legend_position}'",
+                error_type="invalid_input",
+                target="legend_position",
+                value=legend_position,
+                hint=f"支持的位置: {list(LEGEND_POSITION_MAP.keys())}",
+            )
+        if not font_name.strip():
+            return error_response(
+                message="font_name 不能为空",
+                error_type="invalid_input",
+                target="font_name",
+                value=font_name,
+            )
+        normalized_direction = tick_direction.lower()
+        if normalized_direction not in {"in", "out", "both"}:
+            return error_response(
+                message=f"不支持的 tick_direction '{tick_direction}'",
+                error_type="invalid_input",
+                target="tick_direction",
+                value=tick_direction,
+                hint="支持的方向: in, out, both",
+            )
+        if axis_title_size <= 0:
+            return error_response(
+                message="axis_title_size 必须大于 0",
+                error_type="invalid_input",
+                target="axis_title_size",
+                value=axis_title_size,
+            )
+        if tick_font_size <= 0:
+            return error_response(
+                message="tick_font_size 必须大于 0",
+                error_type="invalid_input",
+                target="tick_font_size",
+                value=tick_font_size,
+            )
+        if legend_font_size <= 0:
+            return error_response(
+                message="legend_font_size 必须大于 0",
+                error_type="invalid_input",
+                target="legend_font_size",
+                value=legend_font_size,
+            )
+        if line_width <= 0:
+            return error_response(
+                message="line_width 必须大于 0",
+                error_type="invalid_input",
+                target="line_width",
+                value=line_width,
+            )
+        if symbol_size <= 0:
+            return error_response(
+                message="symbol_size 必须大于 0",
+                error_type="invalid_input",
+                target="symbol_size",
+                value=symbol_size,
+            )
+        if major_length <= 0:
+            return error_response(
+                message="major_length 必须大于 0",
+                error_type="invalid_input",
+                target="major_length",
+                value=major_length,
+            )
+        if minor_count < 0:
+            return error_response(
+                message="minor_count 不能为负数",
+                error_type="invalid_input",
+                target="minor_count",
+                value=minor_count,
+            )
+
+        target_name = _resolve_graph_name(graph_name, manager)
+
+        def _apply(op: Any) -> dict[str, Any]:
+            gr = _find_graph(op, target_name)
+            gl = _get_layer(gr, layer_index)
+            plots = gl.plot_list()
+
+            _activate_graph_layer(op, gr.name, layer_index)
+
+            if x_label:
+                escaped = _escape_labtalk_text(x_label)
+                escaped_font = _escape_labtalk_text(font_name)
+                op.lt_exec(f'xb.text$ = "\\b({escaped})"')
+                op.lt_exec(f'xb.font$ = "{escaped_font}"')
+                op.lt_exec(f"xb.fsize = {axis_title_size}")
+            if y_label:
+                escaped = _escape_labtalk_text(y_label)
+                escaped_font = _escape_labtalk_text(font_name)
+                op.lt_exec(f'yl.text$ = "\\b({escaped})"')
+                op.lt_exec(f'yl.font$ = "{escaped_font}"')
+                op.lt_exec(f"yl.fsize = {axis_title_size}")
+
+            _set_graph_font_commands(
+                op=op,
+                graph_name=gr.name,
+                layer_index=layer_index,
+                font_name=font_name,
+                font_size=max(axis_title_size, tick_font_size, legend_font_size),
+                target="tick",
+                tick_font_size=tick_font_size,
+            )
+            _set_tick_style_commands(
+                op=op,
+                graph_name=gr.name,
+                layer_index=layer_index,
+                tick_direction=normalized_direction,
+                major_length=major_length,
+                minor_count=minor_count,
+                show_minor=show_minor,
+            )
+
+            if x_min is not None:
+                op.lt_exec(f"layer.x.from = {x_min}")
+            if x_max is not None:
+                op.lt_exec(f"layer.x.to = {x_max}")
+            if y_min is not None:
+                op.lt_exec(f"layer.y.from = {y_min}")
+            if y_max is not None:
+                op.lt_exec(f"layer.y.to = {y_max}")
+
+            op.lt_exec("layer.x.opposite = 1")
+            op.lt_exec("layer.y.opposite = 1")
+            op.lt_exec("layer.x.thickness = 2")
+            op.lt_exec("layer.y.thickness = 2")
+            op.lt_exec("layer.x.grid = 0")
+            op.lt_exec("layer.y.grid = 0")
+            op.lt_exec("layer.x.minorGrid = 0")
+            op.lt_exec("layer.y.minorGrid = 0")
+
+            styled_plots: list[dict[str, Any]] = []
+            for plot_index, plot in enumerate(plots):
+                color = PUBLICATION_COLORS[plot_index % len(PUBLICATION_COLORS)]
+                symbol = PUBLICATION_SYMBOLS[plot_index % len(PUBLICATION_SYMBOLS)]
+
+                if hasattr(plot, "color"):
+                    plot.color = color
+                if hasattr(plot, "symbol_size"):
+                    plot.symbol_size = symbol_size
+                if hasattr(plot, "shapelist"):
+                    plot.shapelist = [symbol]
+
+                _activate_plot(op, gr.name, plot_index, layer_index)
+                op.lt_exec(f"set %C -w {line_width}")
+                op.lt_exec("set %C -d 1")
+                op.lt_exec(f"set %C -k {symbol}")
+                op.lt_exec(f"set %C -z {symbol_size}")
+
+                styled_plots.append(
+                    {
+                        "plot_index": plot_index,
+                        "color": color,
+                        "symbol": symbol,
+                        "line_width": line_width,
+                        "symbol_size": symbol_size,
+                    }
+                )
+
+            _activate_graph_layer(op, gr.name, layer_index)
+            if legend_visible:
+                op.lt_exec("legend -r")
+                op.lt_exec("legend -s")
+                x_pct, y_pct = LEGEND_POSITION_MAP[normalized_position]
+                op.lt_exec(f"legend.x = {x_pct}")
+                op.lt_exec(f"legend.y = {y_pct}")
+                escaped_font = _escape_labtalk_text(font_name)
+                op.lt_exec(f'legend.font$ = "{escaped_font}"')
+                op.lt_exec(f"legend.fsize = {legend_font_size}")
+            else:
+                op.lt_exec("legend -h")
+
+            return {
+                "graph_name": target_name,
+                "layer_index": layer_index,
+                "x_label": x_label,
+                "y_label": y_label,
+                "x_range": {"min": x_min, "max": x_max},
+                "y_range": {"min": y_min, "max": y_max},
+                "legend_visible": legend_visible,
+                "legend_position": normalized_position if legend_visible else None,
+                "font_name": font_name,
+                "axis_title_size": axis_title_size,
+                "tick_font_size": tick_font_size,
+                "legend_font_size": legend_font_size,
+                "tick_direction": normalized_direction,
+                "major_length": major_length,
+                "minor_count": minor_count if show_minor else 0,
+                "show_minor": show_minor,
+                "styled_plots": styled_plots,
+            }
+
+        result = manager.execute(_apply)
+
+        return success_response(
+            message=(
+                f"已对图表 '{target_name}' 应用论文风格："
+                f"{len(result['styled_plots'])} 条曲线已统一样式。"
+            ),
+            data=result,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "export_graph",
+                "export_all_graphs",
+                "save_project",
             ],
         )

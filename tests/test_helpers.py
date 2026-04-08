@@ -131,24 +131,24 @@ class TestFindGraph:
 class TestGetPlot:
     def test_found(self):
         class StubLayer:
-            def plot(self, idx):
-                return f"plot_{idx}"
+            def plot_list(self):
+                return ["plot_0", "plot_1"]
 
         result = get_plot(StubLayer(), 0)
         assert result == "plot_0"
 
     def test_not_found_raises(self):
         class StubLayer:
-            def plot(self, idx):
-                return None
+            def plot_list(self):
+                return ["plot_0"]
 
         with pytest.raises(PlotIndexError):
             get_plot(StubLayer(), 5)
 
     def test_negative_raises(self):
         class StubLayer:
-            def plot(self, idx):
-                return f"plot_{idx}"
+            def plot_list(self):
+                return ["plot_0"]
 
         with pytest.raises(PlotIndexError):
             get_plot(StubLayer(), -1)

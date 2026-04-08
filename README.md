@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
     <img src="https://img.shields.io/badge/version-0.2.1-green.svg" alt="Version">
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
-    <img src="https://img.shields.io/badge/tools-59-orange.svg" alt="Tools">
+    <img src="https://img.shields.io/badge/tools-64-orange.svg" alt="Tools">
   </p>
   <p align="center">
     <a href="#-快速开始">快速开始</a> · <a href="#-功能一览">功能一览</a> · <a href="#-使用示例">使用示例</a> · <a href="#-客户端配置">客户端配置</a>
@@ -113,7 +113,7 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 
 ## 🧰 功能一览
 
-共提供 **59 个工具**，覆盖 OriginLab 的数据全流程：
+共提供 **64 个工具**，覆盖 OriginLab 的数据全流程：
 
 ### 📊 数据管理（14 个工具）
 
@@ -133,18 +133,20 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 | 图层 | `add_graph_layer` · `group_plots` |
 | 查看 | `list_graphs` · `list_graph_templates` · `get_graph_info` |
 
-### 🎨 图表定制（22 个工具）
+### 🎨 图表定制（25 个工具）
 
 | 分类 | 工具 |
 | :--- | :--- |
 | 坐标轴 | `set_axis_range` · `set_axis_scale` · `set_axis_step` · `set_axis_title` |
 | 线条 | `set_plot_line_style` · `set_plot_line_width` |
+| 字体与刻度 | `set_graph_font` · `set_tick_style` |
 | 颜色 | `set_plot_color` · `set_plot_colormap` · `set_plot_transparency` |
 | 符号 | `set_plot_symbols` · `set_symbol_size` · `set_symbol_interior` |
 | 分组递增 | `set_color_increment` · `set_symbol_increment` |
 | 误差棒 | `set_error_bar_style` |
 | 填充 | `set_fill_area` |
 | 图例 | `set_legend` |
+| 一键风格 | `apply_publication_style` |
 | 标注 | `set_graph_title` · `add_text_label` · `add_line_to_graph` · `remove_graph_label` |
 
 ### 📐 数据分析（3 个工具）
@@ -153,17 +155,19 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 
 > 支持 Gauss、Lorentz、ExpDec1、Boltzmann 等常用拟合函数，可固定参数、设置初始值、带误差棒拟合。
 
-### 💾 导出与项目（5 个工具）
+### 💾 导出与项目（6 个工具）
 
-`export_graph` · `export_worksheet_to_csv` · `save_project` · `open_project` · `new_project`
+`export_graph` · `export_all_graphs` · `export_worksheet_to_csv` · `save_project` · `open_project` · `new_project`
 
 ### 🔧 系统管理（4 个工具）
 
 `get_origin_info` · `release_origin` · `reconnect_origin` · `close_origin`
 
-### ⚡ 高级（1 个工具）
+### ⚡ 高级（2 个工具）
 
-`execute_labtalk` — 执行任意 LabTalk 命令（逃生舱）
+`execute_labtalk` · `get_labtalk_variable`
+
+其中 `execute_labtalk` 用于最后手段的脚本逃生舱，`get_labtalk_variable` 用于安全读取 LabTalk 变量值。
 
 ## 💬 使用示例
 
@@ -177,10 +181,15 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 | 「画个散点图」 | `create_plot` |
 | 「再加一条第三列的曲线」 | `add_plot_to_graph` |
 | 「X 轴标题改成 Time (s)，曲线改红色」 | `set_axis_title` + `set_plot_color` |
+| 「一键套成论文图风格」 | `apply_publication_style` |
+| 「把第二图层套成论文风格，线宽 3、符号 12」 | `apply_publication_style` |
 | 「做个高斯拟合」 | `nonlinear_fit` |
 | 「把 Y 轴改成对数刻度」 | `set_axis_scale` |
 | 「导出 PNG 到桌面」 | `export_graph` |
+| 「把项目里所有图都导出成 SVG」 | `export_all_graphs` |
 | 「操作完了，释放 Origin 给我手动用」 | `release_origin` |
+
+`apply_publication_style` 支持指定 `layer_index`，以及轴标题字号、刻度字号、图例字号、主刻度长度、次刻度数量、线宽、符号大小等常用论文图参数。
 
 典型的完整工作流：
 
@@ -271,11 +280,11 @@ originlab-mcp/
 │   ├── tools/
 │   │   ├── data.py               # 📊 数据导入与工作表管理 (14)
 │   │   ├── plot.py               # 📈 图表创建与管理 (10)
-│   │   ├── customize.py          # 🎨 图表外观定制 (22)
+│   │   ├── customize.py          # 🎨 图表外观定制 (25)
 │   │   ├── analysis.py           # 📐 线性/非线性拟合 (3)
-│   │   ├── export.py             # 💾 导出与项目管理 (5)
+│   │   ├── export.py             # 💾 导出与项目管理 (6)
 │   │   ├── system.py             # 🔧 系统与连接管理 (4)
-│   │   └── advanced.py           # ⚡ LabTalk 逃生舱 (1)
+│   │   └── advanced.py           # ⚡ LabTalk 逃生舱 (2)
 │   └── utils/
 │       ├── constants.py          # 枚举、默认值、拟合函数定义
 │       ├── helpers.py            # 图层/工作表/图表解析、错误处理装饰器

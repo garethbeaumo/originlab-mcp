@@ -11,10 +11,13 @@ Origin COM 连接管理器
 
 from __future__ import annotations
 
+import importlib
 import logging
 import threading
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
+
+from originlab_mcp.types import OriginProProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +45,7 @@ class OriginManager:
     def __init__(self, idle_timeout: int = DEFAULT_IDLE_TIMEOUT) -> None:
         self._com_lock = threading.Lock()
         self._connected = False
-        self._op = None  # originpro 模块引用
+        self._op: OriginProProtocol | None = None
 
         # 空闲超时机制
         self._idle_timeout = idle_timeout
@@ -105,11 +108,11 @@ class OriginManager:
             return
 
         try:
-            import originpro as op
-
+            module = importlib.import_module("originpro")
+            op = cast(OriginProProtocol, module)
             self._op = op
             # 确保 Origin 窗口可见
-            self._op.set_show(True)
+            op.set_show(True)
             self._connected = True
             logger.info("已连接到 Origin")
         except ImportError as e:
@@ -127,9 +130,10 @@ class OriginManager:
         释放 COM 控制权但不关闭 Origin，允许用户自由操作。
         此方法不获取锁，调用者必须已持有 _com_lock。
         """
-        if self._op is not None:
+        op = self._op
+        if op is not None:
             try:
-                self._op.detach()
+                op.detach()
                 logger.info("已释放 Origin COM 控制权（Origin 保持运行）")
             except Exception as e:
                 logger.debug("detach 时出错（可忽略）: %s", e)
@@ -162,9 +166,10 @@ class OriginManager:
         """
         self._cancel_idle_timer()
         with self._com_lock:
-            if self._op is not None:
+            op = self._op
+            if op is not None:
                 try:
-                    self._op.detach()
+                    op.detach()
                     logger.info("已断开 Origin 连接（Origin 保持运行）")
                 except Exception as e:
                     logger.warning("断开连接时出错: %s", e)
@@ -181,7 +186,7 @@ class OriginManager:
         if self._op is not None:
             try:
                 self.ensure_connected()
-                self._op.exit()
+                self.op.exit()
                 logger.info("已关闭 Origin")
             except Exception as e:
                 logger.warning("关闭 Origin 时出错: %s", e)
@@ -213,7 +218,7 @@ class OriginManager:
         return self._connected and self._op is not None
 
     @property
-    def op(self):
+    def op(self) -> OriginProProtocol:
         """获取 originpro 模块引用。
 
         调用前必须确保已连接。
@@ -245,8 +250,9 @@ class OriginManager:
 
         with self._com_lock:
             self.ensure_connected()
+            op = self.op
             try:
-                return func(self._op, *args, **kwargs)
+                return func(op, *args, **kwargs)
             finally:
                 # 操作完成后启动空闲计时器（而不是立即 detach）
                 self._reset_idle_timer()
@@ -303,7 +309,7 @@ class OriginManager:
 
         if self.is_connected:
             try:
-                op = self._op
+                op = self.op
                 info["exe_path"] = op.path("e")
                 info["user_path"] = op.path("u")
                 info["active_worksheet"] = self._active_worksheet
