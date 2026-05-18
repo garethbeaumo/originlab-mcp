@@ -196,7 +196,7 @@ class DummyMCP:
 
 @pytest.fixture
 def fresh_manager():
-    return OriginManager()
+    return OriginManager(auto_recover_active=False)
 
 
 class TestToolRegressions:
@@ -209,30 +209,24 @@ class TestToolRegressions:
         register_data_tools(mcp, manager)
         manager.active_worksheet = "[Book1]Sheet1"
 
-        class StubCol:
-            def __init__(self, name: str, long_name: str = ""):
-                self.name = name
-                self._long_name = long_name
-
-            def get_label(self, label_type: str) -> str:
-                return self._long_name if label_type == "L" else ""
-
         class StubSheet:
             rows = 99
             cols = 2
 
             def __init__(self):
-                self._cols = [
-                    StubCol("A", "Value"),
-                    StubCol("B", "Value"),
-                ]
                 self._data = [
                     [1, 2],
                     [10],
                 ]
 
-            def get_col(self, index: int) -> StubCol:
-                return self._cols[index]
+            def get_label(self, index: int, label_type: str) -> str:
+                labels = {
+                    "G": ["A", "B"],
+                    "L": ["Value", "Value"],
+                    "U": ["", ""],
+                    "C": ["", ""],
+                }
+                return labels[label_type][index]
 
             def to_list(self, index: int) -> list[int]:
                 return self._data[index]
@@ -268,10 +262,6 @@ class TestToolRegressions:
         register_data_tools(mcp, manager)
         manager.active_worksheet = "[Book1]Sheet1"
 
-        class StubCol:
-            def __init__(self, name: str):
-                self.name = name
-
         class StubSheet:
             cols = 3
 
@@ -285,8 +275,9 @@ class TestToolRegressions:
                 assert label_type == "D"
                 return list(self.applied)
 
-            def get_col(self, index: int) -> StubCol:
-                return StubCol(f"C{index + 1}")
+            def get_label(self, index: int, label_type: str) -> str:
+                assert label_type == "G"
+                return f"C{index + 1}"
 
         class StubOp:
             def __init__(self):
@@ -325,6 +316,87 @@ class TestToolRegressions:
         assert result["ok"] is False
         assert result["error"]["type"] == "invalid_input"
         assert result["error"]["target"] == "y_cols"
+
+    def test_change_plot_type_replaces_plots_in_existing_graph(self, fresh_manager):
+        mcp = DummyMCP()
+        manager = fresh_manager
+        manager.active_worksheet = "[Book1]Sheet1"
+        manager.active_graph = "Graph1"
+
+        from originlab_mcp.tools.plot import register_plot_tools
+
+        register_plot_tools(mcp, manager)
+
+        class StubSheet:
+            cols = 3
+
+        class StubLayer:
+            def __init__(self):
+                self._plots = ["old_plot"]
+                self.added = []
+                self.rescaled = False
+                self.grouped = False
+
+            def plot_list(self):
+                return list(self._plots)
+
+            def remove_plot(self, index: int) -> None:
+                self._plots.pop(index)
+
+            def add_plot(self, wks, **kwargs):
+                self.added.append((wks, kwargs))
+                self._plots.append(f"plot_{len(self._plots)}")
+
+            def rescale(self):
+                self.rescaled = True
+
+            def group(self):
+                self.grouped = True
+
+        class StubGraph:
+            name = "Graph1"
+
+            def __init__(self, layer):
+                self.layer = layer
+
+            def __getitem__(self, index: int):
+                assert index == 0
+                return self.layer
+
+            def __len__(self):
+                return 1
+
+        class StubOp:
+            def __init__(self, layer):
+                self.sheet = StubSheet()
+                self.graph = StubGraph(layer)
+
+            def find_sheet(self, kind: str, name: str):
+                assert kind == "w"
+                assert name == "[Book1]Sheet1"
+                return self.sheet
+
+            def find_graph(self, name: str):
+                assert name == "Graph1"
+                return self.graph
+
+        layer = StubLayer()
+        op = StubOp(layer)
+        manager.execute = MethodType(
+            lambda self, func, *args, **kwargs: func(op, *args, **kwargs),
+            manager,
+        )
+
+        result = mcp.tools["change_plot_type"]("column", x_col=0, y_cols=1)
+
+        assert result["ok"] is True
+        assert result["data"]["removed_curve_count"] == 1
+        assert result["data"]["plot_type"] == "column"
+        assert layer.added == [
+            (op.sheet, {"coly": 1, "colx": 0, "type": "c"}),
+        ]
+        assert layer.rescaled is True
+        assert layer.grouped is True
 
     def test_set_axis_scale_uses_origin_scale_strings(self, fresh_manager):
         mcp = DummyMCP()
@@ -428,20 +500,15 @@ class TestToolRegressions:
         register_export_tools(mcp, manager)
         manager.active_worksheet = "[Book1]Sheet1"
 
-        class StubCol:
-            def __init__(self, name: str, long_name: str = ""):
-                self.name = name
-                self._long_name = long_name
-
-            def get_label(self, label_type: str) -> str:
-                return self._long_name if label_type == "L" else ""
-
         class StubSheet:
             cols = 2
 
-            def get_col(self, index: int) -> StubCol:
-                cols = [StubCol("A", "Name"), StubCol("B", "Note")]
-                return cols[index]
+            def get_label(self, index: int, label_type: str) -> str:
+                labels = {
+                    "G": ["A", "B"],
+                    "L": ["Name", "Note"],
+                }
+                return labels.get(label_type, ["", ""])[index]
 
             def to_list(self, index: int) -> list[str]:
                 data = [

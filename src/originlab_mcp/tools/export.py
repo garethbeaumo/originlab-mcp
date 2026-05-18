@@ -25,6 +25,7 @@ from originlab_mcp.utils.constants import (
 from originlab_mcp.utils.helpers import (
     find_graph,
     find_worksheet,
+    get_column_label,
     resolve_graph_name,
     resolve_worksheet_name,
     tool_error_handler,
@@ -257,9 +258,9 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
 
             headers = []
             for ci in range(wks.cols):
-                col = wks.get_col(ci)
-                long_name = col.get_label("L") if hasattr(col, "get_label") else ""
-                headers.append(long_name or col.name)
+                long_name = get_column_label(wks, ci, "L")
+                short_name = get_column_label(wks, ci, "G")
+                headers.append(long_name or short_name or f"Col{ci + 1}")
 
             data_lists = [wks.to_list(ci) for ci in range(wks.cols)]
             max_rows = max((len(d) for d in data_lists), default=0)

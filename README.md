@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
     <img src="https://img.shields.io/badge/version-0.2.1-green.svg" alt="Version">
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
-    <img src="https://img.shields.io/badge/tools-64-orange.svg" alt="Tools">
+    <img src="https://img.shields.io/badge/tools-65-orange.svg" alt="Tools">
   </p>
   <p align="center">
     <a href="#-快速开始">快速开始</a> · <a href="#-功能一览">功能一览</a> · <a href="#-使用示例">使用示例</a> · <a href="#-客户端配置">客户端配置</a>
@@ -113,7 +113,7 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 
 ## 🧰 功能一览
 
-共提供 **64 个工具**，覆盖 OriginLab 的数据全流程：
+共提供 **65 个工具**，覆盖 OriginLab 的数据全流程：
 
 ### 📊 数据管理（14 个工具）
 
@@ -124,12 +124,12 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 | 编辑 | `set_column_designations` · `set_column_labels` · `set_column_formula` |
 | 管理 | `add_worksheet` · `sort_worksheet` · `clear_worksheet` · `delete_columns` |
 
-### 📈 绘图（10 个工具）
+### 📈 绘图（11 个工具）
 
 | 分类 | 工具 |
 | :--- | :--- |
 | 创建 | `create_plot` · `create_double_y_plot` |
-| 修改 | `add_plot_to_graph` · `remove_plot_from_graph` · `change_plot_data` |
+| 修改 | `add_plot_to_graph` · `remove_plot_from_graph` · `change_plot_data` · `change_plot_type` |
 | 图层 | `add_graph_layer` · `group_plots` |
 | 查看 | `list_graphs` · `list_graph_templates` · `get_graph_info` |
 

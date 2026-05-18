@@ -15,6 +15,7 @@ import importlib
 import logging
 import threading
 from collections.abc import Callable
+from contextlib import suppress
 from typing import Any, TypeVar, cast
 
 from originlab_mcp.types import OriginProProtocol
@@ -42,10 +43,16 @@ class OriginManager:
     - 释放后再有 tool 调用时自动重连
     """
 
-    def __init__(self, idle_timeout: int = DEFAULT_IDLE_TIMEOUT) -> None:
+    def __init__(
+        self,
+        idle_timeout: int = DEFAULT_IDLE_TIMEOUT,
+        *,
+        auto_recover_active: bool = True,
+    ) -> None:
         self._com_lock = threading.Lock()
         self._connected = False
         self._op: OriginProProtocol | None = None
+        self._auto_recover_active = auto_recover_active
 
         # 空闲超时机制
         self._idle_timeout = idle_timeout
@@ -111,9 +118,15 @@ class OriginManager:
             module = importlib.import_module("originpro")
             op = cast(OriginProProtocol, module)
             self._op = op
+            # Prefer attaching to an already-open Origin instance. Without
+            # this, OriginExt can create another COM-controlled instance.
+            with suppress(Exception):
+                if hasattr(op, "attach"):
+                    op.attach()
             # 确保 Origin 窗口可见
             op.set_show(True)
             self._connected = True
+            self._refresh_active_context_unlocked()
             logger.info("已连接到 Origin")
         except ImportError as e:
             self._connected = False
@@ -218,6 +231,11 @@ class OriginManager:
         return self._connected and self._op is not None
 
     @property
+    def auto_recover_active(self) -> bool:
+        """是否允许从当前 Origin 会话恢复活动对象。"""
+        return self._auto_recover_active
+
+    @property
     def op(self) -> OriginProProtocol:
         """获取 originpro 模块引用。
 
@@ -290,6 +308,51 @@ class OriginManager:
             "active_graph": self._active_graph,
         }
 
+    def _worksheet_full_name(self, wks: Any) -> str | None:
+        """Return Origin range-style worksheet name for an originpro WSheet."""
+        if wks is None:
+            return None
+        try:
+            book = wks.get_book()
+            return f"[{book.name}]{wks.name}"
+        except Exception:
+            return str(wks) if wks else None
+
+    def _refresh_active_context_unlocked(self) -> None:
+        """Refresh active Origin objects without acquiring the COM lock."""
+        if self._op is None:
+            return
+
+        with suppress(Exception):
+            wks = self._op.find_sheet("w", "")
+            if wks:
+                self._active_worksheet = self._worksheet_full_name(wks)
+
+        with suppress(Exception):
+            graph = self._op.find_graph("")
+            if graph:
+                self._active_graph = graph.name
+
+    def refresh_active_context(self) -> dict[str, str | None]:
+        """Refresh active worksheet/graph from the attached Origin session."""
+        def _refresh(_op: OriginProProtocol) -> dict[str, str | None]:
+            self._refresh_active_context_unlocked()
+            return self.get_resource_context()
+
+        return self.execute(_refresh)
+
+    def recover_active_worksheet(self) -> str | None:
+        """Best-effort recovery of the active worksheet name from Origin."""
+        if not self._auto_recover_active:
+            return None
+        return self.refresh_active_context().get("active_worksheet")
+
+    def recover_active_graph(self) -> str | None:
+        """Best-effort recovery of the active graph name from Origin."""
+        if not self._auto_recover_active:
+            return None
+        return self.refresh_active_context().get("active_graph")
+
     # -----------------------------------------------------------------
     # 环境信息
     # -----------------------------------------------------------------
@@ -310,6 +373,7 @@ class OriginManager:
         if self.is_connected:
             try:
                 op = self.op
+                self._refresh_active_context_unlocked()
                 info["exe_path"] = op.path("e")
                 info["user_path"] = op.path("u")
                 info["active_worksheet"] = self._active_worksheet

@@ -27,7 +27,7 @@ class DummyMCP:
 
 @pytest.fixture
 def fresh_manager():
-    return OriginManager()
+    return OriginManager(auto_recover_active=False)
 
 
 # ===================================================================

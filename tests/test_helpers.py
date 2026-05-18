@@ -29,7 +29,7 @@ from originlab_mcp.utils.helpers import (
 @pytest.fixture
 def manager():
     """创建一个全新的 OriginManager 实例（不依赖单例）。"""
-    return OriginManager()
+    return OriginManager(auto_recover_active=False)
 
 
 # ===================================================================
@@ -152,6 +152,15 @@ class TestGetPlot:
 
         with pytest.raises(PlotIndexError):
             get_plot(StubLayer(), -1)
+
+    def test_falls_back_to_plot_list(self):
+        class StubLayer:
+            def plot_list(self):
+                return ["plot_0", "plot_1"]
+
+        result = get_plot(StubLayer(), 1)
+
+        assert result == "plot_1"
 
 
 # ===================================================================
@@ -288,6 +297,55 @@ class TestToolErrorHandler:
         assert result["ok"] is False
         assert result["error"]["type"] == "not_found"
         assert result["error"]["value"] == "Graph99"
+
+
+class TestOriginManagerLifecycle:
+    def test_disconnect_detaches_by_default(self):
+        class StubOp:
+            def __init__(self):
+                self.detached = False
+                self.exited = False
+
+            def detach(self):
+                self.detached = True
+
+            def exit(self):
+                self.exited = True
+
+        manager = OriginManager(auto_recover_active=False)
+        op = StubOp()
+        manager._op = op
+        manager._connected = True
+
+        manager.disconnect()
+
+        assert op.detached is True
+        assert op.exited is False
+
+    def test_close_and_exit_closes_origin_explicitly(self):
+        class StubOp:
+            def __init__(self):
+                self.detached = False
+                self.exited = False
+
+            def path(self, _kind):
+                return "C:\\Origin"
+
+            def detach(self):
+                self.detached = True
+
+            def exit(self):
+                self.exited = True
+
+        manager = OriginManager(auto_recover_active=False)
+        op = StubOp()
+        manager._op = op
+        manager._connected = True
+
+        manager.close_and_exit()
+
+        assert op.exited is True
+        assert op.detached is False
 
 
 # ===================================================================

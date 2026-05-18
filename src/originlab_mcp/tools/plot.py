@@ -18,6 +18,7 @@ from typing import Any
 from originlab_mcp.utils.constants import (
     DEFAULT_PLOT_TYPE,
     PLOT_TYPE_TO_TEMPLATE,
+    AddPlotType,
     PlotType,
 )
 from originlab_mcp.utils.helpers import (
@@ -31,6 +32,9 @@ from originlab_mcp.utils.helpers import (
 )
 from originlab_mcp.utils.helpers import (
     get_plot as _get_plot,
+)
+from originlab_mcp.utils.helpers import (
+    get_plot_count as _get_plot_count,
 )
 from originlab_mcp.utils.helpers import (
     resolve_graph_name as _resolve_graph_name,
@@ -50,6 +54,14 @@ from originlab_mcp.utils.validators import (
     success_response,
     validate_plot_type,
 )
+
+PLOT_TYPE_TO_ADD_TYPE: dict[str, str] = {
+    PlotType.LINE.value: AddPlotType.LINE.value,
+    PlotType.SCATTER.value: AddPlotType.SCATTER.value,
+    PlotType.LINE_SYMBOL.value: AddPlotType.LINE_SYMBOL.value,
+    PlotType.COLUMN.value: AddPlotType.COLUMN.value,
+    PlotType.AUTO.value: AddPlotType.AUTO.value,
+}
 
 
 def register_plot_tools(mcp: Any, manager: Any) -> None:
@@ -236,9 +248,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
             _validate_cols(cols_to_check, wks.cols)
 
             gl = _get_layer(gr, 0)
-            existing_count = (
-                gl.num_plots if hasattr(gl, "num_plots") else 0
-            )
+            existing_count = _get_plot_count(gl)
 
             new_curves = []
             for i, yc in enumerate(y_col_list):
@@ -281,6 +291,143 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
             ),
             data=result,
             resource=manager.get_resource_context(),
+            next_suggestions=[
+                "set_axis_title",
+                "set_plot_color",
+                "export_graph",
+            ],
+        )
+
+    # =================================================================
+    # change_plot_type
+    # =================================================================
+
+    @mcp.tool()
+    @tool_error_handler("更换图表类型", "请检查图表、工作表和列索引是否正确。")
+    def change_plot_type(
+        plot_type: str,
+        x_col: int,
+        y_cols: int | list[int],
+        graph_name: str | None = None,
+        sheet_name: str | None = None,
+        layer_index: int = 0,
+        yerr_col: int | None = None,
+        xerr_col: int | None = None,
+    ) -> dict:
+        """在原有图表窗口中替换曲线类型，不创建新的图表页。
+
+        何时使用：用户要求“把当前图改成柱状图/散点图/点线图”等，
+        且希望保留原图窗口时使用。
+        何时不用：从零开始画图请用 create_plot。
+
+        说明：
+        - 会清除指定图层中的现有曲线，再用给定数据列按新类型重建
+        - graph_name 省略时使用当前活动图表
+        - sheet_name 省略时使用当前活动工作表
+        """
+        err = validate_plot_type(plot_type)
+        if err:
+            return error_response(
+                message=err,
+                error_type="unsupported",
+                target="plot_type",
+                value=plot_type,
+                hint=f"支持的类型: {[e.value for e in PlotType]}",
+            )
+
+        add_type = PLOT_TYPE_TO_ADD_TYPE.get(plot_type)
+        if add_type is None:
+            return error_response(
+                message=f"plot_type '{plot_type}' 暂不支持在已有图层中原位替换。",
+                error_type="unsupported",
+                target="plot_type",
+                value=plot_type,
+                hint=f"可原位替换的类型: {list(PLOT_TYPE_TO_ADD_TYPE.keys())}",
+            )
+
+        target_graph = _resolve_graph_name(graph_name, manager)
+        target_sheet = _resolve_worksheet_name(sheet_name, manager)
+
+        try:
+            y_col_list = normalize_y_cols(y_cols)
+        except ValueError as e:
+            return error_response(
+                message=str(e),
+                error_type="invalid_input",
+                target="y_cols",
+                value=y_cols,
+                hint="请传入单个整数列索引，或整数列表。",
+            )
+
+        def _change(op: Any) -> dict[str, Any]:
+            wks = _find_worksheet(op, target_sheet)
+            gr = _find_graph(op, target_graph)
+            gl = _get_layer(gr, layer_index)
+
+            cols_to_check = [x_col] + y_col_list
+            if yerr_col is not None:
+                cols_to_check.append(yerr_col)
+            if xerr_col is not None:
+                cols_to_check.append(xerr_col)
+            _validate_cols(cols_to_check, wks.cols)
+
+            existing_count = _get_plot_count(gl)
+            for _ in range(existing_count):
+                gl.remove_plot(0)
+
+            curves = []
+            for i, yc in enumerate(y_col_list):
+                plot_kwargs = {
+                    "coly": yc,
+                    "colx": x_col,
+                    "type": add_type,
+                }
+                if yerr_col is not None:
+                    plot_kwargs["colyerr"] = yerr_col
+                if xerr_col is not None:
+                    plot_kwargs["colxerr"] = xerr_col
+                gl.add_plot(wks, **plot_kwargs)
+                curve_info = {
+                    "y_col": yc,
+                    "x_col": x_col,
+                    "plot_index": i,
+                }
+                if yerr_col is not None:
+                    curve_info["yerr_col"] = yerr_col
+                if xerr_col is not None:
+                    curve_info["xerr_col"] = xerr_col
+                curves.append(curve_info)
+
+            gl.rescale()
+            with suppress(Exception):
+                gl.group()
+
+            manager.active_graph = target_graph
+            manager.active_worksheet = target_sheet
+
+            return {
+                "graph_name": target_graph,
+                "sheet_name": target_sheet,
+                "layer_index": layer_index,
+                "plot_type": plot_type,
+                "removed_curve_count": existing_count,
+                "curve_count": len(curves),
+                "curves": curves,
+            }
+
+        result = manager.execute(_change)
+
+        return success_response(
+            message=(
+                f"图表 '{target_graph}' 已在原图层中更换为 {plot_type}，"
+                f"重建 {result['curve_count']} 条曲线。"
+            ),
+            data=result,
+            resource=manager.get_resource_context(),
+            warnings=(
+                ["原图层没有旧曲线，本次相当于在已有图表中添加曲线。"]
+                if result["removed_curve_count"] == 0 else []
+            ),
             next_suggestions=[
                 "set_axis_title",
                 "set_plot_color",
@@ -459,7 +606,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
             _get_plot(gl, plot_index)
             gl.remove_plot(plot_index)
 
-            remaining = len(gl.plot_list()) if hasattr(gl, "plot_list") else 0
+            remaining = _get_plot_count(gl)
 
             return {
                 "graph_name": target_graph,

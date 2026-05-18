@@ -31,6 +31,12 @@ from originlab_mcp.utils.helpers import (
     find_worksheet as _find_worksheet,
 )
 from originlab_mcp.utils.helpers import (
+    get_column_info as _get_column_info,
+)
+from originlab_mcp.utils.helpers import (
+    get_column_label as _get_column_label,
+)
+from originlab_mcp.utils.helpers import (
     resolve_worksheet_name as _resolve_worksheet_name,
 )
 from originlab_mcp.utils.helpers import (
@@ -45,21 +51,15 @@ from originlab_mcp.utils.validators import (
 # 注: _resolve_worksheet_name 和 _find_worksheet 从 utils.helpers 导入
 
 
-def _get_column_display_name(col: Any, index: int) -> str:
+def _get_column_display_name(wks: Any, index: int) -> str:
     """返回用于预览输出的列名。"""
-    long_name = ""
-    if hasattr(col, "get_label"):
-        try:
-            long_name = col.get_label("L")
-        except Exception:
-            long_name = ""
-
+    long_name = _get_column_label(wks, index, "L")
     if long_name:
-        return str(long_name)
+        return long_name
 
-    short_name = getattr(col, "name", "")
+    short_name = _get_column_label(wks, index, "G")
     if short_name:
-        return str(short_name)
+        return short_name
 
     return f"Col{index + 1}"
 
@@ -446,26 +446,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
 
             columns = []
             for i in range(wks.cols):
-                col = wks.get_col(i)
-                col_info: dict[str, Any] = {
-                    "index": i,
-                    "name": (
-                        col.name if hasattr(col, "name") else f"Col{i+1}"
-                    ),
-                    "long_name": (
-                        col.get_label("L")
-                        if hasattr(col, "get_label") else ""
-                    ),
-                    "units": (
-                        col.get_label("U")
-                        if hasattr(col, "get_label") else ""
-                    ),
-                    "comments": (
-                        col.get_label("C")
-                        if hasattr(col, "get_label") else ""
-                    ),
-                }
-                columns.append(col_info)
+                columns.append(_get_column_info(wks, i))
 
             # 获取列角色
             try:
@@ -541,8 +522,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
             col_names: list[str] = []
             col_values: list[list[Any]] = []
             for ci in range(total_cols):
-                col_obj = wks.get_col(ci)
-                base_name = _get_column_display_name(col_obj, ci)
+                base_name = _get_column_display_name(wks, ci)
                 col_name = _make_unique_column_name(base_name, used_names)
                 col_names.append(col_name)
                 col_values.append(list(wks.to_list(ci)))
@@ -633,13 +613,9 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
                 actual_desigs = []
 
             for i in range(wks.cols):
-                col = wks.get_col(i)
-                col_name = (
-                    col.name if hasattr(col, "name") else f"Col{i+1}"
-                )
                 col_info: dict[str, Any] = {
                     "index": i,
-                    "name": col_name,
+                    "name": _get_column_label(wks, i, "G") or f"Col{i+1}",
                 }
                 if i < len(actual_desigs):
                     col_info["designation"] = actual_desigs[i]

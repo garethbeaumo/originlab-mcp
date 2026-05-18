@@ -95,6 +95,11 @@ def resolve_worksheet_name(
         NoActiveWorksheetError: 未指定且无活动工作表时。
     """
     name = sheet_name or manager.active_worksheet
+    if not name and getattr(manager, "auto_recover_active", False):
+        try:
+            name = manager.recover_active_worksheet()
+        except Exception:
+            name = None
     if not name:
         raise NoActiveWorksheetError()
     return name
@@ -136,6 +141,11 @@ def resolve_graph_name(
         NoActiveGraphError: 未指定且无活动图表时。
     """
     name = graph_name or manager.active_graph
+    if not name and getattr(manager, "auto_recover_active", False):
+        try:
+            name = manager.recover_active_graph()
+        except Exception:
+            name = None
     if not name:
         raise NoActiveGraphError()
     return name
@@ -197,11 +207,98 @@ def get_plot(gl: Any, plot_index: int) -> Any:
     if plot_index < 0:
         raise PlotIndexError(plot_index)
 
-    # GLayer 没有 .plot() 方法，需通过 plot_list() 获取列表后按索引访问
-    plots = gl.plot_list()
-    if plot_index >= len(plots):
+    if hasattr(gl, "plot"):
+        plot = gl.plot(plot_index)
+    elif hasattr(gl, "plot_list"):
+        plots = gl.plot_list()
+        plot = plots[plot_index] if plot_index < len(plots) else None
+    else:
+        plot = None
+    if plot is None:
         raise PlotIndexError(plot_index)
-    return plots[plot_index]
+    return plot
+
+
+def get_plot_count(gl: Any) -> int:
+    """Return number of data plots in a graph layer."""
+    if hasattr(gl, "num_plots"):
+        num_plots = gl.num_plots
+        return int(num_plots() if callable(num_plots) else num_plots)
+    if hasattr(gl, "plot_list"):
+        return len(gl.plot_list())
+    return 0
+
+
+def get_column_object(wks: Any, index: int) -> Any | None:
+    """Return an Origin worksheet column object across originpro versions."""
+    if index < 0 or index >= getattr(wks, "cols", 0):
+        raise ColumnIndexError(index, getattr(wks, "cols", 0))
+
+    if hasattr(wks, "get_col"):
+        return wks.get_col(index)
+
+    raw_sheet = getattr(wks, "obj", None)
+    if raw_sheet is not None:
+        try:
+            return raw_sheet[index]
+        except Exception:
+            return None
+
+    return None
+
+
+def get_column_label(wks: Any, index: int, label_type: str) -> str:
+    """Read a worksheet column label across originpro versions.
+
+    label_type uses Origin label-row codes: G short name, L long name,
+    U units, C comments, D designation.
+    """
+    if index < 0 or index >= getattr(wks, "cols", 0):
+        raise ColumnIndexError(index, getattr(wks, "cols", 0))
+
+    if hasattr(wks, "get_label"):
+        try:
+            return str(wks.get_label(index, label_type) or "")
+        except Exception:
+            pass
+
+    col = get_column_object(wks, index)
+    if col is None:
+        return ""
+
+    if hasattr(col, "get_label"):
+        try:
+            return str(col.get_label(label_type) or "")
+        except Exception:
+            pass
+
+    attr_map = {
+        "G": ("name", "GetName"),
+        "L": ("LongName", "GetLongName"),
+        "U": ("Units", "GetUnits"),
+        "C": ("Comments", "GetComments"),
+    }
+    attr_names = attr_map.get(label_type.upper(), ())
+    for attr_name in attr_names:
+        if hasattr(col, attr_name):
+            value = getattr(col, attr_name)
+            if callable(value):
+                value = value()
+            return str(value or "")
+
+    return ""
+
+
+def get_column_info(wks: Any, index: int) -> dict[str, Any]:
+    """Build stable column metadata without depending on WSheet.get_col()."""
+    short_name = get_column_label(wks, index, "G") or f"Col{index + 1}"
+    return {
+        "index": index,
+        "name": short_name,
+        "long_name": get_column_label(wks, index, "L"),
+        "units": get_column_label(wks, index, "U"),
+        "comments": get_column_label(wks, index, "C"),
+    }
 
 
 def validate_axis(
@@ -274,4 +371,3 @@ def sanitize_labtalk_name(name: str, param_name: str = "name") -> str:
             hint="Origin 对象名只能包含英文字母、数字和下划线，且不能以数字开头。",
         )
     return name
-
