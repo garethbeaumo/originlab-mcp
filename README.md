@@ -16,6 +16,9 @@
   <p align="center">
     <a href="#-快速开始">快速开始</a> · <a href="#-功能一览">功能一览</a> · <a href="#-使用示例">使用示例</a> · <a href="#-客户端配置">客户端配置</a>
   </p>
+  <p align="center">
+    简体中文 · <a href="README.en.md">English</a>
+  </p>
 </p>
 
 > [!WARNING]
@@ -279,7 +282,7 @@ originlab-mcp/
 │   ├── types.py                  # Protocol 类型定义
 │   ├── tools/
 │   │   ├── data.py               # 📊 数据导入与工作表管理 (14)
-│   │   ├── plot.py               # 📈 图表创建与管理 (10)
+│   │   ├── plot.py               # 📈 图表创建与管理 (11)
 │   │   ├── customize.py          # 🎨 图表外观定制 (25)
 │   │   ├── analysis.py           # 📐 线性/非线性拟合 (3)
 │   │   ├── export.py             # 💾 导出与项目管理 (6)
