@@ -12,6 +12,7 @@ dependencies = [
 
 [project.scripts]
 originlab-mcp = "originlab_mcp.server:main"
+originlab-mcp-ui = "originlab_mcp.ui:main"
 
 [build-system]
 requires = ["hatchling"]

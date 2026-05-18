@@ -8,19 +8,28 @@
 
 ## [Unreleased]
 
+### ✨ 新功能
+
+- **本地状态面板**：新增 `originlab-mcp-ui` 命令，可在浏览器中查看 MCP Server、Origin 连接和常见客户端配置状态
+- **客户端配置助手**：状态面板支持为 Antigravity / Gemini、Cursor、Codex、Trae、Claude Desktop 写入 `originlab` MCP 配置，并在覆盖已有文件前生成备份
+- **一键安装入口**：新增 `scripts/install-and-open.ps1`，为 AI 助手和本机用户提供安装依赖并打开状态面板的单命令入口
+
 ### 🐛 Bug 修复
 
 - **Origin 生命周期**：MCP Server 关闭时默认只 detach，不再直接退出用户的 Origin 实例
 - **活动对象恢复**：当内存中的 active worksheet / graph 丢失时，尝试从当前 Origin 会话恢复活动对象
 - **OriginPro API 兼容**：统一封装列标签和曲线获取逻辑，兼容没有 `WSheet.get_col()` / `GLayer.plot()` 的 originpro 版本
 
-### ✨ 新功能
-
 - **change_plot_type**：支持在原有图表窗口和图层中重建曲线类型，例如把点线图原位改为柱状图，不创建新的图表页
 
 ### 🧪 测试
 
-- 新增生命周期、plot_list 兼容和原图类型替换回归测试
+- 新增生命周期、plot_list 兼容、原图类型替换和本地状态面板配置逻辑回归测试
+
+### 📝 文档
+
+- 默认 README 改为英文，并保留中文文档为 README.zh.md
+- README / README.en / README.zh 补充本地状态面板、Trae 配置和项目结构说明
 
 ---
 

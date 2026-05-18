@@ -14,10 +14,10 @@
     <img src="https://img.shields.io/badge/tools-65-orange.svg" alt="Tools">
   </p>
   <p align="center">
-    <a href="#-quick-start">Quick Start</a> · <a href="#-features">Features</a> · <a href="#-examples">Examples</a> · <a href="#-client-configuration">Client Configuration</a>
+    <a href="#quick-start">Quick Start</a> · <a href="#features">Features</a> · <a href="#examples">Examples</a> · <a href="#client-configuration">Client Configuration</a>
   </p>
   <p align="center">
-    <a href="README.md">简体中文</a> · English
+    <a href="README.zh.md">简体中文</a> · English
   </p>
 </p>
 
@@ -61,6 +61,14 @@ OriginLab
 | Python | 3.10+ |
 
 ## Quick Start
+
+For AI assistants or one-command local setup, run this from the repository root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-and-open.ps1
+```
+
+The script installs `uv` if needed, runs `uv sync`, starts the local status panel, and opens `http://127.0.0.1:8765/` automatically. From that page you can test Origin and write MCP client configs.
 
 Choose one installation method.
 
@@ -114,6 +122,23 @@ originlab-mcp
 </details>
 
 After startup, the server waits for MCP client requests over stdio. The first tool call automatically connects to the local OriginLab installation.
+
+### Optional: Local Status Panel
+
+To check whether the MCP server can start, whether Origin can be reached, and whether common client config files exist, start the local UI:
+
+```powershell
+uv run originlab-mcp-ui
+```
+
+Then open `http://127.0.0.1:8765/`. This page can start/stop a debug MCP server subprocess, test the Origin connection, and write the `originlab` MCP configuration for Antigravity / Gemini, Cursor, Codex, Trae, and Claude Desktop. For normal use, the AI client should still start the server automatically from its configuration.
+
+When updating an existing config file, the UI creates a `.bak-timestamp` backup first. To prevent the browser from opening automatically:
+
+```powershell
+$env:ORIGINLAB_MCP_UI_NO_BROWSER = "1"
+uv run originlab-mcp-ui
+```
 
 ## Features
 
@@ -206,6 +231,8 @@ Import data -> inspect structure -> set column designations -> create plot -> cu
 
 Replace paths with your actual project path.
 
+You can also run `uv run originlab-mcp-ui`, choose a client in the local status panel, and let it write the config automatically. Manual examples are shown below.
+
 ### Antigravity (Gemini) - Recommended
 
 Create `.gemini/settings.json` in the project root.
@@ -250,6 +277,13 @@ Create `.cursor/mcp.json` in the project root using the same format as above.
 </details>
 
 <details>
+<summary><b>Trae</b></summary>
+
+Create `.trae/mcp.json` in the project root using the same format as above.
+
+</details>
+
+<details>
 <summary><b>Codex (OpenAI)</b></summary>
 
 Create `.codex/config.json` in the project root using the same format as above.
@@ -260,7 +294,7 @@ Create `.codex/config.json` in the project root using the same format as above.
 
 ```powershell
 # uv
-uv run pytest tests/ -v
+uv run python -m pytest tests/ -v
 
 # pip, after activating the virtual environment
 pytest tests/ -v
@@ -274,8 +308,11 @@ The basic test suite does not require OriginLab to be installed.
 originlab-mcp/
 ├── pyproject.toml                # Project configuration and dependencies
 ├── CHANGELOG.md                  # Release notes
+├── scripts/
+│   └── install-and-open.ps1      # One-command setup and UI launcher
 ├── src/originlab_mcp/
 │   ├── server.py                 # MCP server entry point and dependency injection
+│   ├── ui.py                     # Local status panel
 │   ├── origin_manager.py         # Thread-safe Origin COM connection manager
 │   ├── exceptions.py             # Custom exceptions
 │   ├── types.py                  # Protocol type definitions
@@ -293,7 +330,9 @@ originlab-mcp/
 │       └── validators.py         # Input validation and standard response builders
 └── tests/
     ├── test_helpers.py           # Helper tests
-    └── test_tools.py             # Tool registration and integration tests
+    ├── test_phase3.py            # LabTalk safety and resolve-pattern tests
+    ├── test_tools.py             # Tool registration and integration tests
+    └── test_ui.py                # Local status panel config tests
 ```
 
 ## FAQ

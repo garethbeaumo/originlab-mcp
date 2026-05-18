@@ -1,10 +1,10 @@
 <p align="center">
-  <h1 align="center">🔬 OriginLab MCP Server</h1>
+  <h1 align="center">OriginLab MCP Server</h1>
   <p align="center">
-    <strong>让 AI 成为你的 OriginLab 助手</strong>
+    <strong>Use AI as your OriginLab assistant</strong>
   </p>
   <p align="center">
-    通过 <a href="https://modelcontextprotocol.io">MCP 协议</a> 将 OriginLab 的数据分析与可视化能力无缝接入 Antigravity、Claude、Cursor 等 AI 客户端
+    Connect OriginLab data analysis and visualization to Antigravity, Claude, Cursor, and other AI clients through the <a href="https://modelcontextprotocol.io">Model Context Protocol</a>.
   </p>
   <p align="center">
     <a href="https://github.com/garethbeaumo/originlab-mcp/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
@@ -14,72 +14,81 @@
     <img src="https://img.shields.io/badge/tools-65-orange.svg" alt="Tools">
   </p>
   <p align="center">
-    <a href="#-快速开始">快速开始</a> · <a href="#-功能一览">功能一览</a> · <a href="#-使用示例">使用示例</a> · <a href="#-客户端配置">客户端配置</a>
+    <a href="#quick-start">Quick Start</a> · <a href="#features">Features</a> · <a href="#examples">Examples</a> · <a href="#client-configuration">Client Configuration</a>
   </p>
   <p align="center">
-    简体中文 · <a href="README.en.md">English</a>
+    <a href="README.zh.md">简体中文</a> · English
   </p>
 </p>
 
 > [!WARNING]
-> **v0.2 早期版本** — 本项目仍处于早期开发阶段，功能和 API 可能随时变更。欢迎试用和反馈，但请勿用于生产环境。
+> **Early v0.2 release** - this project is still under active development. Features and APIs may change. It is suitable for testing and feedback, but not recommended for production use yet.
 
 ---
 
-## ✨ 什么是 OriginLab MCP Server？
+## What Is OriginLab MCP Server?
 
-OriginLab MCP Server 是一个连接 AI 与 OriginLab 的桥梁。它让你可以用**自然语言**完成数据导入、图表绘制、样式定制、数据分析和结果导出——无需手动操作 Origin 界面。
+OriginLab MCP Server is a bridge between AI clients and OriginLab. It lets you import data, create plots, customize figures, run analysis, and export results through natural-language requests instead of manually operating the Origin UI.
 
+```text
+User: Import experiment.csv from my desktop into Origin, use the first column as X
+      and the second column as Y, create a scatter plot, run a Gaussian fit,
+      then export the graph as PNG.
+
+AI: Done.
+    Imported experiment.csv -> Sheet1 (200 rows x 5 columns)
+    Created scatter plot -> Graph1
+    Gaussian fit completed -> xc=2.35, w=0.82, A=156.3, R²=0.9987
+    Exported -> C:\Users\Desktop\Graph1.png
 ```
-你：「把桌面上的 experiment.csv 导入 Origin，用第一列做 X、第二列做 Y，画散点图，
-     做个高斯拟合，然后导出为 PNG。」
 
-AI：好的，我来帮你完成。
-    ✅ 已导入 experiment.csv → Sheet1（200 行 × 5 列）
-    ✅ 已创建散点图 → Graph1
-    ✅ 高斯拟合完成 → xc=2.35, w=0.82, A=156.3, R²=0.9987
-    ✅ 已导出 → C:\Users\Desktop\Graph1.png
-```
+### How It Works
 
-### 工作原理
-
-```
-AI 客户端 (Antigravity / Claude / Cursor)
-       ↓ MCP 协议 (stdio)
+```text
+AI Client (Antigravity / Claude / Cursor)
+       ↓ MCP over stdio
 OriginLab MCP Server (Python)
        ↓ originpro + COM
 OriginLab
 ```
 
-## 📋 前置条件
+## Requirements
 
-| 条件 | 要求 |
+| Requirement | Details |
 | :--- | :--- |
-| 操作系统 | Windows |
-| OriginLab | 2021 或更新版本，持有有效许可证 |
+| Operating system | Windows |
+| OriginLab | OriginLab 2021 or later with a valid license |
 | Python | 3.10+ |
 
-## 🚀 快速开始
+## Quick Start
 
-提供两种安装方式，任选其一：
+For AI assistants or one-command local setup, run this from the repository root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-and-open.ps1
+```
+
+The script installs `uv` if needed, runs `uv sync`, starts the local status panel, and opens `http://127.0.0.1:8765/` automatically. From that page you can test Origin and write MCP client configs.
+
+Choose one installation method.
 
 <details open>
-<summary><b>方式 A：使用 uv（推荐，更快）</b></summary>
+<summary><b>Option A: uv (recommended)</b></summary>
 
-**1. 安装 uv**
+**1. Install uv**
 
 ```powershell
 irm https://astral.sh/uv/install.ps1 | iex
 ```
 
-**2. 安装依赖**
+**2. Install dependencies**
 
 ```powershell
 cd C:\path\to\originlab-mcp
 uv sync
 ```
 
-**3. 启动**
+**3. Start the server**
 
 ```powershell
 uv run originlab-mcp
@@ -88,9 +97,9 @@ uv run originlab-mcp
 </details>
 
 <details>
-<summary><b>方式 B：使用 pip</b></summary>
+<summary><b>Option B: pip</b></summary>
 
-**1. 创建虚拟环境（可选但推荐）**
+**1. Create a virtual environment (optional but recommended)**
 
 ```powershell
 cd C:\path\to\originlab-mcp
@@ -98,13 +107,13 @@ python -m venv .venv
 .venv\Scripts\activate
 ```
 
-**2. 安装项目**
+**2. Install the project**
 
 ```powershell
 pip install -e .
 ```
 
-**3. 启动**
+**3. Start the server**
 
 ```powershell
 originlab-mcp
@@ -112,106 +121,123 @@ originlab-mcp
 
 </details>
 
-Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动连接本机 OriginLab。
+After startup, the server waits for MCP client requests over stdio. The first tool call automatically connects to the local OriginLab installation.
 
-## 🧰 功能一览
+### Optional: Local Status Panel
 
-共提供 **65 个工具**，覆盖 OriginLab 的数据全流程：
+To check whether the MCP server can start, whether Origin can be reached, and whether common client config files exist, start the local UI:
 
-### 📊 数据管理（14 个工具）
+```powershell
+uv run originlab-mcp-ui
+```
 
-| 分类 | 工具 |
+Then open `http://127.0.0.1:8765/`. This page can start/stop a debug MCP server subprocess, test the Origin connection, and write the `originlab` MCP configuration for Antigravity / Gemini, Cursor, Codex, Trae, and Claude Desktop. For normal use, the AI client should still start the server automatically from its configuration.
+
+When updating an existing config file, the UI creates a `.bak-timestamp` backup first. To prevent the browser from opening automatically:
+
+```powershell
+$env:ORIGINLAB_MCP_UI_NO_BROWSER = "1"
+uv run originlab-mcp-ui
+```
+
+## Features
+
+The server provides **65 tools** covering the OriginLab data workflow.
+
+### Data Management (14 Tools)
+
+| Category | Tools |
 | :--- | :--- |
-| 导入 | `import_csv` · `import_excel` · `import_data_from_text` |
-| 查看 | `list_worksheets` · `get_worksheet_info` · `get_worksheet_data` · `get_cell_value` |
-| 编辑 | `set_column_designations` · `set_column_labels` · `set_column_formula` |
-| 管理 | `add_worksheet` · `sort_worksheet` · `clear_worksheet` · `delete_columns` |
+| Import | `import_csv` · `import_excel` · `import_data_from_text` |
+| Inspect | `list_worksheets` · `get_worksheet_info` · `get_worksheet_data` · `get_cell_value` |
+| Edit | `set_column_designations` · `set_column_labels` · `set_column_formula` |
+| Manage | `add_worksheet` · `sort_worksheet` · `clear_worksheet` · `delete_columns` |
 
-### 📈 绘图（11 个工具）
+### Plotting (11 Tools)
 
-| 分类 | 工具 |
+| Category | Tools |
 | :--- | :--- |
-| 创建 | `create_plot` · `create_double_y_plot` |
-| 修改 | `add_plot_to_graph` · `remove_plot_from_graph` · `change_plot_data` · `change_plot_type` |
-| 图层 | `add_graph_layer` · `group_plots` |
-| 查看 | `list_graphs` · `list_graph_templates` · `get_graph_info` |
+| Create | `create_plot` · `create_double_y_plot` |
+| Modify | `add_plot_to_graph` · `remove_plot_from_graph` · `change_plot_data` · `change_plot_type` |
+| Layers | `add_graph_layer` · `group_plots` |
+| Inspect | `list_graphs` · `list_graph_templates` · `get_graph_info` |
 
-### 🎨 图表定制（25 个工具）
+### Graph Customization (25 Tools)
 
-| 分类 | 工具 |
+| Category | Tools |
 | :--- | :--- |
-| 坐标轴 | `set_axis_range` · `set_axis_scale` · `set_axis_step` · `set_axis_title` |
-| 线条 | `set_plot_line_style` · `set_plot_line_width` |
-| 字体与刻度 | `set_graph_font` · `set_tick_style` |
-| 颜色 | `set_plot_color` · `set_plot_colormap` · `set_plot_transparency` |
-| 符号 | `set_plot_symbols` · `set_symbol_size` · `set_symbol_interior` |
-| 分组递增 | `set_color_increment` · `set_symbol_increment` |
-| 误差棒 | `set_error_bar_style` |
-| 填充 | `set_fill_area` |
-| 图例 | `set_legend` |
-| 一键风格 | `apply_publication_style` |
-| 标注 | `set_graph_title` · `add_text_label` · `add_line_to_graph` · `remove_graph_label` |
+| Axes | `set_axis_range` · `set_axis_scale` · `set_axis_step` · `set_axis_title` |
+| Lines | `set_plot_line_style` · `set_plot_line_width` |
+| Fonts and ticks | `set_graph_font` · `set_tick_style` |
+| Colors | `set_plot_color` · `set_plot_colormap` · `set_plot_transparency` |
+| Symbols | `set_plot_symbols` · `set_symbol_size` · `set_symbol_interior` |
+| Group increments | `set_color_increment` · `set_symbol_increment` |
+| Error bars | `set_error_bar_style` |
+| Fill | `set_fill_area` |
+| Legend | `set_legend` |
+| Preset styling | `apply_publication_style` |
+| Annotations | `set_graph_title` · `add_text_label` · `add_line_to_graph` · `remove_graph_label` |
 
-### 📐 数据分析（3 个工具）
+### Analysis (3 Tools)
 
 `linear_fit` · `nonlinear_fit` · `list_fit_functions`
 
-> 支持 Gauss、Lorentz、ExpDec1、Boltzmann 等常用拟合函数，可固定参数、设置初始值、带误差棒拟合。
+> Common Origin fit functions such as Gauss, Lorentz, ExpDec1, and Boltzmann are supported. You can provide initial parameters, fix parameters, and fit with error bars.
 
-### 💾 导出与项目（6 个工具）
+### Export and Project Management (6 Tools)
 
 `export_graph` · `export_all_graphs` · `export_worksheet_to_csv` · `save_project` · `open_project` · `new_project`
 
-### 🔧 系统管理（4 个工具）
+### System Management (4 Tools)
 
 `get_origin_info` · `release_origin` · `reconnect_origin` · `close_origin`
 
-### ⚡ 高级（2 个工具）
+### Advanced (2 Tools)
 
 `execute_labtalk` · `get_labtalk_variable`
 
-其中 `execute_labtalk` 用于最后手段的脚本逃生舱，`get_labtalk_variable` 用于安全读取 LabTalk 变量值。
+`execute_labtalk` is an escape hatch for operations not covered by standard tools. `get_labtalk_variable` safely reads LabTalk variable values.
 
-## 💬 使用示例
+## Examples
 
-配置好客户端后，在 AI 对话中直接用自然语言操作：
-
-| 你说的话 | AI 调用的 tool |
+| Request | Typical tool call |
 | :--- | :--- |
-| 「把 data.csv 导入 Origin」 | `import_csv` |
-| 「这个表有几列？列头是什么？」 | `get_worksheet_info` |
-| 「第一列设 X，第二三列设 Y」 | `set_column_designations` |
-| 「画个散点图」 | `create_plot` |
-| 「再加一条第三列的曲线」 | `add_plot_to_graph` |
-| 「X 轴标题改成 Time (s)，曲线改红色」 | `set_axis_title` + `set_plot_color` |
-| 「一键套成论文图风格」 | `apply_publication_style` |
-| 「把第二图层套成论文风格，线宽 3、符号 12」 | `apply_publication_style` |
-| 「做个高斯拟合」 | `nonlinear_fit` |
-| 「把 Y 轴改成对数刻度」 | `set_axis_scale` |
-| 「导出 PNG 到桌面」 | `export_graph` |
-| 「把项目里所有图都导出成 SVG」 | `export_all_graphs` |
-| 「操作完了，释放 Origin 给我手动用」 | `release_origin` |
+| Import `data.csv` into Origin | `import_csv` |
+| Show worksheet columns and metadata | `get_worksheet_info` |
+| Set the first column as X and the next two columns as Y | `set_column_designations` |
+| Create a scatter plot | `create_plot` |
+| Add another curve from the third column | `add_plot_to_graph` |
+| Change the X-axis title and set the curve color to red | `set_axis_title` + `set_plot_color` |
+| Apply a publication-style preset | `apply_publication_style` |
+| Apply publication styling to layer 2 with line width 3 and symbol size 12 | `apply_publication_style` |
+| Run a Gaussian fit | `nonlinear_fit` |
+| Set the Y axis to logarithmic scale | `set_axis_scale` |
+| Export a graph as PNG | `export_graph` |
+| Export all project graphs as SVG | `export_all_graphs` |
+| Release Origin so I can use it manually | `release_origin` |
 
-`apply_publication_style` 支持指定 `layer_index`，以及轴标题字号、刻度字号、图例字号、主刻度长度、次刻度数量、线宽、符号大小等常用论文图参数。
+`apply_publication_style` supports `layer_index`, axis-title font size, tick-label font size, legend font size, major tick length, minor tick count, line width, symbol size, and other common publication-figure settings.
 
-典型的完整工作流：
+Typical workflow:
 
+```text
+Import data -> inspect structure -> set column designations -> create plot -> customize graph -> run analysis -> export results
 ```
-导入数据 → 查看结构 → 设置列角色 → 创建图表 → 定制外观 → 数据分析 → 导出结果
-```
 
-## 🔌 客户端配置
+## Client Configuration
 
 > [!NOTE]
-> **你不需要手动启动 MCP Server。** 配置好后，AI 客户端会在需要时自动拉起 Server 子进程，通过 stdin/stdout 通信，整个过程对用户无感知。
+> You do not need to start the MCP server manually. Once configured, the AI client starts the server process when needed and communicates with it over stdin/stdout.
 
-路径请替换为你的实际项目路径。
+Replace paths with your actual project path.
 
-### Antigravity (Gemini) — 推荐
+You can also run `uv run originlab-mcp-ui`, choose a client in the local status panel, and let it write the config automatically. Manual examples are shown below.
 
-在项目根目录创建 `.gemini/settings.json`：
+### Antigravity (Gemini) - Recommended
 
-**使用 uv：**
+Create `.gemini/settings.json` in the project root.
+
+**Using uv:**
 
 ```json
 {
@@ -224,7 +250,7 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 }
 ```
 
-**使用 pip：**
+**Using pip:**
 
 ```json
 {
@@ -239,97 +265,109 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 <details>
 <summary><b>Claude Desktop</b></summary>
 
-编辑 `%APPDATA%\Claude\claude_desktop_config.json`，内容格式同上（选择对应安装方式的配置）。
+Edit `%APPDATA%\Claude\claude_desktop_config.json` using the same format as above.
 
 </details>
 
 <details>
 <summary><b>Cursor</b></summary>
 
-在项目根目录创建 `.cursor/mcp.json`，内容格式同上。
+Create `.cursor/mcp.json` in the project root using the same format as above.
+
+</details>
+
+<details>
+<summary><b>Trae</b></summary>
+
+Create `.trae/mcp.json` in the project root using the same format as above.
 
 </details>
 
 <details>
 <summary><b>Codex (OpenAI)</b></summary>
 
-在项目根目录创建 `.codex/config.json`，内容格式同上。
+Create `.codex/config.json` in the project root using the same format as above.
 
 </details>
 
-## 🧪 测试
+## Testing
 
 ```powershell
 # uv
-uv run pytest tests/ -v
+uv run python -m pytest tests/ -v
 
-# pip（激活虚拟环境后）
+# pip, after activating the virtual environment
 pytest tests/ -v
 ```
 
-基础测试不依赖 Origin 安装，可在任何环境运行。
+The basic test suite does not require OriginLab to be installed.
 
-## 📁 项目结构
+## Project Structure
 
-```
+```text
 originlab-mcp/
-├── pyproject.toml                # 项目配置与依赖
-├── CHANGELOG.md                  # 版本变更记录
+├── pyproject.toml                # Project configuration and dependencies
+├── CHANGELOG.md                  # Release notes
+├── scripts/
+│   └── install-and-open.ps1      # One-command setup and UI launcher
 ├── src/originlab_mcp/
-│   ├── server.py                 # MCP Server 入口 & 依赖注入
-│   ├── origin_manager.py         # Origin COM 连接管理（线程安全）
-│   ├── exceptions.py             # 自定义异常类
-│   ├── types.py                  # Protocol 类型定义
+│   ├── server.py                 # MCP server entry point and dependency injection
+│   ├── ui.py                     # Local status panel
+│   ├── origin_manager.py         # Thread-safe Origin COM connection manager
+│   ├── exceptions.py             # Custom exceptions
+│   ├── types.py                  # Protocol type definitions
 │   ├── tools/
-│   │   ├── data.py               # 📊 数据导入与工作表管理 (14)
-│   │   ├── plot.py               # 📈 图表创建与管理 (11)
-│   │   ├── customize.py          # 🎨 图表外观定制 (25)
-│   │   ├── analysis.py           # 📐 线性/非线性拟合 (3)
-│   │   ├── export.py             # 💾 导出与项目管理 (6)
-│   │   ├── system.py             # 🔧 系统与连接管理 (4)
-│   │   └── advanced.py           # ⚡ LabTalk 逃生舱 (2)
+│   │   ├── data.py               # Data import and worksheet management (14)
+│   │   ├── plot.py               # Plot creation and graph management (11)
+│   │   ├── customize.py          # Graph customization (25)
+│   │   ├── analysis.py           # Linear and nonlinear fitting (3)
+│   │   ├── export.py             # Export and project management (6)
+│   │   ├── system.py             # System and connection management (4)
+│   │   └── advanced.py           # LabTalk escape hatch (2)
 │   └── utils/
-│       ├── constants.py          # 枚举、默认值、拟合函数定义
-│       ├── helpers.py            # 图层/工作表/图表解析、错误处理装饰器
-│       └── validators.py         # 参数校验与统一返回结构
+│       ├── constants.py          # Enums, defaults, and fit-function metadata
+│       ├── helpers.py            # Graph/sheet resolution and error handling helpers
+│       └── validators.py         # Input validation and standard response builders
 └── tests/
-    ├── test_helpers.py           # helpers 辅助函数测试
-    └── test_tools.py             # tool 注册与集成测试
+    ├── test_helpers.py           # Helper tests
+    ├── test_phase3.py            # LabTalk safety and resolve-pattern tests
+    ├── test_tools.py             # Tool registration and integration tests
+    └── test_ui.py                # Local status panel config tests
 ```
 
-## ❓ 常见问题
+## FAQ
 
 <details>
-<summary><b>Origin 连接失败</b></summary>
+<summary><b>Origin connection failed</b></summary>
 
-请确认：
+Check that:
 
-- OriginLab 2021+ 已安装在本机
-- 持有有效许可证
-- 当前用户有权限启动 Origin
-- 没有其他程序占用 Origin COM 接口
+- OriginLab 2021 or later is installed locally
+- You have a valid OriginLab license
+- The current user can start Origin
+- No other program is blocking the Origin COM interface
 
 </details>
 
 <details>
-<summary><b>MCP 客户端看不到 tools</b></summary>
+<summary><b>The MCP client cannot see the tools</b></summary>
 
-1. 确认配置文件路径正确
-2. 确认依赖已安装（`uv sync` 或 `pip install -e .`）
-3. 重启 MCP 客户端
+1. Confirm the client configuration path is correct.
+2. Confirm dependencies are installed with `uv sync` or `pip install -e .`.
+3. Restart the MCP client.
 
 </details>
 
 <details>
-<summary><b>拟合结果不准确</b></summary>
+<summary><b>Fit results look inaccurate</b></summary>
 
-1. 检查数据是否有异常值（可用 `get_worksheet_data` 预览）
-2. 尝试通过 `initial_params` 提供更好的初始参数
-3. 使用 `fixed_params` 固定已知参数
-4. 确认选择了正确的拟合函数（`list_fit_functions` 可查看可用函数）
+1. Check for outliers with `get_worksheet_data`.
+2. Provide better initial values through `initial_params`.
+3. Fix known parameters with `fixed_params`.
+4. Confirm that the fit function is appropriate. Use `list_fit_functions` to inspect common options.
 
 </details>
 
-## 📜 许可证
+## License
 
 [MIT](LICENSE) © 2025 garethbeaumo
