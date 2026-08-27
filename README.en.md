@@ -21,11 +21,6 @@
   </p>
 </p>
 
-> [!WARNING]
-> **Early v0.2 release** - this project is still under active development. Features and APIs may change. It is suitable for testing and feedback, but not recommended for production use yet.
-
----
-
 ## What Is OriginLab MCP Server?
 
 OriginLab MCP Server is a bridge between AI clients and OriginLab. It lets you import data, create plots, customize figures, run analysis, and export results through natural-language requests instead of manually operating the Origin UI.
