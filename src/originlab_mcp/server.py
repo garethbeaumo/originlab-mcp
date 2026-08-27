@@ -17,6 +17,7 @@ from contextlib import asynccontextmanager
 from mcp.server.fastmcp import FastMCP
 
 from originlab_mcp.origin_manager import OriginManager
+from originlab_mcp.resources import register_session_resources
 from originlab_mcp.tools.advanced import register_advanced_tools
 from originlab_mcp.tools.analysis import register_analysis_tools
 from originlab_mcp.tools.customize import register_customize_tools
@@ -68,9 +69,10 @@ atexit.register(_manager.shutdown)
 mcp = FastMCP(
     "originlab",
     instructions=(
-        "OriginLab MCP Server - 通过 MCP 协议控制 OriginLab，"
-        "支持数据导入、工作表管理、图表创建与定制、"
-        "数据分析（线性/非线性拟合）、导出等功能。"
+        "OriginLab MCP Server - 通过 MCP 协议控制 OriginLab。"
+        "阅读当前项目请优先使用 originlab://session 资源或 "
+        "read_origin_session 工具；"
+        "写入操作再使用导入、绘图、定制、分析和导出 tools。"
     ),
     lifespan=_lifespan,
 )
@@ -80,6 +82,7 @@ mcp = FastMCP(
 # ---------------------------------------------------------------------------
 
 register_system_tools(mcp, _manager)      # 系统状态类
+register_session_resources(mcp, _manager) # 只读会话资源（MCP resources/read）
 register_data_tools(mcp, _manager)        # 数据类（导入、工作表操作、排序、公式、导出）
 register_analysis_tools(mcp, _manager)    # 数据分析类（线性/非线性拟合）
 register_plot_tools(mcp, _manager)        # 绘图类
@@ -87,7 +90,7 @@ register_customize_tools(mcp, _manager)   # 图表定制类（轴、颜色、符
 register_export_tools(mcp, _manager)      # 导出与项目管理类
 register_advanced_tools(mcp, _manager)    # 高级逃生舱
 
-logger.info("所有 tools 已注册完成")
+logger.info("所有 tools 与 resources 已注册完成")
 
 # ---------------------------------------------------------------------------
 # 入口函数

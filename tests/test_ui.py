@@ -78,3 +78,51 @@ def test_configure_client_rejects_invalid_json(tmp_path, monkeypatch):
     assert result["ok"] is False
     assert "valid JSON" in result["message"]
     assert path.read_text(encoding="utf-8") == "{bad json"
+
+
+def test_status_panel_html_includes_session_reader():
+    assert "阅读会话" in ui.INDEX_HTML
+    assert "/api/read-session" in ui.INDEX_HTML
+    assert 'id="sessionSheets"' in ui.INDEX_HTML
+
+
+def test_status_payload_includes_empty_session(monkeypatch, tmp_path):
+    monkeypatch.setattr(ui, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(ui, "_origin_process_running", lambda: False)
+    ui.STATE.origin_session = None
+
+    payload = ui.status_payload()
+
+    assert payload["session"] is None
+    assert "origin" in payload
+
+
+def test_read_origin_session_stores_snapshot(monkeypatch):
+    snapshot = {
+        "exe_path": r"C:\Origin\Origin.exe",
+        "counts": {"worksheets": 2, "graphs": 1, "matrices": 0, "notes": 0, "excel_books": 0},
+        "worksheets": [{"book_name": "Book1", "sheet_name": "Sheet1", "rows": 10, "cols": 3}],
+        "graphs": [{"graph_name": "Graph1", "layers": 1}],
+    }
+    monkeypatch.setattr(ui, "_read_live_session", lambda: snapshot)
+
+    result = ui.read_origin_session()
+
+    assert result["ok"] is True
+    assert result["session"]["counts"]["worksheets"] == 2
+    assert ui.STATE.origin_session["graphs"][0]["graph_name"] == "Graph1"
+    assert "2 个工作表" in result["message"]
+
+
+def test_read_origin_session_records_failure(monkeypatch):
+    def boom() -> dict:
+        raise RuntimeError("originpro missing")
+
+    monkeypatch.setattr(ui, "_read_live_session", boom)
+
+    result = ui.read_origin_session()
+
+    assert result["state"] == "failed"
+    assert result["session"] is None
+    assert ui.STATE.origin_status["state"] == "failed"
+    assert "originpro missing" in result["message"]

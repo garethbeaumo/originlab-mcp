@@ -308,6 +308,11 @@ class OriginManager:
             "active_graph": self._active_graph,
         }
 
+    def peek_active_context(self) -> dict[str, str | None]:
+        """Refresh active objects. Caller must already be inside execute()."""
+        self._refresh_active_context_unlocked()
+        return self.get_resource_context()
+
     def _worksheet_full_name(self, wks: Any) -> str | None:
         """Return Origin range-style worksheet name for an originpro WSheet."""
         if wks is None:

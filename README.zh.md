@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
     <img src="https://img.shields.io/badge/version-0.2.1-green.svg" alt="Version">
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
-    <img src="https://img.shields.io/badge/tools-65-orange.svg" alt="Tools">
+    <img src="https://img.shields.io/badge/tools-66-orange.svg" alt="Tools">
   </p>
   <p align="center">
     <a href="#-快速开始">快速开始</a> · <a href="#-功能一览">功能一览</a> · <a href="#-使用示例">使用示例</a> · <a href="#-客户端配置">客户端配置</a>
@@ -125,7 +125,7 @@ Server 启动后通过 stdio 等待客户端连接，首次调用 tool 时自动
 uv run originlab-mcp-ui
 ```
 
-然后访问 `http://127.0.0.1:8765/`。这个页面可以启动/停止一个调试用 MCP Server 子进程、测试 Origin 连接，并为 Antigravity / Gemini、Cursor、Codex、Trae、Claude Desktop 一键写入 `originlab` MCP 配置；正常使用时仍建议让 AI 客户端按配置自动拉起 Server。
+然后访问 `http://127.0.0.1:8765/`。这个页面可以启动/停止一个调试用 MCP Server 子进程、测试 Origin 连接、**阅读当前 Origin 会话**（工作表和图表），并为 Antigravity / Gemini、Cursor、Codex、Trae、Claude Desktop 一键写入 `originlab` MCP 配置；正常使用时仍建议让 AI 客户端按配置自动拉起 Server。
 
 写入已有配置时会先创建 `.bak-时间戳` 备份。如果不希望启动时自动打开浏览器：
 
@@ -136,7 +136,7 @@ uv run originlab-mcp-ui
 
 ## 🧰 功能一览
 
-共提供 **65 个工具**，覆盖 OriginLab 的数据全流程：
+共提供 **66 个工具**，覆盖 OriginLab 的数据全流程：
 
 ### 📊 数据管理（14 个工具）
 
@@ -182,9 +182,23 @@ uv run originlab-mcp-ui
 
 `export_graph` · `export_all_graphs` · `export_worksheet_to_csv` · `save_project` · `open_project` · `new_project`
 
-### 🔧 系统管理（4 个工具）
+### 🔧 系统管理（5 个工具）
 
-`get_origin_info` · `release_origin` · `reconnect_origin` · `close_origin`
+`get_origin_info` · `read_origin_session` · `release_origin` · `reconnect_origin` · `close_origin`
+
+> `read_origin_session` 只读当前项目快照：工作簿/工作表、图表、矩阵、Notes、活动对象和项目路径。需要单元格预览时传入 `include_preview=true`。
+
+### 📖 MCP Resources（系统阅读）
+
+除 tools 外，客户端还可以通过 MCP `resources/read` 阅读 Origin 会话，不会修改项目：
+
+| URI | 内容 |
+| :--- | :--- |
+| `originlab://session` | 当前项目全貌快照 |
+| `originlab://worksheets` | 工作表列表 |
+| `originlab://graphs` | 图表列表 |
+| `originlab://worksheet/{book}/{sheet}` | 单个工作表结构与数据预览 |
+| `originlab://graph/{name}` | 单个图表的图层与曲线 |
 
 ### ⚡ 高级（2 个工具）
 
@@ -198,6 +212,7 @@ uv run originlab-mcp-ui
 
 | 你说的话 | AI 调用的 tool |
 | :--- | :--- |
+| 「当前 Origin 项目里有什么？」 | `read_origin_session` |
 | 「把 data.csv 导入 Origin」 | `import_csv` |
 | 「这个表有几列？列头是什么？」 | `get_worksheet_info` |
 | 「第一列设 X，第二三列设 Y」 | `set_column_designations` |
@@ -310,6 +325,8 @@ originlab-mcp/
 │   ├── server.py                 # MCP Server 入口 & 依赖注入
 │   ├── ui.py                     # 本地状态面板
 │   ├── origin_manager.py         # Origin COM 连接管理（线程安全）
+│   ├── session.py                # 只读 Origin 会话快照
+│   ├── resources.py              # MCP Resources（系统阅读）
 │   ├── exceptions.py             # 自定义异常类
 │   ├── types.py                  # Protocol 类型定义
 │   ├── tools/
@@ -327,6 +344,7 @@ originlab-mcp/
 └── tests/
     ├── test_helpers.py           # helpers 辅助函数测试
     ├── test_phase3.py            # LabTalk 防护与 resolve 范式测试
+    ├── test_session.py           # 会话阅读与 MCP Resources 测试
     ├── test_tools.py             # tool 注册与集成测试
     └── test_ui.py                # 本地状态面板配置逻辑测试
 ```

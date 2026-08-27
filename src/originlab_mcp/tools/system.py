@@ -1,11 +1,14 @@
 """System tools
 
 Manage Origin connection status, environment info,
-and COM control lifecycle.
+read-only session inspection, and COM control lifecycle.
 """
 
 from __future__ import annotations
 
+from originlab_mcp.session import build_session_snapshot
+from originlab_mcp.utils.constants import DEFAULT_MAX_PREVIEW_ROWS
+from originlab_mcp.utils.helpers import tool_error_handler
 from originlab_mcp.utils.validators import error_response, success_response
 
 
@@ -42,6 +45,7 @@ def register_system_tools(mcp, manager) -> None:
                 data=info,
                 resource=manager.get_resource_context(),
                 next_suggestions=[
+                    "read_origin_session",
                     "list_worksheets",
                     "import_csv",
                     "new_project",
@@ -68,6 +72,66 @@ def register_system_tools(mcp, manager) -> None:
                 target="origin_connection",
                 hint="请检查 Origin 是否在运行，或尝试重启 MCP Server。",
             )
+
+    @mcp.tool()
+    @tool_error_handler("阅读 Origin 会话", "请确认 Origin 已连接。可调用 get_origin_info 检查状态。")
+    def read_origin_session(
+        include_preview: bool = False,
+        max_preview_rows: int = DEFAULT_MAX_PREVIEW_ROWS,
+    ) -> dict:
+        """Read a snapshot of the current Origin project without changing it.
+
+        When to use: To inspect what workbooks, worksheets, graphs, matrices,
+        and notes currently exist, including active objects and project path.
+        When not to use: To mutate Origin state, import data, or create plots.
+
+        Default behavior:
+        - include_preview defaults to false
+        - when include_preview is true, also returns a truncated preview of
+          the active worksheet
+
+        Examples:
+        - read_origin_session()
+        - read_origin_session(include_preview=True, max_preview_rows=10)
+        """
+        if max_preview_rows < 0:
+            return error_response(
+                message="max_preview_rows 不能小于 0",
+                error_type="invalid_input",
+                target="max_preview_rows",
+                value=max_preview_rows,
+                hint="请传入 0 或正整数。",
+            )
+
+        def _read(op):
+            context = manager.peek_active_context()
+            return build_session_snapshot(
+                op,
+                active_worksheet=context.get("active_worksheet"),
+                active_graph=context.get("active_graph"),
+                include_preview=include_preview,
+                max_preview_rows=max_preview_rows,
+            )
+
+        snapshot = manager.execute(_read)
+        counts = snapshot.get("counts") or {}
+        worksheet_count = counts.get("worksheets", 0)
+        graph_count = counts.get("graphs", 0)
+
+        return success_response(
+            message=(
+                f"已阅读当前 Origin 会话："
+                f"{worksheet_count} 个工作表，{graph_count} 个图表。"
+            ),
+            data=snapshot,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "get_worksheet_info",
+                "get_graph_info",
+                "list_worksheets",
+                "list_graphs",
+            ],
+        )
 
     @mcp.tool()
     def release_origin() -> dict:
@@ -130,10 +194,7 @@ def register_system_tools(mcp, manager) -> None:
                 message="已重新连接到 Origin。",
                 data=manager.get_info(),
                 resource=manager.get_resource_context(),
-                next_suggestions=[
-                    "list_worksheets",
-                    "list_graphs",
-                ],
+                next_suggestions=["read_origin_session", "list_worksheets", "list_graphs"],
             )
         except RuntimeError as e:
             return error_response(
