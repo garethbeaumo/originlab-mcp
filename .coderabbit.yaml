@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# Disable CodeRabbit automatic reviews and PR description edits.
+# Manual @coderabbitai commands are still possible until the GitHub App is uninstalled.
+
+language: en-US
+
+reviews:
+  profile: quiet
+  high_level_summary: false
+  high_level_summary_placeholder: ""
+  review_status: false
+  poem: false
+  changed_files_summary: false
+  sequence_diagrams: false
+  collapse_walkthrough: true
+  auto_review:
+    enabled: false
+    drafts: false
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+
+chat:
+  auto_reply: false
+  art: false
+
+issue_enrichment:
+  auto_enrich:
+    enabled: false
+  planning:
+    enabled: false
+    auto_planning:
+      enabled: false
