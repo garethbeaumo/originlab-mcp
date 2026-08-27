@@ -13,6 +13,9 @@
 - **本地状态面板**：新增 `originlab-mcp-ui` 命令，可在浏览器中查看 MCP Server、Origin 连接和常见客户端配置状态
 - **客户端配置助手**：状态面板支持为 Antigravity / Gemini、Cursor、Codex、Trae、Claude Desktop 写入 `originlab` MCP 配置，并在覆盖已有文件前生成备份
 - **一键安装入口**：新增 `scripts/install-and-open.ps1`，为 AI 助手和本机用户提供安装依赖并打开状态面板的单命令入口
+- **系统阅读**：新增 `read_origin_session` 工具，只读当前 Origin 项目快照（工作表、图表、矩阵、Notes、活动对象、项目路径）
+- **MCP Resources**：新增 `originlab://session`、`originlab://worksheets`、`originlab://graphs` 及工作表/图表模板资源，供客户端通过 `resources/read` 阅读会话
+- **状态面板会话视图**：本地 UI 增加「阅读会话」，可列出当前工作表和图表
 
 ### 🐛 Bug 修复
 
@@ -25,11 +28,13 @@
 ### 🧪 测试
 
 - 新增生命周期、plot_list 兼容、原图类型替换和本地状态面板配置逻辑回归测试
+- 新增 Origin 会话快照、MCP Resources 与状态面板阅读接口测试
 
 ### 📝 文档
 
 - 默认 README 改为英文，并保留中文文档为 README.zh.md
 - README / README.en / README.zh 补充本地状态面板、Trae 配置和项目结构说明
+- README 补充 `read_origin_session`、MCP Resources 与会话阅读说明，tool 总数 65 → 66
 
 ---
 

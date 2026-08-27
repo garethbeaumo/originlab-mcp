@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
     <img src="https://img.shields.io/badge/version-0.2.1-green.svg" alt="Version">
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
-    <img src="https://img.shields.io/badge/tools-65-orange.svg" alt="Tools">
+    <img src="https://img.shields.io/badge/tools-66-orange.svg" alt="Tools">
   </p>
   <p align="center">
     <a href="#quick-start">Quick Start</a> · <a href="#features">Features</a> · <a href="#examples">Examples</a> · <a href="#client-configuration">Client Configuration</a>
@@ -131,7 +131,7 @@ To check whether the MCP server can start, whether Origin can be reached, and wh
 uv run originlab-mcp-ui
 ```
 
-Then open `http://127.0.0.1:8765/`. This page can start/stop a debug MCP server subprocess, test the Origin connection, and write the `originlab` MCP configuration for Antigravity / Gemini, Cursor, Codex, Trae, and Claude Desktop. For normal use, the AI client should still start the server automatically from its configuration.
+Then open `http://127.0.0.1:8765/`. This page can start/stop a debug MCP server subprocess, test the Origin connection, **read the current Origin session** (worksheets and graphs), and write the `originlab` MCP configuration for Antigravity / Gemini, Cursor, Codex, Trae, and Claude Desktop. For normal use, the AI client should still start the server automatically from its configuration.
 
 When updating an existing config file, the UI creates a `.bak-timestamp` backup first. To prevent the browser from opening automatically:
 
@@ -142,7 +142,7 @@ uv run originlab-mcp-ui
 
 ## Features
 
-The server provides **65 tools** covering the OriginLab data workflow.
+The server provides **66 tools** covering the OriginLab data workflow.
 
 ### Data Management (14 Tools)
 
@@ -188,9 +188,23 @@ The server provides **65 tools** covering the OriginLab data workflow.
 
 `export_graph` · `export_all_graphs` · `export_worksheet_to_csv` · `save_project` · `open_project` · `new_project`
 
-### System Management (4 Tools)
+### System Management (5 Tools)
 
-`get_origin_info` · `release_origin` · `reconnect_origin` · `close_origin`
+`get_origin_info` · `read_origin_session` · `release_origin` · `reconnect_origin` · `close_origin`
+
+> `read_origin_session` is a read-only snapshot of the current project: workbooks/worksheets, graphs, matrices, notes, active objects, and project path. Pass `include_preview=true` to include a truncated preview of the active worksheet.
+
+### MCP Resources (Session Reading)
+
+In addition to tools, clients can inspect the Origin session through MCP `resources/read` without changing the project:
+
+| URI | Contents |
+| :--- | :--- |
+| `originlab://session` | Full project snapshot |
+| `originlab://worksheets` | Worksheet list |
+| `originlab://graphs` | Graph list |
+| `originlab://worksheet/{book}/{sheet}` | One worksheet's columns and data preview |
+| `originlab://graph/{name}` | One graph's layers and curves |
 
 ### Advanced (2 Tools)
 
@@ -202,6 +216,7 @@ The server provides **65 tools** covering the OriginLab data workflow.
 
 | Request | Typical tool call |
 | :--- | :--- |
+| Inspect the current Origin project | `read_origin_session` |
 | Import `data.csv` into Origin | `import_csv` |
 | Show worksheet columns and metadata | `get_worksheet_info` |
 | Set the first column as X and the next two columns as Y | `set_column_designations` |
@@ -314,6 +329,8 @@ originlab-mcp/
 │   ├── server.py                 # MCP server entry point and dependency injection
 │   ├── ui.py                     # Local status panel
 │   ├── origin_manager.py         # Thread-safe Origin COM connection manager
+│   ├── session.py                # Read-only Origin session snapshot
+│   ├── resources.py              # MCP Resources (session reading)
 │   ├── exceptions.py             # Custom exceptions
 │   ├── types.py                  # Protocol type definitions
 │   ├── tools/
@@ -331,6 +348,7 @@ originlab-mcp/
 └── tests/
     ├── test_helpers.py           # Helper tests
     ├── test_phase3.py            # LabTalk safety and resolve-pattern tests
+    ├── test_session.py           # Session reading and MCP resource tests
     ├── test_tools.py             # Tool registration and integration tests
     └── test_ui.py                # Local status panel config tests
 ```

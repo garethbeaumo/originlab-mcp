@@ -53,6 +53,7 @@ class UIState:
             "state": "not_tested",
             "message": "Origin connection has not been tested yet.",
         }
+        self.origin_session: dict[str, Any] | None = None
 
     def log(self, message: str) -> None:
         stamp = time.strftime("%H:%M:%S")
@@ -368,6 +369,62 @@ def test_origin_connection() -> dict[str, Any]:
 
     with STATE.lock:
         STATE.origin_status = status
+        if status.get("state") != "connected":
+            STATE.origin_session = None
+    STATE.log(status["message"])
+    return status
+
+
+def _read_live_session() -> dict[str, Any]:
+    from originlab_mcp.origin_manager import OriginManager
+    from originlab_mcp.session import build_session_snapshot
+
+    manager = OriginManager(idle_timeout=0, auto_recover_active=True)
+    try:
+        def _read(op: Any) -> dict[str, Any]:
+            context = manager.peek_active_context()
+            return build_session_snapshot(
+                op,
+                active_worksheet=context.get("active_worksheet"),
+                active_graph=context.get("active_graph"),
+            )
+
+        return manager.execute(_read)
+    finally:
+        manager.release()
+
+
+def read_origin_session() -> dict[str, Any]:
+    try:
+        snapshot = _read_live_session()
+        counts = snapshot.get("counts") or {}
+        status = {
+            "ok": True,
+            "state": "connected",
+            "message": (
+                "已阅读 Origin 会话："
+                f"{counts.get('worksheets', 0)} 个工作表，"
+                f"{counts.get('graphs', 0)} 个图表。"
+            ),
+            "exe_path": snapshot.get("exe_path"),
+            "user_path": snapshot.get("user_path"),
+            "session": snapshot,
+        }
+    except Exception as exc:
+        status = {
+            "state": "failed",
+            "message": f"阅读 Origin 会话失败: {exc}",
+            "session": None,
+        }
+
+    with STATE.lock:
+        STATE.origin_status = {
+            "state": status["state"],
+            "message": status["message"],
+            "exe_path": status.get("exe_path"),
+            "user_path": status.get("user_path"),
+        }
+        STATE.origin_session = status.get("session")
     STATE.log(status["message"])
     return status
 
@@ -375,11 +432,13 @@ def test_origin_connection() -> dict[str, Any]:
 def status_payload() -> dict[str, Any]:
     with STATE.lock:
         origin_status = dict(STATE.origin_status)
+        origin_session = STATE.origin_session
     origin_status["process_running"] = _origin_process_running()
     return {
         "ui": {"state": "running", "host": HOST, "port": PORT},
         "mcp": mcp_status(),
         "origin": origin_status,
+        "session": origin_session,
         "configs": [asdict(item) for item in detect_client_configs()],
         "server": _server_config(),
     }
@@ -559,6 +618,7 @@ INDEX_HTML = """<!doctype html>
           <div id="originDetail" class="detail path"></div>
           <div class="actions">
             <button id="testOriginBtn" class="primary">测试连接</button>
+            <button id="readSessionBtn">阅读会话</button>
           </div>
         </section>
         <section class="card">
@@ -567,6 +627,25 @@ INDEX_HTML = """<!doctype html>
         </section>
       </div>
       <div class="stack">
+        <section class="card">
+          <h2>当前会话</h2>
+          <div id="sessionEmpty" class="detail">尚未阅读 Origin 会话。测试连接后可点击「阅读会话」查看工作表和图表。</div>
+          <div id="sessionBody" style="display:none;">
+            <div id="sessionSummary" class="status-line"></div>
+            <div class="detail">活动对象：<span id="sessionActive">-</span></div>
+            <div id="sessionProject" class="detail path"></div>
+            <h2 style="margin-top:16px;">工作表</h2>
+            <table>
+              <thead><tr><th>Workbook</th><th>Sheet</th><th>Rows</th><th>Cols</th></tr></thead>
+              <tbody id="sessionSheets"></tbody>
+            </table>
+            <h2 style="margin-top:16px;">图表</h2>
+            <table>
+              <thead><tr><th>Graph</th><th>Layers</th></tr></thead>
+              <tbody id="sessionGraphs"></tbody>
+            </table>
+          </div>
+        </section>
         <section class="card">
           <h2>一键配置</h2>
           <div class="config-grid">
@@ -607,7 +686,7 @@ INDEX_HTML = """<!doctype html>
       state === "failed" || state === "exited" ? "dot bad" : "dot warn"
     );
     const setBusy = (busy) => {
-      for (const id of ["startBtn", "stopBtn", "refreshBtn", "testOriginBtn", "configureBtn", "clientSelect"]) {
+      for (const id of ["startBtn", "stopBtn", "refreshBtn", "testOriginBtn", "readSessionBtn", "configureBtn", "clientSelect"]) {
         byId(id).disabled = busy;
       }
     };
@@ -647,6 +726,30 @@ INDEX_HTML = """<!doctype html>
       byId("previewPath").textContent = cfg.path;
       byId("previewCommand").textContent = commandPreview();
     }
+    function renderSession(session) {
+      const empty = !session;
+      byId("sessionEmpty").style.display = empty ? "block" : "none";
+      byId("sessionBody").style.display = empty ? "none" : "block";
+      if (empty) return;
+      const counts = session.counts || {};
+      byId("sessionSummary").textContent =
+        `工作表 ${counts.worksheets || 0} · 图表 ${counts.graphs || 0} · 矩阵 ${counts.matrices || 0} · 备注 ${counts.notes || 0}`;
+      const project = session.project || {};
+      byId("sessionProject").textContent = project.path || project.name || session.exe_path || "";
+      byId("sessionActive").textContent = [session.active_worksheet, session.active_graph].filter(Boolean).join(" / ") || "-";
+      const sheets = session.worksheets || [];
+      byId("sessionSheets").innerHTML = sheets.length ? sheets.map((sheet) => `<tr>
+          <td>${escapeHtml(sheet.book_name)}</td>
+          <td>${escapeHtml(sheet.sheet_name || sheet.full_name || "-")}</td>
+          <td>${escapeHtml(sheet.rows)}</td>
+          <td>${escapeHtml(sheet.cols)}</td>
+        </tr>`).join("") : `<tr><td colspan="4" class="detail">没有工作表</td></tr>`;
+      const graphs = session.graphs || [];
+      byId("sessionGraphs").innerHTML = graphs.length ? graphs.map((graph) => `<tr>
+          <td>${escapeHtml(graph.graph_name)}</td>
+          <td>${escapeHtml(graph.layers)}</td>
+        </tr>`).join("") : `<tr><td colspan="2" class="detail">没有图表</td></tr>`;
+    }
     function renderConfigs(configs) {
       byId("configRows").innerHTML = configs.map((cfg) => {
         const status = cfg.configured ? "已配置" : (cfg.exists ? "未配置" : "未创建");
@@ -678,6 +781,7 @@ INDEX_HTML = """<!doctype html>
       renderClientOptions(data.configs);
       renderConfigs(data.configs);
       renderPreview();
+      renderSession(data.session);
       byId("logs").textContent = (data.mcp.logs || []).join("\\n") || "No logs yet.";
     }
     byId("clientSelect").onchange = renderPreview;
@@ -685,6 +789,7 @@ INDEX_HTML = """<!doctype html>
     byId("stopBtn").onclick = async () => { await call("/api/stop", { method: "POST" }); await refresh(); };
     byId("refreshBtn").onclick = refresh;
     byId("testOriginBtn").onclick = async () => { await call("/api/test-origin", { method: "POST" }); await refresh(); };
+    byId("readSessionBtn").onclick = async () => { await call("/api/read-session", { method: "POST" }); await refresh(); };
     byId("configureBtn").onclick = async () => {
       const client = byId("clientSelect").value;
       const result = await call("/api/configure", {
@@ -750,6 +855,9 @@ class UIHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/test-origin":
             self._send_json(test_origin_connection())
+            return
+        if self.path == "/api/read-session":
+            self._send_json(read_origin_session())
             return
         if self.path == "/api/configure":
             try:
