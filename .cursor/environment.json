@@ -1,0 +1,17 @@
+{
+  "name": "OriginLab MCP",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "originlab-mcp-ui",
+      "command": "export PATH=\"$HOME/.local/bin:$PATH\"; ORIGINLAB_MCP_UI_NO_BROWSER=1 uv run --no-sync originlab-mcp-ui",
+      "description": "Local OriginLab MCP status panel served at http://127.0.0.1:8765/"
+    }
+  ],
+  "ports": [
+    {
+      "name": "originlab-mcp-ui",
+      "port": 8765
+    }
+  ]
+}
