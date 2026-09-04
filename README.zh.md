@@ -336,7 +336,7 @@ originlab-mcp/
 │   │   ├── customize.py          # 🎨 图表外观定制 (25)
 │   │   ├── analysis.py           # 📐 线性/非线性拟合 (3)
 │   │   ├── export.py             # 💾 导出与项目管理 (6)
-│   │   ├── system.py             # 🔧 系统与连接管理 (4)
+│   │   ├── system.py             # 🔧 系统与连接管理 (5)
 │   │   └── advanced.py           # ⚡ LabTalk 逃生舱 (2)
 │   └── utils/
 │       ├── annotations.py        # MCP ToolAnnotations 预设
@@ -348,6 +348,7 @@ originlab-mcp/
     ├── fakes/                    # 内存 OriginPro + DummyMCP 测试双件
     ├── test_annotations.py       # ToolAnnotations 覆盖测试
     ├── test_origin_contract.py   # 多 tool COM 契约工作流
+    ├── test_tool_guidance.py     # 描述 / next_suggestions 契约
     ├── test_helpers.py           # helpers 辅助函数测试
     ├── test_phase3.py            # LabTalk 防护与 resolve 范式测试
     ├── test_session.py           # 会话阅读与 MCP Resources 测试

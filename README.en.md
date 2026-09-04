@@ -335,7 +335,7 @@ originlab-mcp/
 │   │   ├── customize.py          # Graph customization (25)
 │   │   ├── analysis.py           # Linear and nonlinear fitting (3)
 │   │   ├── export.py             # Export and project management (6)
-│   │   ├── system.py             # System and connection management (4)
+│   │   ├── system.py             # System and connection management (5)
 │   │   └── advanced.py           # LabTalk escape hatch (2)
 │   └── utils/
 │       ├── annotations.py        # MCP ToolAnnotations presets
@@ -347,6 +347,7 @@ originlab-mcp/
     ├── fakes/                    # In-memory OriginPro + DummyMCP doubles
     ├── test_annotations.py       # ToolAnnotations coverage tests
     ├── test_origin_contract.py   # Multi-tool COM contract workflows
+    ├── test_tool_guidance.py     # Description / next_suggestions contracts
     ├── test_helpers.py           # Helper tests
     ├── test_phase3.py            # LabTalk safety and resolve-pattern tests
     ├── test_session.py           # Session reading and MCP resource tests

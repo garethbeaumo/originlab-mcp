@@ -235,6 +235,7 @@ def register_system_tools(mcp, manager) -> None:
                 message="Origin 未连接，无需关闭。",
                 data={"was_connected": False},
                 resource=manager.get_resource_context(),
+                next_suggestions=["get_origin_info", "reconnect_origin"],
             )
 
         try:
@@ -243,6 +244,7 @@ def register_system_tools(mcp, manager) -> None:
                 message="Origin 已正确关闭，COM 连接已释放。",
                 data={"was_connected": True, "closed": True},
                 resource=manager.get_resource_context(),
+                next_suggestions=["get_origin_info"],
             )
         except Exception as e:
             return error_response(

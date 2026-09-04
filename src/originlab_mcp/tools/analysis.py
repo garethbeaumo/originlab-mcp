@@ -57,6 +57,8 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
 
         When to use: For linear regression analysis to obtain slope and intercept.
         When not to use: For clearly non-linear data, use nonlinear_fit.
+        Do not use this tool just to plot raw data — use create_plot first
+        when you only need a visualization.
 
         Default behavior:
         - sheet_name omitted: uses current active worksheet

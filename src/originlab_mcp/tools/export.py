@@ -334,6 +334,11 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
             message=f"项目已保存到 '{saved_path}'。",
             data={"saved_path": saved_path},
             resource=manager.get_resource_context(),
+            next_suggestions=[
+                "export_graph",
+                "read_origin_session",
+                "release_origin",
+            ],
         )
 
     # =================================================================

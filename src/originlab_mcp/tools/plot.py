@@ -90,8 +90,9 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         """Create a new graph (supports single or multiple curves).
 
         When to use: To create a graph from scratch.
-        When not to use: To add curves to an existing graph,
-        use add_plot_to_graph.
+        When not to use: To add curves to an existing graph, use
+        add_plot_to_graph. To change the type of curves already in a graph
+        window, use change_plot_type.
 
         Default behavior:
         - sheet_name omitted: uses current active worksheet
@@ -208,8 +209,10 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     ) -> dict:
         """Add one or more curves to an existing graph.
 
-        When to use: To overlay new data curves on an existing graph.
-        When not to use: To create a new graph, use create_plot.
+        When to use: To overlay new data curves on an existing graph without
+        removing the curves already there.
+        When not to use: To create a new graph, use create_plot. To replace
+        the existing curves' type in-place, use change_plot_type.
 
         Default behavior:
         - graph_name omitted: uses current active graph
@@ -315,16 +318,24 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         yerr_col: int | None = None,
         xerr_col: int | None = None,
     ) -> dict:
-        """在原有图表窗口中替换曲线类型，不创建新的图表页。
+        """Replace plot type in an existing graph window without creating a new page.
 
-        何时使用：用户要求“把当前图改成柱状图/散点图/点线图”等，
-        且希望保留原图窗口时使用。
-        何时不用：从零开始画图请用 create_plot。
+        When to use: The user wants to change the current graph to another type
+        (column/bar, scatter, line+symbol, etc.) while keeping the same graph
+        window and layer.
+        When not to use: To create a brand-new graph, use create_plot. To append
+        curves onto an existing graph without replacing them, use
+        add_plot_to_graph.
 
-        说明：
-        - 会清除指定图层中的现有曲线，再用给定数据列按新类型重建
-        - graph_name 省略时使用当前活动图表
-        - sheet_name 省略时使用当前活动工作表
+        Default behavior:
+        - Clears existing curves in the target layer, then rebuilds from the
+          given worksheet columns using the new type
+        - graph_name omitted: uses current active graph
+        - sheet_name omitted: uses current active worksheet
+
+        Examples:
+        - change_plot_type(plot_type="column", x_col=0, y_cols=1)
+        - change_plot_type(plot_type="scatter", x_col=0, y_cols=[1, 2], layer_index=0)
         """
         err = validate_plot_type(plot_type)
         if err:

@@ -18,6 +18,7 @@
 - **状态面板会话视图**：本地 UI 增加「阅读会话」，可列出当前工作表和图表
 - **ToolAnnotations**：为全部 66 个 MCP tools 补充 `readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint`，帮助客户端优先选择只读工具并规避破坏性操作
 - **FakeOrigin 契约测试**：新增可复用的内存 OriginPro mock（对齐 Excel MCP mock-backend 思路），覆盖 import→plot→style→export 与项目生命周期工作流
+- **Tool 选择引导**：统一 `change_plot_type` 的 When to use / When not to use，补齐 `save_project` / `close_origin` 的 `next_suggestions`，并交叉引用 `create_plot` / `add_plot_to_graph` / `change_plot_type`
 
 ### 🐛 Bug 修复
 
@@ -42,6 +43,7 @@
 - 新增 Origin 会话快照、MCP Resources 与状态面板阅读接口测试
 - 新增 ToolAnnotations 覆盖回归测试（66 tools 全量校验）
 - 新增 FakeOrigin COM 契约测试与共享 `tests/fakes` 测试双件（DummyMCP / attach_fake_origin）
+- 新增 tool 描述与 `next_suggestions` 一致性回归测试
 
 ### 📝 文档
 
