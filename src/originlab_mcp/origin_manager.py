@@ -510,8 +510,11 @@ class OriginManager:
         }
 
         from originlab_mcp.utils.dispatch import parse_dispatch_timeout_seconds
+        from originlab_mcp.utils.paths import parse_allowed_roots
 
         info["dispatch_timeout"] = parse_dispatch_timeout_seconds()
+        roots = parse_allowed_roots()
+        info["allowed_roots"] = [str(r) for r in roots] if roots is not None else None
 
         if self.is_connected:
             try:

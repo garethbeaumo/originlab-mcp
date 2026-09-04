@@ -227,6 +227,16 @@ uv run originlab-mcp-ui
 
 `execute_labtalk(..., timeout=120)` 可覆盖单次调用预算（`0` 表示关闭）。
 
+### 安全：允许的根目录（可选）
+
+配置后，导入 / 导出 / 保存 / 打开的文件路径必须落在允许目录内（`..` 穿越会被拒绝）。未配置时保持不限制，兼容桌面 Origin 任意路径工作流。
+
+| 环境变量 | 默认 | 作用 |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_ALLOWED_ROOTS` | 未设置 | 用 `os.pathsep`（`:` / `;`）分隔根目录，也支持逗号 |
+
+`get_origin_info` 的 `allowed_roots` 字段会报告当前白名单。
+
 ## 💬 使用示例
 
 配置好客户端后，在 AI 对话中直接用自然语言操作：
@@ -363,6 +373,7 @@ originlab-mcp/
 │       ├── annotations.py        # MCP ToolAnnotations 预设
 │       ├── autosave.py           # 破坏性操作前自动保存策略
 │       ├── dispatch.py           # COM 软超时
+│       ├── paths.py              # 允许根目录路径沙箱
 │       ├── labtalk_safe.py        # LabTalk confirm 门控扫描
 │       ├── constants.py          # 枚举、默认值、拟合函数定义
 │       ├── helpers.py            # 图层/工作表/图表解析、错误处理装饰器
@@ -373,6 +384,7 @@ originlab-mcp/
     ├── test_annotations.py       # ToolAnnotations 覆盖测试
     ├── test_autosave.py          # Autosave 策略 / 预检测试
     ├── test_dispatch.py          # COM 软超时测试
+    ├── test_paths.py             # 允许根目录沙箱测试
     ├── test_origin_contract.py   # 多 tool COM 契约工作流
     ├── test_tool_guidance.py     # 描述 / next_suggestions 契约
     ├── test_helpers.py           # helpers 辅助函数测试

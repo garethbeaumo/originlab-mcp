@@ -228,6 +228,16 @@ Each COM-backed tool call has a soft wall-clock budget (default **90s**). If Ori
 
 `execute_labtalk(..., timeout=120)` overrides the budget for that call only (`0` disables).
 
+### Safety: Allowed Roots (optional)
+
+When set, all import / export / save / open file paths must resolve under one of the allowed directories (path traversal via `..` is rejected). Unset keeps unrestricted access for typical desktop Origin workflows.
+
+| Environment variable | Default | Effect |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_ALLOWED_ROOTS` | unset | `os.pathsep`-separated roots (`:` / `;`); commas also accepted |
+
+`get_origin_info` reports the active allowlist as `allowed_roots`.
+
 ## Examples
 
 | Request | Typical tool call |
@@ -362,6 +372,7 @@ originlab-mcp/
 │       ├── annotations.py        # MCP ToolAnnotations presets
 │       ├── autosave.py           # Preflight autosave policy
 │       ├── dispatch.py           # Soft COM dispatch timeout
+│       ├── paths.py              # Allowed-roots path sandbox
 │       ├── labtalk_safe.py        # LabTalk confirm-gate scanner
 │       ├── constants.py          # Enums, defaults, and fit-function metadata
 │       ├── helpers.py            # Graph/sheet resolution and error handling helpers
@@ -372,6 +383,7 @@ originlab-mcp/
     ├── test_annotations.py       # ToolAnnotations coverage tests
     ├── test_autosave.py          # Autosave policy / preflight tests
     ├── test_dispatch.py          # Soft dispatch timeout tests
+    ├── test_paths.py             # Allowed-roots sandbox tests
     ├── test_origin_contract.py   # Multi-tool COM contract workflows
     ├── test_tool_guidance.py     # Description / next_suggestions contracts
     ├── test_helpers.py           # Helper tests

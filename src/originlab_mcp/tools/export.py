@@ -41,6 +41,7 @@ from originlab_mcp.utils.validators import (
     success_response,
     validate_export_format,
     validate_file_path,
+    validate_output_path,
 )
 
 
@@ -48,6 +49,10 @@ def _ensure_output_dir(path: str) -> str | None:
     """确保输出目录存在，失败时返回错误消息。"""
     if not path:
         return "输出路径不能为空"
+
+    allow_err = validate_output_path(path)
+    if allow_err:
+        return allow_err
 
     try:
         os.makedirs(path, exist_ok=True)
@@ -105,6 +110,17 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
                 target="output_format",
                 value=fmt,
                 hint=f"支持的格式: {[e.value for e in ExportFormat]}",
+            )
+
+        allow_err = validate_output_path(output_path)
+        if allow_err:
+            return error_response(
+                message=allow_err,
+                error_type="invalid_input",
+                target="output_path",
+                value=output_path,
+                hint="请将输出路径放在 ORIGINLAB_MCP_ALLOWED_ROOTS 允许的目录下。",
+                suggested_alternatives=["get_origin_info", "save_project"],
             )
 
         # 确保输出目录存在
@@ -254,6 +270,17 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
         """
         target_name = resolve_worksheet_name(sheet_name, manager)
 
+        allow_err = validate_output_path(output_path)
+        if allow_err:
+            return error_response(
+                message=allow_err,
+                error_type="invalid_input",
+                target="output_path",
+                value=output_path,
+                hint="请将输出路径放在 ORIGINLAB_MCP_ALLOWED_ROOTS 允许的目录下。",
+                suggested_alternatives=["get_origin_info", "get_worksheet_data"],
+            )
+
         # 确保输出目录存在
         output_dir = os.path.dirname(output_path)
         if output_dir and not os.path.isdir(output_dir):
@@ -318,6 +345,18 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
         - save_project()
         - save_project(file_path="C:\\data\analysis.opju")
         """
+        if file_path:
+            allow_err = validate_output_path(file_path)
+            if allow_err:
+                return error_response(
+                    message=allow_err,
+                    error_type="invalid_input",
+                    target="file_path",
+                    value=file_path,
+                    hint="请将项目保存到 ORIGINLAB_MCP_ALLOWED_ROOTS 允许的目录下。",
+                    suggested_alternatives=["get_origin_info", "export_graph"],
+                )
+
         def _save(op: Any) -> str:
             if file_path:
                 save_dir = os.path.dirname(file_path)
@@ -373,7 +412,11 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="文件不存在，请检查文件路径。",
+                hint=(
+                    "请确认项目文件存在，且路径位于 ORIGINLAB_MCP_ALLOWED_ROOTS "
+                    "允许范围内（未配置时不限制）。"
+                ),
+                suggested_alternatives=["get_origin_info", "new_project", "save_project"],
             )
 
         autosave = manager.preflight_autosave("open_project")

@@ -23,6 +23,7 @@
 - **错误恢复提示**：`error_response` / 常见 `ToolError` 增加 `suggested_alternatives`，引导 agent 改用标准 tools
 - **破坏性操作前自动保存**：对 `new_project` / `open_project` / `clear_worksheet` / `delete_columns` / 图表删除 / `close_origin` 与已确认破坏性 LabTalk，在已知项目路径时就地 `save`；`ORIGINLAB_MCP_AUTOSAVE`（默认开）与 `ORIGINLAB_MCP_AUTOSAVE_REQUIRED`（默认关）可调
 - **COM 软超时**：`ORIGINLAB_MCP_DISPATCH_TIMEOUT`（默认 90s）在 Origin 无响应时返回结构化 `timeout`（不杀进程）；`execute_labtalk(timeout=...)` 可单次覆盖
+- **路径白名单**：可选 `ORIGINLAB_MCP_ALLOWED_ROOTS`，限制 import/export/save/open 只能访问指定根目录（默认不限制）
 
 ### 🐛 Bug 修复
 
@@ -52,6 +53,7 @@
 - 新增 LabTalk confirm 门控与 `suggested_alternatives` 错误恢复测试
 - 新增 autosave 策略 / 预检测试，并扩展 FakeOrigin 契约覆盖破坏性工具与 LabTalk autosave
 - 新增 COM 软超时（`dispatch.py`）与 LabTalk 单次 timeout 覆盖测试
+- 新增 allowed-roots 路径沙箱测试（穿越 / 越界拒绝、工具集成）
 
 ### 📝 文档
 
@@ -60,6 +62,7 @@
 - README 补充 `read_origin_session`、MCP Resources 与会话阅读说明，tool 总数 65 → 66
 - README / README.zh 补充破坏性操作前 autosave 环境变量与项目结构条目
 - README 补充 `ORIGINLAB_MCP_DISPATCH_TIMEOUT` 与 `execute_labtalk(timeout=...)` 说明
+- README 补充 `ORIGINLAB_MCP_ALLOWED_ROOTS` 可选路径白名单说明
 
 ---
 

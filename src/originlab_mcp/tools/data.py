@@ -161,7 +161,11 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="文件不存在，请检查文件路径。",
+                hint=(
+                    "请确认文件存在，且路径位于 ORIGINLAB_MCP_ALLOWED_ROOTS "
+                    "允许范围内（未配置时不限制）。"
+                ),
+                suggested_alternatives=["get_origin_info", "import_data_from_text"],
             )
 
         def _import(op: Any) -> dict[str, Any]:
@@ -232,7 +236,11 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="文件不存在，请检查文件路径。",
+                hint=(
+                    "请确认文件存在，且路径位于 ORIGINLAB_MCP_ALLOWED_ROOTS "
+                    "允许范围内（未配置时不限制）。"
+                ),
+                suggested_alternatives=["get_origin_info", "import_data_from_text"],
             )
 
         def _import(op: Any) -> dict[str, Any]:

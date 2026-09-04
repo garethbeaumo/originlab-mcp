@@ -96,22 +96,41 @@ def error_response(
 
 
 def validate_file_path(file_path: str) -> str | None:
-    """验证文件路径是否存在。
+    """验证文件路径是否存在，并检查 allowed roots。
 
     Returns:
         如果路径无效，返回错误描述；否则返回 None。
     """
     if not file_path:
         return "file_path 不能为空"
+    from originlab_mcp.utils.paths import check_allowed_path
+
+    allow_err = check_allowed_path(file_path)
+    if allow_err:
+        return allow_err
     if not os.path.isfile(file_path):
         return f"文件不存在: {file_path}"
     return None
+
+
+def validate_output_path(file_path: str) -> str | None:
+    """验证输出文件/目录路径（可不存在），并检查 allowed roots。"""
+    if not file_path:
+        return "输出路径不能为空"
+    from originlab_mcp.utils.paths import check_allowed_path
+
+    return check_allowed_path(file_path)
 
 
 def validate_dir_path(dir_path: str) -> str | None:
     """验证目录路径是否存在。"""
     if not dir_path:
         return "目录路径不能为空"
+    from originlab_mcp.utils.paths import check_allowed_path
+
+    allow_err = check_allowed_path(dir_path)
+    if allow_err:
+        return allow_err
     if not os.path.isdir(dir_path):
         return f"目录不存在: {dir_path}"
     return None
