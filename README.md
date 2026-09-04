@@ -201,6 +201,18 @@ In addition to tools, clients can inspect the Origin session through MCP `resour
 | `originlab://worksheet/{book}/{sheet}` | One worksheet's columns and data preview |
 | `originlab://graph/{name}` | One graph's layers and curves |
 
+### MCP Prompts (Workflow Templates)
+
+Clients that support `prompts/list` can start common Origin workflows from templates:
+
+| Prompt | Purpose |
+| :--- | :--- |
+| `originlab_inspect_session` | Read-only session inspection |
+| `originlab_csv_to_plot` | CSV → designations → plot → export |
+| `originlab_publication_style` | Publication figure styling |
+| `originlab_fit_curve` | Linear / nonlinear fitting |
+| `originlab_safe_destructive` | Save-first checklist before destructive ops |
+
 ### Advanced (2 Tools)
 
 `execute_labtalk` · `get_labtalk_variable`
@@ -358,6 +370,7 @@ originlab-mcp/
 │   ├── origin_manager.py         # Thread-safe Origin COM connection manager
 │   ├── session.py                # Read-only Origin session snapshot
 │   ├── resources.py              # MCP Resources (session reading)
+│   ├── prompts.py                # MCP Prompts (workflow templates)
 │   ├── exceptions.py             # Custom exceptions
 │   ├── types.py                  # Protocol type definitions
 │   ├── tools/
@@ -384,6 +397,7 @@ originlab-mcp/
     ├── test_autosave.py          # Autosave policy / preflight tests
     ├── test_dispatch.py          # Soft dispatch timeout tests
     ├── test_paths.py             # Allowed-roots sandbox tests
+    ├── test_prompts.py           # MCP prompt workflow templates
     ├── test_origin_contract.py   # Multi-tool COM contract workflows
     ├── test_tool_guidance.py     # Description / next_suggestions contracts
     ├── test_helpers.py           # Helper tests

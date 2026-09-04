@@ -9,11 +9,12 @@ from originlab_mcp.origin_manager import OriginManager
 
 
 class DummyMCP:
-    """Minimal FastMCP stand-in that records registered tools/resources."""
+    """Minimal FastMCP stand-in that records registered tools/resources/prompts."""
 
     def __init__(self) -> None:
         self.tools: dict[str, Any] = {}
         self.resources: dict[str, Any] = {}
+        self.prompts: dict[str, Any] = {}
 
     def tool(self, **_kwargs):
         def decorator(fn):
@@ -25,6 +26,14 @@ class DummyMCP:
     def resource(self, uri, **_kwargs):
         def decorator(fn):
             self.resources[uri] = fn
+            return fn
+
+        return decorator
+
+    def prompt(self, **_kwargs):
+        def decorator(fn):
+            name = _kwargs.get("name") or fn.__name__
+            self.prompts[name] = fn
             return fn
 
         return decorator

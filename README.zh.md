@@ -200,6 +200,18 @@ uv run originlab-mcp-ui
 | `originlab://worksheet/{book}/{sheet}` | 单个工作表结构与数据预览 |
 | `originlab://graph/{name}` | 单个图表的图层与曲线 |
 
+### 🧩 MCP Prompts（工作流模板）
+
+支持 `prompts/list` 的客户端可从模板启动常见 Origin 工作流：
+
+| Prompt | 用途 |
+| :--- | :--- |
+| `originlab_inspect_session` | 只读检查当前会话 |
+| `originlab_csv_to_plot` | CSV → 列角色 → 绘图 → 导出 |
+| `originlab_publication_style` | 论文图样式 |
+| `originlab_fit_curve` | 线性 / 非线性拟合 |
+| `originlab_safe_destructive` | 破坏性操作前「先保存」清单 |
+
 ### ⚡ 高级（2 个工具）
 
 `execute_labtalk` · `get_labtalk_variable`
@@ -359,6 +371,7 @@ originlab-mcp/
 │   ├── origin_manager.py         # Origin COM 连接管理（线程安全）
 │   ├── session.py                # 只读 Origin 会话快照
 │   ├── resources.py              # MCP Resources（系统阅读）
+│   ├── prompts.py                # MCP Prompts（工作流模板）
 │   ├── exceptions.py             # 自定义异常类
 │   ├── types.py                  # Protocol 类型定义
 │   ├── tools/
@@ -385,6 +398,7 @@ originlab-mcp/
     ├── test_autosave.py          # Autosave 策略 / 预检测试
     ├── test_dispatch.py          # COM 软超时测试
     ├── test_paths.py             # 允许根目录沙箱测试
+    ├── test_prompts.py           # MCP 工作流 prompt 模板
     ├── test_origin_contract.py   # 多 tool COM 契约工作流
     ├── test_tool_guidance.py     # 描述 / next_suggestions 契约
     ├── test_helpers.py           # helpers 辅助函数测试
