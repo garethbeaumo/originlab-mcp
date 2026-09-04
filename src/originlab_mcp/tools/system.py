@@ -7,6 +7,7 @@ read-only session inspection, and COM control lifecycle.
 from __future__ import annotations
 
 from originlab_mcp.session import build_session_snapshot
+from originlab_mcp.utils.annotations import DESTRUCTIVE, MUTATING, READ_ONLY
 from originlab_mcp.utils.constants import DEFAULT_MAX_PREVIEW_ROWS
 from originlab_mcp.utils.helpers import tool_error_handler
 from originlab_mcp.utils.validators import error_response, success_response
@@ -20,7 +21,7 @@ def register_system_tools(mcp, manager) -> None:
         manager: OriginManager instance (dependency injection).
     """
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     def get_origin_info() -> dict:
         """Return Origin connection status and environment info.
 
@@ -73,7 +74,7 @@ def register_system_tools(mcp, manager) -> None:
                 hint="请检查 Origin 是否在运行，或尝试重启 MCP Server。",
             )
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_error_handler("阅读 Origin 会话", "请确认 Origin 已连接。可调用 get_origin_info 检查状态。")
     def read_origin_session(
         include_preview: bool = False,
@@ -133,7 +134,7 @@ def register_system_tools(mcp, manager) -> None:
             ],
         )
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     def release_origin() -> dict:
         """Release Origin COM control so the user can freely operate or close Origin.
 
@@ -175,7 +176,7 @@ def register_system_tools(mcp, manager) -> None:
                 resource=manager.get_resource_context(),
             )
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     def reconnect_origin() -> dict:
         """Reconnect to Origin COM after releasing control.
 
@@ -214,7 +215,7 @@ def register_system_tools(mcp, manager) -> None:
                 hint="请检查 Origin 是否在运行。",
             )
 
-    @mcp.tool()
+    @mcp.tool(annotations=DESTRUCTIVE)
     def close_origin() -> dict:
         """Disconnect COM and close the Origin application.
 

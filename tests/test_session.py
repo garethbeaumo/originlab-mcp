@@ -26,7 +26,7 @@ class DummyMCP:
         self.tools: dict = {}
         self.resources: dict = {}
 
-    def tool(self):
+    def tool(self, **_kwargs):
         def decorator(fn):
             self.tools[fn.__name__] = fn
             return fn

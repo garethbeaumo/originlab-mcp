@@ -311,7 +311,7 @@ uv run python -m pytest tests/ -v
 pytest tests/ -v
 ```
 
-基础测试不依赖 Origin 安装，可在任何环境运行。
+基础测试不依赖 Origin 安装，可在任何环境运行。Linux/macOS 上 `originpro` 因 `pyproject.toml` 的 Windows 平台标记会自动跳过安装。GitHub Actions 会在 Python 3.10–3.12 上运行 ruff、mypy 与 pytest。
 
 ## 📁 项目结构
 
@@ -319,6 +319,7 @@ pytest tests/ -v
 originlab-mcp/
 ├── pyproject.toml                # 项目配置与依赖
 ├── CHANGELOG.md                  # 版本变更记录
+├── .github/workflows/ci.yml      # Lint / 类型检查 / 单元测试
 ├── scripts/
 │   └── install-and-open.ps1      # 一键安装并启动 UI
 ├── src/originlab_mcp/
@@ -338,10 +339,12 @@ originlab-mcp/
 │   │   ├── system.py             # 🔧 系统与连接管理 (4)
 │   │   └── advanced.py           # ⚡ LabTalk 逃生舱 (2)
 │   └── utils/
+│       ├── annotations.py        # MCP ToolAnnotations 预设
 │       ├── constants.py          # 枚举、默认值、拟合函数定义
 │       ├── helpers.py            # 图层/工作表/图表解析、错误处理装饰器
 │       └── validators.py         # 参数校验与统一返回结构
 └── tests/
+    ├── test_annotations.py       # ToolAnnotations 覆盖测试
     ├── test_helpers.py           # helpers 辅助函数测试
     ├── test_phase3.py            # LabTalk 防护与 resolve 范式测试
     ├── test_session.py           # 会话阅读与 MCP Resources 测试

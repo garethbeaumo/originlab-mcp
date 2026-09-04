@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 
+from originlab_mcp.utils.annotations import LABTALK, READ_ONLY
 from originlab_mcp.utils.helpers import tool_error_handler
 from originlab_mcp.utils.validators import error_response, success_response
 
@@ -25,7 +26,7 @@ def register_advanced_tools(mcp, manager) -> None:
         manager: OriginManager 实例（依赖注入）。
     """
 
-    @mcp.tool()
+    @mcp.tool(annotations=LABTALK)
     @tool_error_handler("LabTalk命令执行", "请检查 LabTalk 命令语法是否正确。")
     def execute_labtalk(command: str) -> dict:
         """Execute an arbitrary LabTalk command (high risk, use only when standard tools are insufficient).
@@ -80,7 +81,7 @@ def register_advanced_tools(mcp, manager) -> None:
             ],
         )
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_error_handler("读取 LabTalk 变量", "请检查变量名是否存在。")
     def get_labtalk_variable(name: str) -> dict:
         """Read a LabTalk variable value without executing arbitrary commands.

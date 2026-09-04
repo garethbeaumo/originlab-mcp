@@ -22,6 +22,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from originlab_mcp.utils.annotations import (
+    DESTRUCTIVE,
+    IDEMPOTENT_MUTATING,
+    MUTATING,
+    READ_ONLY,
+)
 from originlab_mcp.utils.constants import (
     SCALE_TYPE_TO_ORIGIN,
     ScaleType,
@@ -208,7 +214,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_axis_range
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置轴范围", "请检查参数值。")
     def set_axis_range(
         axis: str,
@@ -263,7 +269,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_axis_scale
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置轴缩放", "请检查参数值。")
     def set_axis_scale(
         axis: str,
@@ -327,7 +333,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_axis_title
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置轴标题", "请检查参数值。")
     def set_axis_title(
         axis: str,
@@ -377,7 +383,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_plot_color
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置颜色", "请使用十六进制颜色值，如 '#ff5833'。")
     def set_plot_color(
         color: str,
@@ -429,7 +435,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_plot_colormap
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置颜色映射", "请检查 colormap 名称是否正确。")
     def set_plot_colormap(
         colormap: str,
@@ -476,7 +482,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_plot_symbols
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置符号", "请检查 shape_list 格式。")
     def set_plot_symbols(
         shape_list: list[int],
@@ -525,7 +531,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_plot_transparency
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置透明度", "请检查参数值。")
     def set_plot_transparency(
         transparency: int,
@@ -584,7 +590,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_symbol_size
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置符号大小", "请检查参数值。")
     def set_symbol_size(
         size: float,
@@ -631,7 +637,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_fill_area
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置填充区域", "请检查参数值。此功能仅适用于折线图。")
     def set_fill_area(
         above_color: int,
@@ -691,7 +697,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # get_graph_info
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_error_handler("获取图表信息", "请检查图表名称。调用 list_graphs 查看可用图表。")
     def get_graph_info(
         graph_name: str | None = None,
@@ -771,7 +777,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # add_text_label
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("添加文字标注", "请检查图表是否存在。")
     def add_text_label(
         text: str,
@@ -826,7 +832,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # add_line_to_graph
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("添加线条", "请检查坐标值和图表是否存在。")
     def add_line_to_graph(
         x1: float,
@@ -890,7 +896,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # remove_graph_label
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=DESTRUCTIVE)
     @tool_error_handler("移除标签", "请检查标签名称是否正确。")
     def remove_graph_label(
         label_name: str,
@@ -937,7 +943,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_graph_title
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置图表标题", "请检查图表是否存在。")
     def set_graph_title(
         title: str,
@@ -980,7 +986,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_axis_step
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置轴步长", "请检查步长值是否合理。")
     def set_axis_step(
         axis: str,
@@ -1045,7 +1051,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_symbol_interior
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置符号填充", "请检查参数值。")
     def set_symbol_interior(
         interior: int,
@@ -1110,7 +1116,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_color_increment
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置颜色增量", "请检查参数值。")
     def set_color_increment(
         increment: int,
@@ -1159,7 +1165,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_symbol_increment
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置符号增量", "请检查参数值。")
     def set_symbol_increment(
         increment: int,
@@ -1208,7 +1214,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_plot_line_width
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置线宽", "请检查参数值。")
     def set_plot_line_width(
         width: float,
@@ -1274,7 +1280,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_plot_line_style
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置线型", "请检查线型名称。")
     def set_plot_line_style(
         style: str,
@@ -1349,7 +1355,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_error_bar_style
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置误差棒样式", "请确认该曲线已添加误差棒（通过 yerr_col 参数创建）。")
     def set_error_bar_style(
         plot_index: int = 0,
@@ -1473,7 +1479,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_legend
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置图例", "请检查图表是否存在。")
     def set_legend(
         visible: bool | None = None,
@@ -1587,7 +1593,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_graph_font
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置图表字体", "请检查字体名称和字号。")
     def set_graph_font(
         font_name: str = "Arial",
@@ -1694,7 +1700,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # set_tick_style
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置刻度样式", "请检查刻度参数。")
     def set_tick_style(
         tick_direction: str = "in",
@@ -1784,7 +1790,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
     # apply_publication_style
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("应用论文风格", "请检查图表名称和样式参数。")
     def apply_publication_style(
         graph_name: str | None = None,

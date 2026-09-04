@@ -310,7 +310,7 @@ uv run python -m pytest tests/ -v
 pytest tests/ -v
 ```
 
-The basic test suite does not require OriginLab to be installed.
+The basic test suite does not require OriginLab to be installed. On Linux/macOS, `originpro` is skipped automatically because it is marked Windows-only in `pyproject.toml`. GitHub Actions runs ruff, mypy, and pytest on Python 3.10–3.12.
 
 ## Project Structure
 
@@ -318,6 +318,7 @@ The basic test suite does not require OriginLab to be installed.
 originlab-mcp/
 ├── pyproject.toml                # Project configuration and dependencies
 ├── CHANGELOG.md                  # Release notes
+├── .github/workflows/ci.yml      # Lint / typecheck / unit tests
 ├── scripts/
 │   └── install-and-open.ps1      # One-command setup and UI launcher
 ├── src/originlab_mcp/
@@ -337,10 +338,12 @@ originlab-mcp/
 │   │   ├── system.py             # System and connection management (4)
 │   │   └── advanced.py           # LabTalk escape hatch (2)
 │   └── utils/
+│       ├── annotations.py        # MCP ToolAnnotations presets
 │       ├── constants.py          # Enums, defaults, and fit-function metadata
 │       ├── helpers.py            # Graph/sheet resolution and error handling helpers
 │       └── validators.py         # Input validation and standard response builders
 └── tests/
+    ├── test_annotations.py       # ToolAnnotations coverage tests
     ├── test_helpers.py           # Helper tests
     ├── test_phase3.py            # LabTalk safety and resolve-pattern tests
     ├── test_session.py           # Session reading and MCP resource tests

@@ -15,6 +15,7 @@ from __future__ import annotations
 from contextlib import suppress
 from typing import Any
 
+from originlab_mcp.utils.annotations import DESTRUCTIVE, MUTATING, OPEN_WORLD, READ_ONLY
 from originlab_mcp.utils.constants import (
     DEFAULT_PLOT_TYPE,
     PLOT_TYPE_TO_TEMPLATE,
@@ -76,7 +77,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     # create_plot
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("创建图表", "请检查工作表数据和列索引是否正确。")
     def create_plot(
         x_col: int,
@@ -195,7 +196,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     # add_plot_to_graph
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("追加曲线", "请检查图表和工作表是否存在，以及列索引是否正确。")
     def add_plot_to_graph(
         x_col: int,
@@ -302,7 +303,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     # change_plot_type
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("更换图表类型", "请检查图表、工作表和列索引是否正确。")
     def change_plot_type(
         plot_type: str,
@@ -439,7 +440,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     # create_double_y_plot
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("创建双Y轴图", "请检查列索引是否正确。")
     def create_double_y_plot(
         x_col: int,
@@ -500,7 +501,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     # list_graphs
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_error_handler("列出图表", "请确认 Origin 已连接。")
     def list_graphs() -> dict:
         """List all graphs in the current project.
@@ -543,7 +544,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     # list_graph_templates
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     def list_graph_templates() -> dict:
         """List supported graph templates with recommended use cases.
 
@@ -580,7 +581,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     # remove_plot_from_graph
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=DESTRUCTIVE)
     @tool_error_handler("移除曲线", "请检查 plot_index 是否在范围内。调用 get_graph_info 查看曲线列表。")
     def remove_plot_from_graph(
         plot_index: int,
@@ -630,7 +631,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     # add_graph_layer
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("添加图层", "请检查图表是否存在和 layer_type 值是否有效。")
     def add_graph_layer(
         layer_type: int = 2,
@@ -692,7 +693,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     # change_plot_data
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("更换数据源", "请检查工作表和列索引是否正确。")
     def change_plot_data(
         x_col: int | str,
@@ -752,7 +753,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     # copy_graph_to_clipboard
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=OPEN_WORLD)
     @tool_error_handler("复制图表", "请检查图表是否存在。")
     def copy_graph_to_clipboard(
         format: str = "png",
@@ -807,7 +808,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
     # group_plots
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("分组曲线", "请检查曲线索引范围。")
     def group_plots(
         begin: int = 0,

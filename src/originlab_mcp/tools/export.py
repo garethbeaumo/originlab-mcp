@@ -17,6 +17,11 @@ import csv
 import os
 from typing import Any
 
+from originlab_mcp.utils.annotations import (
+    DESTRUCTIVE,
+    DESTRUCTIVE_OPEN_WORLD,
+    OPEN_WORLD,
+)
 from originlab_mcp.utils.constants import (
     DEFAULT_EXPORT_FORMAT,
     DEFAULT_EXPORT_WIDTH,
@@ -63,7 +68,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     # export_graph
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=OPEN_WORLD)
     @tool_error_handler("导出图表", "请检查输出路径和格式。")
     def export_graph(
         output_path: str,
@@ -140,7 +145,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     # export_all_graphs
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=OPEN_WORLD)
     @tool_error_handler("批量导出图表", "请检查输出目录和导出格式。")
     def export_all_graphs(
         output_dir: str,
@@ -229,7 +234,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     # export_worksheet_to_csv
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=OPEN_WORLD)
     @tool_error_handler("导出工作表", "请检查工作表和输出路径。")
     def export_worksheet_to_csv(
         output_path: str,
@@ -297,7 +302,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     # save_project
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=OPEN_WORLD)
     @tool_error_handler("保存项目", "请检查文件路径和写入权限。")
     def save_project(file_path: str | None = None) -> dict:
         """Save the current Origin project.
@@ -335,7 +340,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     # open_project
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=DESTRUCTIVE_OPEN_WORLD)
     @tool_error_handler("打开项目", "请检查文件是否为有效的 Origin 项目文件。")
     def open_project(file_path: str, readonly: bool = False) -> dict:
         """Open an Origin project file.
@@ -391,7 +396,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     # new_project
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=DESTRUCTIVE)
     @tool_error_handler("新建项目", "请检查 Origin 连接状态。")
     def new_project() -> dict:
         """Create a new blank Origin project.
