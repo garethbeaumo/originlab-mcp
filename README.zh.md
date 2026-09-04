@@ -340,6 +340,7 @@ originlab-mcp/
 │   │   └── advanced.py           # ⚡ LabTalk 逃生舱 (2)
 │   └── utils/
 │       ├── annotations.py        # MCP ToolAnnotations 预设
+│       ├── labtalk_safe.py        # LabTalk confirm 门控扫描
 │       ├── constants.py          # 枚举、默认值、拟合函数定义
 │       ├── helpers.py            # 图层/工作表/图表解析、错误处理装饰器
 │       └── validators.py         # 参数校验与统一返回结构

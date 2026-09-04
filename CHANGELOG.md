@@ -19,6 +19,8 @@
 - **ToolAnnotations**：为全部 66 个 MCP tools 补充 `readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint`，帮助客户端优先选择只读工具并规避破坏性操作
 - **FakeOrigin 契约测试**：新增可复用的内存 OriginPro mock（对齐 Excel MCP mock-backend 思路），覆盖 import→plot→style→export 与项目生命周期工作流
 - **Tool 选择引导**：统一 `change_plot_type` 的 When to use / When not to use，补齐 `save_project` / `close_origin` 的 `next_suggestions`，并交叉引用 `create_plot` / `add_plot_to_graph` / `change_plot_type`
+- **LabTalk 安全门控**：`execute_labtalk` 对删除/重置/系统类命令要求 `confirm=true`，并在错误中返回 `suggested_alternatives`
+- **错误恢复提示**：`error_response` / 常见 `ToolError` 增加 `suggested_alternatives`，引导 agent 改用标准 tools
 
 ### 🐛 Bug 修复
 
@@ -45,6 +47,7 @@
 - 新增 FakeOrigin COM 契约测试与共享 `tests/fakes` 测试双件（DummyMCP / attach_fake_origin）
 - 新增 tool 描述与 `next_suggestions` 一致性回归测试
 - 扩展 FakeOrigin 覆盖线性/非线性拟合、LabTalk 与多图层工作流；CI 产出 coverage.xml
+- 新增 LabTalk confirm 门控与 `suggested_alternatives` 错误恢复测试
 
 ### 📝 文档
 

@@ -60,6 +60,7 @@ def error_response(
     target: str,
     value: Any = None,
     hint: str = "",
+    suggested_alternatives: list[str] | None = None,
 ) -> dict[str, Any]:
     """构建统一的错误返回结构。
 
@@ -69,19 +70,23 @@ def error_response(
         target: 出错的参数名或对象名。
         value: 导致错误的实际值。
         hint: 给 AI 的修复建议。
+        suggested_alternatives: 建议改用的 typed tools（提高失败恢复成功率）。
 
     Returns:
         统一格式的错误返回字典。
     """
+    error: dict[str, Any] = {
+        "type": str(error_type.value if isinstance(error_type, ErrorType) else error_type),
+        "target": target,
+        "value": value,
+        "hint": hint,
+    }
+    if suggested_alternatives:
+        error["suggested_alternatives"] = list(suggested_alternatives)
     return {
         "ok": False,
         "message": message,
-        "error": {
-            "type": str(error_type.value if isinstance(error_type, ErrorType) else error_type),
-            "target": target,
-            "value": value,
-            "hint": hint,
-        },
+        "error": error,
     }
 
 
@@ -185,11 +190,13 @@ def error_response_from_exception(exc: Exception) -> dict[str, Any]:
             target=exc.target,
             value=exc.value,
             hint=exc.hint,
+            suggested_alternatives=getattr(exc, "suggested_alternatives", None),
         )
     return error_response(
         message=str(exc),
         error_type="internal_error",
         target="unknown",
         hint="发生未知错误，请检查 Origin 连接状态。",
+        suggested_alternatives=["get_origin_info", "read_origin_session"],
     )
 

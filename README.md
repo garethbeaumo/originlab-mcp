@@ -339,6 +339,7 @@ originlab-mcp/
 │   │   └── advanced.py           # LabTalk escape hatch (2)
 │   └── utils/
 │       ├── annotations.py        # MCP ToolAnnotations presets
+│       ├── labtalk_safe.py        # LabTalk confirm-gate scanner
 │       ├── constants.py          # Enums, defaults, and fit-function metadata
 │       ├── helpers.py            # Graph/sheet resolution and error handling helpers
 │       └── validators.py         # Input validation and standard response builders
