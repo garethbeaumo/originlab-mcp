@@ -58,10 +58,14 @@ class OriginManager:
         self._idle_timeout = idle_timeout
         self._idle_timer: threading.Timer | None = None
         self._timer_lock = threading.Lock()  # 保护 timer 的创建/取消
+        # Periodic in-place autosave (ORIGINLAB_MCP_AUTOSAVE_INTERVAL)
+        self._autosave_timer: threading.Timer | None = None
 
         # 活动对象追踪
         self._active_worksheet: str | None = None
         self._active_graph: str | None = None
+        # Last known project path for in-place autosave (optional)
+        self._project_path: str | None = None
 
         logger.info(
             "OriginManager 初始化完成（空闲超时=%ds）", self._idle_timeout
@@ -98,8 +102,106 @@ class OriginManager:
     def _on_idle_timeout(self) -> None:
         """空闲超时回调：自动 detach 释放 Origin 控制权。"""
         logger.info("空闲超时，自动释放 Origin COM 控制权...")
+        self._cancel_autosave_timer()
         with self._com_lock:
             self._do_detach()
+
+    def _cancel_autosave_timer(self) -> None:
+        """Cancel the periodic in-place autosave timer."""
+        with self._timer_lock:
+            if self._autosave_timer is not None:
+                self._autosave_timer.cancel()
+                self._autosave_timer = None
+
+    def _reset_autosave_timer(self) -> None:
+        """Schedule the next periodic autosave when policy + path allow it."""
+        from originlab_mcp.utils.autosave import AutosavePolicy
+
+        policy = AutosavePolicy.from_env()
+        with self._timer_lock:
+            if self._autosave_timer is not None:
+                self._autosave_timer.cancel()
+                self._autosave_timer = None
+
+            interval = policy.interval_seconds
+            if (
+                interval is None
+                or interval <= 0
+                or not self._connected
+                or not self._project_path
+            ):
+                return
+
+            self._autosave_timer = threading.Timer(
+                interval, self._on_periodic_autosave
+            )
+            self._autosave_timer.daemon = True
+            self._autosave_timer.start()
+            logger.debug("周期自动保存已安排（%.0fs）", interval)
+
+    def _on_periodic_autosave(self) -> None:
+        """Timer callback: save in place, then reschedule."""
+        try:
+            status = self.periodic_autosave_tick()
+            if status.get("saved"):
+                logger.info("周期自动保存完成: %s", status.get("path"))
+            else:
+                logger.debug("周期自动保存跳过: %s", status.get("message"))
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("周期自动保存异常: %s", exc)
+        finally:
+            self._reset_autosave_timer()
+
+    def periodic_autosave_tick(self) -> dict[str, Any]:
+        """Perform one periodic in-place save if a project path is known.
+
+        Never raises for policy/path misses — safe for timer threads.
+        """
+        from originlab_mcp.utils.autosave import AutosavePolicy
+
+        policy = AutosavePolicy.from_env()
+        if not policy.enabled or not policy.interval_seconds:
+            return {
+                "attempted": False,
+                "saved": False,
+                "path": None,
+                "message": "periodic autosave disabled",
+            }
+        if not self._project_path:
+            return {
+                "attempted": False,
+                "saved": False,
+                "path": None,
+                "message": "no project path; periodic autosave skipped",
+            }
+
+        def _save(op: OriginProProtocol) -> dict[str, Any]:
+            path = self.resolve_project_path(op)
+            if not path:
+                return {
+                    "attempted": False,
+                    "saved": False,
+                    "path": None,
+                    "message": "no project path; periodic autosave skipped",
+                }
+            op.save(path)
+            return {
+                "attempted": True,
+                "saved": True,
+                "path": path,
+                "message": f"periodic autosave -> {path}",
+            }
+
+        try:
+            return self.execute(_save)
+        except Exception as exc:
+            logger.warning("周期自动保存失败: %s", exc)
+            return {
+                "attempted": True,
+                "saved": False,
+                "path": self._project_path,
+                "message": f"periodic autosave failed: {exc}",
+            }
 
     # -----------------------------------------------------------------
     # 连接管理
@@ -109,10 +211,27 @@ class OriginManager:
         """建立与 Origin 的 COM 连接。
 
         首次调用时导入 originpro 并初始化连接。
-        如果已连接则跳过。
+        如果已连接则跳过。release() 之后优先复用已绑定的 originpro 模块。
         """
         if self._connected and self._op is not None:
             return
+
+        # After release()/detach, _op is kept for fast reconnect.
+        if self._op is not None and not self._connected:
+            try:
+                op = self._op
+                with suppress(Exception):
+                    if hasattr(op, "attach"):
+                        op.attach()
+                op.set_show(True)
+                self._connected = True
+                self._refresh_active_context_unlocked()
+                logger.info("已重新连接到 Origin")
+                return
+            except Exception as e:
+                logger.warning("复用已有 Origin 连接失败，尝试重新导入: %s", e)
+                self._connected = False
+                self._op = None
 
         try:
             module = importlib.import_module("originpro")
@@ -165,6 +284,7 @@ class OriginManager:
             是否成功释放（如果本来就未连接则返回 False）。
         """
         self._cancel_idle_timer()
+        self._cancel_autosave_timer()
         with self._com_lock:
             if not self._connected or self._op is None:
                 return False
@@ -178,6 +298,7 @@ class OriginManager:
         用于 shutdown 场景。release() 保留 _op 以便自动重连。
         """
         self._cancel_idle_timer()
+        self._cancel_autosave_timer()
         with self._com_lock:
             op = self._op
             if op is not None:
@@ -196,6 +317,7 @@ class OriginManager:
         先确保 COM 连接有效，再调用 op.exit() 正常退出 Origin。
         """
         self._cancel_idle_timer()
+        self._cancel_autosave_timer()
         if self._op is not None:
             try:
                 self.ensure_connected()
@@ -249,12 +371,21 @@ class OriginManager:
     # 线程安全执行
     # -----------------------------------------------------------------
 
-    def execute(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    def execute(
+        self,
+        func: Callable[..., T],
+        *args: Any,
+        dispatch_timeout: float | None | object = None,
+        **kwargs: Any,
+    ) -> T:
         """在 COM 锁保护下执行函数。
 
         自动确保连接有效，并在 COM 锁内串行执行。
         不再在每次操作后 detach，而是重置空闲计时器。
         当空闲超时后自动释放 COM 控制权。
+
+        Soft dispatch timeout (``ORIGINLAB_MCP_DISPATCH_TIMEOUT``, default 90s)
+        raises ``ToolError`` without killing Origin when the budget is exceeded.
 
         Parameters
         ----------
@@ -262,18 +393,37 @@ class OriginManager:
             要执行的函数，第一个参数会接收 originpro 模块。
         *args, **kwargs
             传给 func 的额外参数。
+        dispatch_timeout :
+            Per-call soft budget in seconds. Default (``None``) uses the env
+            policy. Pass ``0`` to disable the soft timeout for this call only.
         """
-        # 先取消可能正在运行的空闲计时器（防止执行期间触发 detach）
-        self._cancel_idle_timer()
+        from originlab_mcp.utils.dispatch import (
+            UNSET,
+            resolve_dispatch_timeout,
+            run_with_soft_timeout,
+        )
 
-        with self._com_lock:
-            self.ensure_connected()
-            op = self.op
-            try:
-                return func(op, *args, **kwargs)
-            finally:
-                # 操作完成后启动空闲计时器（而不是立即 detach）
-                self._reset_idle_timer()
+        # Keyword default None means "use env" so existing callers stay unchanged.
+        # Pass 0 to disable for a single call; positive floats override the budget.
+        override: float | None | object = (
+            UNSET if dispatch_timeout is None else dispatch_timeout
+        )
+        budget = resolve_dispatch_timeout(override)
+
+        def _run() -> T:
+            # 先取消可能正在运行的空闲计时器（防止执行期间触发 detach）
+            self._cancel_idle_timer()
+            with self._com_lock:
+                self.ensure_connected()
+                op = self.op
+                try:
+                    return func(op, *args, **kwargs)
+                finally:
+                    # 操作完成后启动空闲计时器（而不是立即 detach）
+                    self._reset_idle_timer()
+                    self._reset_autosave_timer()
+
+        return run_with_soft_timeout(budget, _run)
 
     # -----------------------------------------------------------------
     # 活动对象追踪
@@ -307,6 +457,115 @@ class OriginManager:
             "active_worksheet": self._active_worksheet,
             "active_graph": self._active_graph,
         }
+
+    @property
+    def project_path(self) -> str | None:
+        """Last known Origin project path used for in-place autosave."""
+        return self._project_path
+
+    @project_path.setter
+    def project_path(self, path: str | None) -> None:
+        self._project_path = path or None
+        if self._project_path:
+            self._reset_autosave_timer()
+        else:
+            self._cancel_autosave_timer()
+
+    def resolve_project_path(self, op: OriginProProtocol | None = None) -> str | None:
+        """Best-effort resolve of the current project file path."""
+        if self._project_path:
+            return self._project_path
+        current = op if op is not None else (self._op if self._connected else None)
+        if current is None:
+            return None
+        direct = getattr(current, "project_path", None)
+        if isinstance(direct, str) and direct.strip():
+            self._project_path = direct.strip()
+            return self._project_path
+        for var_name in ("pe_path$", "filename$", "doc.path$"):
+            with suppress(Exception):
+                value = current.get_lt_str(var_name)
+                if isinstance(value, str) and value.strip():
+                    self._project_path = value.strip()
+                    return self._project_path
+        return None
+
+    def preflight_autosave(self, reason: str) -> dict[str, Any]:
+        """Save the project in place before a destructive operation.
+
+        Returns a small status dict consumed by tool responses:
+        ``{"attempted": bool, "saved": bool, "path": str|None, "message": str}``
+
+        When ``ORIGINLAB_MCP_AUTOSAVE_REQUIRED`` is on, missing path or save
+        failure raises ``ToolError`` and blocks the destructive tool.
+        """
+        from originlab_mcp.exceptions import ToolError
+        from originlab_mcp.utils.autosave import AutosavePolicy
+
+        policy = AutosavePolicy.from_env()
+        if not policy.enabled:
+            return {
+                "attempted": False,
+                "saved": False,
+                "path": None,
+                "message": "autosave disabled",
+            }
+
+        def _save(op: OriginProProtocol) -> dict[str, Any]:
+            path = self.resolve_project_path(op)
+            if not path:
+                return {
+                    "attempted": False,
+                    "saved": False,
+                    "path": None,
+                    "message": "no project path; autosave skipped",
+                }
+            # Pass path explicitly so in-memory fakes and Origin both persist
+            # to the known project file (not an anonymous empty save).
+            op.save(path)
+            return {
+                "attempted": True,
+                "saved": True,
+                "path": path,
+                "message": f"preflight autosave ({reason}) -> {path}",
+            }
+
+        try:
+            # Prefer execute() so connection/idle timer semantics stay consistent.
+            # Callers must invoke this *before* their own execute() — Lock is
+            # non-reentrant.
+            status = self.execute(_save)
+        except ToolError:
+            raise
+        except Exception as exc:
+            if policy.required:
+                raise ToolError(
+                    f"破坏性操作前自动保存失败: {exc}",
+                    error_type="internal_error",
+                    target="autosave",
+                    hint="请先调用 save_project，或设置 ORIGINLAB_MCP_AUTOSAVE=off 跳过预检。",
+                    suggested_alternatives=["save_project"],
+                ) from exc
+            return {
+                "attempted": True,
+                "saved": False,
+                "path": self._project_path,
+                "message": f"autosave failed (continuing): {exc}",
+            }
+
+        if policy.required and not status.get("saved"):
+            raise ToolError(
+                f"破坏性操作前需要已保存的项目路径（reason={reason}）。",
+                error_type="invalid_input",
+                target="autosave",
+                hint=(
+                    "请先调用 save_project(file_path=...) 建立项目路径，"
+                    "或设置 ORIGINLAB_MCP_AUTOSAVE=off / "
+                    "ORIGINLAB_MCP_AUTOSAVE_REQUIRED=off。"
+                ),
+                suggested_alternatives=["save_project"],
+            )
+        return status
 
     def peek_active_context(self) -> dict[str, str | None]:
         """Refresh active objects. Caller must already be inside execute()."""
@@ -375,6 +634,19 @@ class OriginManager:
             "idle_timeout": self._idle_timeout,
         }
 
+        from originlab_mcp.utils.autosave import AutosavePolicy
+        from originlab_mcp.utils.dispatch import parse_dispatch_timeout_seconds
+        from originlab_mcp.utils.paths import parse_allowed_roots
+
+        info["dispatch_timeout"] = parse_dispatch_timeout_seconds()
+        roots = parse_allowed_roots()
+        info["allowed_roots"] = [str(r) for r in roots] if roots is not None else None
+        policy = AutosavePolicy.from_env()
+        info["autosave_enabled"] = policy.enabled
+        info["autosave_required"] = policy.required
+        info["autosave_interval"] = policy.interval_seconds
+        info["project_path"] = self._project_path
+
         if self.is_connected:
             try:
                 op = self.op
@@ -413,7 +685,9 @@ class OriginManager:
         """MCP Server 关闭时调用，清理资源。"""
         logger.info("OriginManager 正在关闭...")
         self._cancel_idle_timer()
+        self._cancel_autosave_timer()
         self.disconnect()
         self._active_worksheet = None
         self._active_graph = None
+        self._project_path = None
         logger.info("OriginManager 已关闭")

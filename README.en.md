@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
     <img src="https://img.shields.io/badge/version-0.2.1-green.svg" alt="Version">
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
-    <img src="https://img.shields.io/badge/tools-66-orange.svg" alt="Tools">
+    <img src="https://img.shields.io/badge/tools-67-orange.svg" alt="Tools">
   </p>
   <p align="center">
     <a href="#quick-start">Quick Start</a> · <a href="#features">Features</a> · <a href="#examples">Examples</a> · <a href="#client-configuration">Client Configuration</a>
@@ -137,7 +137,7 @@ uv run originlab-mcp-ui
 
 ## Features
 
-The server provides **66 tools** covering the OriginLab data workflow.
+The server provides **67 tools** covering the OriginLab data workflow.
 
 ### Data Management (14 Tools)
 
@@ -183,9 +183,11 @@ The server provides **66 tools** covering the OriginLab data workflow.
 
 `export_graph` · `export_all_graphs` · `export_worksheet_to_csv` · `save_project` · `open_project` · `new_project`
 
-### System Management (5 Tools)
+### System Management (6 Tools)
 
-`get_origin_info` · `read_origin_session` · `release_origin` · `reconnect_origin` · `close_origin`
+`get_origin_info` · `originlab_doctor` · `read_origin_session` · `release_origin` · `reconnect_origin` · `close_origin`
+
+> `originlab_doctor` is a read-only environment checklist (platform, originpro, autosave / dispatch / allowed-roots policy). Pass `ping_origin=true` to attempt a live Origin connect.
 
 > `read_origin_session` is a read-only snapshot of the current project: workbooks/worksheets, graphs, matrices, notes, active objects, and project path. Pass `include_preview=true` to include a truncated preview of the active worksheet.
 
@@ -201,11 +203,55 @@ In addition to tools, clients can inspect the Origin session through MCP `resour
 | `originlab://worksheet/{book}/{sheet}` | One worksheet's columns and data preview |
 | `originlab://graph/{name}` | One graph's layers and curves |
 
+### MCP Prompts (Workflow Templates)
+
+Clients that support `prompts/list` can start common Origin workflows from templates:
+
+| Prompt | Purpose |
+| :--- | :--- |
+| `originlab_inspect_session` | Read-only session inspection |
+| `originlab_csv_to_plot` | CSV → designations → plot → export |
+| `originlab_publication_style` | Publication figure styling |
+| `originlab_fit_curve` | Linear / nonlinear fitting |
+| `originlab_safe_destructive` | Save-first checklist before destructive ops |
+
 ### Advanced (2 Tools)
 
 `execute_labtalk` · `get_labtalk_variable`
 
-`execute_labtalk` is an escape hatch for operations not covered by standard tools. `get_labtalk_variable` safely reads LabTalk variable values.
+`execute_labtalk` is an escape hatch for operations not covered by standard tools. `get_labtalk_variable` safely reads LabTalk variable values. Destructive LabTalk (delete / `doc -n` / `win -c`, etc.) requires `confirm=true`.
+
+### Safety: Preflight Autosave
+
+Before destructive tools (`new_project`, `open_project`, `clear_worksheet`, `delete_columns`, `remove_plot_from_graph`, `remove_graph_label`, `close_origin`, and confirmed destructive LabTalk), the server attempts an in-place project save when a project path is known:
+
+| Environment variable | Default | Effect |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_AUTOSAVE` | on | Set `off` / `false` / `0` to skip preflight saves |
+| `ORIGINLAB_MCP_AUTOSAVE_REQUIRED` | off | When on, block the destructive tool if autosave cannot run (no path or save failure) |
+| `ORIGINLAB_MCP_AUTOSAVE_INTERVAL` | `300` | Also save in place every N seconds when a project path is known; `off` / `0` disables periodic saves (preflight still runs) |
+
+Call `save_project(file_path=...)` early so later destructive steps can autosave in place.
+
+### Safety: Soft Dispatch Timeout
+
+Each COM-backed tool call has a soft wall-clock budget (default **90s**). If Origin does not return in time — often because a modal dialog is open — the server raises a structured `timeout` error **without** killing Origin. The underlying COM call may still be running and will hold the lock until Origin unblocks.
+
+| Environment variable | Default | Effect |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_DISPATCH_TIMEOUT` | `90` | Soft budget in seconds; set `off` / `0` to disable |
+
+`execute_labtalk(..., timeout=120)` overrides the budget for that call only (`0` disables).
+
+### Safety: Allowed Roots (optional)
+
+When set, all import / export / save / open file paths must resolve under one of the allowed directories (path traversal via `..` is rejected). Unset keeps unrestricted access for typical desktop Origin workflows.
+
+| Environment variable | Default | Effect |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_ALLOWED_ROOTS` | unset | `os.pathsep`-separated roots (`:` / `;`); commas also accepted |
+
+`get_origin_info` reports the active allowlist as `allowed_roots`.
 
 ## Examples
 
@@ -310,7 +356,7 @@ uv run python -m pytest tests/ -v
 pytest tests/ -v
 ```
 
-The basic test suite does not require OriginLab to be installed.
+The basic test suite does not require OriginLab to be installed. On Linux/macOS, `originpro` is skipped automatically because it is marked Windows-only in `pyproject.toml`. GitHub Actions runs ruff, mypy, and pytest (with coverage XML) on Python 3.10–3.12.
 
 ## Project Structure
 
@@ -318,6 +364,7 @@ The basic test suite does not require OriginLab to be installed.
 originlab-mcp/
 ├── pyproject.toml                # Project configuration and dependencies
 ├── CHANGELOG.md                  # Release notes
+├── .github/workflows/ci.yml      # Lint / typecheck / unit tests
 ├── scripts/
 │   └── install-and-open.ps1      # One-command setup and UI launcher
 ├── src/originlab_mcp/
@@ -326,6 +373,7 @@ originlab-mcp/
 │   ├── origin_manager.py         # Thread-safe Origin COM connection manager
 │   ├── session.py                # Read-only Origin session snapshot
 │   ├── resources.py              # MCP Resources (session reading)
+│   ├── prompts.py                # MCP Prompts (workflow templates)
 │   ├── exceptions.py             # Custom exceptions
 │   ├── types.py                  # Protocol type definitions
 │   ├── tools/
@@ -334,13 +382,29 @@ originlab-mcp/
 │   │   ├── customize.py          # Graph customization (25)
 │   │   ├── analysis.py           # Linear and nonlinear fitting (3)
 │   │   ├── export.py             # Export and project management (6)
-│   │   ├── system.py             # System and connection management (4)
+│   │   ├── system.py             # System and connection management (6)
 │   │   └── advanced.py           # LabTalk escape hatch (2)
 │   └── utils/
+│       ├── annotations.py        # MCP ToolAnnotations presets
+│       ├── autosave.py           # Preflight autosave policy
+│       ├── dispatch.py           # Soft COM dispatch timeout
+│       ├── doctor.py             # originlab_doctor diagnostics
+│       ├── paths.py              # Allowed-roots path sandbox
+│       ├── labtalk_safe.py        # LabTalk confirm-gate scanner
 │       ├── constants.py          # Enums, defaults, and fit-function metadata
 │       ├── helpers.py            # Graph/sheet resolution and error handling helpers
 │       └── validators.py         # Input validation and standard response builders
 └── tests/
+    ├── conftest.py               # Shared fixtures (manager / fake Origin)
+    ├── fakes/                    # In-memory OriginPro + DummyMCP doubles
+    ├── test_annotations.py       # ToolAnnotations coverage tests
+    ├── test_autosave.py          # Autosave policy / preflight tests
+    ├── test_dispatch.py          # Soft dispatch timeout tests
+    ├── test_paths.py             # Allowed-roots sandbox tests
+    ├── test_prompts.py           # MCP prompt workflow templates
+    ├── test_doctor.py            # originlab_doctor diagnostics
+    ├── test_origin_contract.py   # Multi-tool COM contract workflows
+    ├── test_tool_guidance.py     # Description / next_suggestions contracts
     ├── test_helpers.py           # Helper tests
     ├── test_phase3.py            # LabTalk safety and resolve-pattern tests
     ├── test_session.py           # Session reading and MCP resource tests

@@ -28,6 +28,7 @@ Desktop.ini
 # Testing
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 
 # Lint cache

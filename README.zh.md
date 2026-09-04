@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
     <img src="https://img.shields.io/badge/version-0.2.1-green.svg" alt="Version">
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
-    <img src="https://img.shields.io/badge/tools-66-orange.svg" alt="Tools">
+    <img src="https://img.shields.io/badge/tools-67-orange.svg" alt="Tools">
   </p>
   <p align="center">
     <a href="#-快速开始">快速开始</a> · <a href="#-功能一览">功能一览</a> · <a href="#-使用示例">使用示例</a> · <a href="#-客户端配置">客户端配置</a>
@@ -136,7 +136,7 @@ uv run originlab-mcp-ui
 
 ## 🧰 功能一览
 
-共提供 **66 个工具**，覆盖 OriginLab 的数据全流程：
+共提供 **67 个工具**，覆盖 OriginLab 的数据全流程：
 
 ### 📊 数据管理（14 个工具）
 
@@ -182,9 +182,11 @@ uv run originlab-mcp-ui
 
 `export_graph` · `export_all_graphs` · `export_worksheet_to_csv` · `save_project` · `open_project` · `new_project`
 
-### 🔧 系统管理（5 个工具）
+### 🔧 系统管理（6 个工具）
 
-`get_origin_info` · `read_origin_session` · `release_origin` · `reconnect_origin` · `close_origin`
+`get_origin_info` · `originlab_doctor` · `read_origin_session` · `release_origin` · `reconnect_origin` · `close_origin`
+
+> `originlab_doctor` 为只读环境体检（平台、originpro、autosave / 软超时 / 允许根目录策略）。需要探测真机 Origin 时传入 `ping_origin=true`。
 
 > `read_origin_session` 只读当前项目快照：工作簿/工作表、图表、矩阵、Notes、活动对象和项目路径。需要单元格预览时传入 `include_preview=true`。
 
@@ -200,11 +202,55 @@ uv run originlab-mcp-ui
 | `originlab://worksheet/{book}/{sheet}` | 单个工作表结构与数据预览 |
 | `originlab://graph/{name}` | 单个图表的图层与曲线 |
 
+### 🧩 MCP Prompts（工作流模板）
+
+支持 `prompts/list` 的客户端可从模板启动常见 Origin 工作流：
+
+| Prompt | 用途 |
+| :--- | :--- |
+| `originlab_inspect_session` | 只读检查当前会话 |
+| `originlab_csv_to_plot` | CSV → 列角色 → 绘图 → 导出 |
+| `originlab_publication_style` | 论文图样式 |
+| `originlab_fit_curve` | 线性 / 非线性拟合 |
+| `originlab_safe_destructive` | 破坏性操作前「先保存」清单 |
+
 ### ⚡ 高级（2 个工具）
 
 `execute_labtalk` · `get_labtalk_variable`
 
-其中 `execute_labtalk` 用于最后手段的脚本逃生舱，`get_labtalk_variable` 用于安全读取 LabTalk 变量值。
+其中 `execute_labtalk` 用于最后手段的脚本逃生舱，`get_labtalk_variable` 用于安全读取 LabTalk 变量值。删除 / `doc -n` / `win -c` 等破坏性 LabTalk 需要 `confirm=true`。
+
+### 安全：破坏性操作前自动保存
+
+在 `new_project`、`open_project`、`clear_worksheet`、`delete_columns`、`remove_plot_from_graph`、`remove_graph_label`、`close_origin` 以及已确认的破坏性 LabTalk 执行前，若已知项目路径，服务器会尝试就地保存：
+
+| 环境变量 | 默认 | 作用 |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_AUTOSAVE` | 开启 | 设为 `off` / `false` / `0` 可关闭预检保存 |
+| `ORIGINLAB_MCP_AUTOSAVE_REQUIRED` | 关闭 | 开启后，无法自动保存（无路径或保存失败）时阻止破坏性操作 |
+| `ORIGINLAB_MCP_AUTOSAVE_INTERVAL` | `300` | 已知项目路径时每隔 N 秒就地保存；`off` / `0` 关闭周期保存（预检仍生效） |
+
+建议尽早调用 `save_project(file_path=...)`，后续破坏性步骤才能就地 autosave。
+
+### 安全：COM 软超时
+
+每个依赖 COM 的 tool 调用有软超时预算（默认 **90 秒**）。若 Origin 未在时限内返回（常见原因是模态对话框），服务器返回结构化 `timeout` 错误，**不会**强制结束 Origin。底层 COM 调用可能仍在阻塞，锁会一直持有到 Origin 恢复响应。
+
+| 环境变量 | 默认 | 作用 |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_DISPATCH_TIMEOUT` | `90` | 软超时秒数；设为 `off` / `0` 可关闭 |
+
+`execute_labtalk(..., timeout=120)` 可覆盖单次调用预算（`0` 表示关闭）。
+
+### 安全：允许的根目录（可选）
+
+配置后，导入 / 导出 / 保存 / 打开的文件路径必须落在允许目录内（`..` 穿越会被拒绝）。未配置时保持不限制，兼容桌面 Origin 任意路径工作流。
+
+| 环境变量 | 默认 | 作用 |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_ALLOWED_ROOTS` | 未设置 | 用 `os.pathsep`（`:` / `;`）分隔根目录，也支持逗号 |
+
+`get_origin_info` 的 `allowed_roots` 字段会报告当前白名单。
 
 ## 💬 使用示例
 
@@ -311,7 +357,7 @@ uv run python -m pytest tests/ -v
 pytest tests/ -v
 ```
 
-基础测试不依赖 Origin 安装，可在任何环境运行。
+基础测试不依赖 Origin 安装，可在任何环境运行。Linux/macOS 上 `originpro` 因 `pyproject.toml` 的 Windows 平台标记会自动跳过安装。GitHub Actions 会在 Python 3.10–3.12 上运行 ruff、mypy 与 pytest（并产出 coverage.xml）。
 
 ## 📁 项目结构
 
@@ -319,6 +365,7 @@ pytest tests/ -v
 originlab-mcp/
 ├── pyproject.toml                # 项目配置与依赖
 ├── CHANGELOG.md                  # 版本变更记录
+├── .github/workflows/ci.yml      # Lint / 类型检查 / 单元测试
 ├── scripts/
 │   └── install-and-open.ps1      # 一键安装并启动 UI
 ├── src/originlab_mcp/
@@ -327,6 +374,7 @@ originlab-mcp/
 │   ├── origin_manager.py         # Origin COM 连接管理（线程安全）
 │   ├── session.py                # 只读 Origin 会话快照
 │   ├── resources.py              # MCP Resources（系统阅读）
+│   ├── prompts.py                # MCP Prompts（工作流模板）
 │   ├── exceptions.py             # 自定义异常类
 │   ├── types.py                  # Protocol 类型定义
 │   ├── tools/
@@ -335,13 +383,29 @@ originlab-mcp/
 │   │   ├── customize.py          # 🎨 图表外观定制 (25)
 │   │   ├── analysis.py           # 📐 线性/非线性拟合 (3)
 │   │   ├── export.py             # 💾 导出与项目管理 (6)
-│   │   ├── system.py             # 🔧 系统与连接管理 (4)
+│   │   ├── system.py             # 🔧 系统与连接管理 (6)
 │   │   └── advanced.py           # ⚡ LabTalk 逃生舱 (2)
 │   └── utils/
+│       ├── annotations.py        # MCP ToolAnnotations 预设
+│       ├── autosave.py           # 破坏性操作前自动保存策略
+│       ├── dispatch.py           # COM 软超时
+│       ├── doctor.py             # originlab_doctor 环境诊断
+│       ├── paths.py              # 允许根目录路径沙箱
+│       ├── labtalk_safe.py        # LabTalk confirm 门控扫描
 │       ├── constants.py          # 枚举、默认值、拟合函数定义
 │       ├── helpers.py            # 图层/工作表/图表解析、错误处理装饰器
 │       └── validators.py         # 参数校验与统一返回结构
 └── tests/
+    ├── conftest.py               # 共享 fixtures（manager / FakeOrigin）
+    ├── fakes/                    # 内存 OriginPro + DummyMCP 测试双件
+    ├── test_annotations.py       # ToolAnnotations 覆盖测试
+    ├── test_autosave.py          # Autosave 策略 / 预检测试
+    ├── test_dispatch.py          # COM 软超时测试
+    ├── test_paths.py             # 允许根目录沙箱测试
+    ├── test_prompts.py           # MCP 工作流 prompt 模板
+    ├── test_doctor.py            # originlab_doctor 诊断
+    ├── test_origin_contract.py   # 多 tool COM 契约工作流
+    ├── test_tool_guidance.py     # 描述 / next_suggestions 契约
     ├── test_helpers.py           # helpers 辅助函数测试
     ├── test_phase3.py            # LabTalk 防护与 resolve 范式测试
     ├── test_session.py           # 会话阅读与 MCP Resources 测试

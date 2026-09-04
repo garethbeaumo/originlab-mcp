@@ -21,6 +21,14 @@ from originlab_mcp.exceptions import (
     ColumnIndexError,
     ToolError,
 )
+from originlab_mcp.utils.annotations import (
+    DESTRUCTIVE,
+    IDEMPOTENT_MUTATING,
+    MUTATING,
+    OPEN_WORLD,
+    READ_ONLY,
+)
+from originlab_mcp.utils.autosave import collect_autosave_warnings
 from originlab_mcp.utils.constants import (
     DEFAULT_HAS_HEADER,
     DEFAULT_MAX_PREVIEW_ROWS,
@@ -130,7 +138,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # import_csv
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=OPEN_WORLD)
     @tool_error_handler("导入CSV", "请检查文件格式是否为有效的 CSV。")
     def import_csv(file_path: str, sheet_name: str | None = None) -> dict:
         """Import a CSV file into a worksheet.
@@ -153,7 +161,11 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="文件不存在，请检查文件路径。",
+                hint=(
+                    "请确认文件存在，且路径位于 ORIGINLAB_MCP_ALLOWED_ROOTS "
+                    "允许范围内（未配置时不限制）。"
+                ),
+                suggested_alternatives=["get_origin_info", "import_data_from_text"],
             )
 
         def _import(op: Any) -> dict[str, Any]:
@@ -201,7 +213,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # import_excel
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=OPEN_WORLD)
     @tool_error_handler("导入Excel", "请检查文件格式是否为有效的 Excel 文件。")
     def import_excel(file_path: str, sheet_name: str | None = None) -> dict:
         """Import an Excel file into a worksheet.
@@ -224,7 +236,11 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="文件不存在，请检查文件路径。",
+                hint=(
+                    "请确认文件存在，且路径位于 ORIGINLAB_MCP_ALLOWED_ROOTS "
+                    "允许范围内（未配置时不限制）。"
+                ),
+                suggested_alternatives=["get_origin_info", "import_data_from_text"],
             )
 
         def _import(op: Any) -> dict[str, Any]:
@@ -268,7 +284,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # import_data_from_text
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("导入文本数据", "请检查数据格式。数据应以换行符分行，以指定的分隔符分列。")
     def import_data_from_text(
         data: str,
@@ -386,7 +402,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # list_worksheets
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_error_handler("列出工作表", "请确认 Origin 已连接。可调用 get_origin_info 检查状态。")
     def list_worksheets() -> dict:
         """List all worksheets in the current project.
@@ -423,7 +439,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # get_worksheet_info
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_error_handler("获取工作表信息", "请确认工作表名称正确。调用 list_worksheets 查看可用工作表。")
     def get_worksheet_info(sheet_name: str | None = None) -> dict:
         """Return worksheet structure info (column names, designations, row/col counts).
@@ -484,7 +500,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # get_worksheet_data
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_error_handler("获取工作表数据", "请确认工作表名称正确。")
     def get_worksheet_data(
         sheet_name: str | None = None,
@@ -568,7 +584,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # set_column_designations
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置列角色", "请检查角色字符串长度是否与列数匹配，且仅使用 X/Y/Z/E/L/N 或兼容写法 YErr。")
     def set_column_designations(
         designations: str,
@@ -641,7 +657,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # set_column_labels
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置列标签", "请检查列索引和参数值。")
     def set_column_labels(
         col: int,
@@ -703,7 +719,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # sort_worksheet
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("排序工作表", "请检查列索引是否正确。")
     def sort_worksheet(
         col: int,
@@ -753,7 +769,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # clear_worksheet
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=DESTRUCTIVE)
     @tool_error_handler("清除工作表", "请检查工作表名称和列索引。")
     def clear_worksheet(
         sheet_name: str | None = None,
@@ -774,6 +790,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         - clear_worksheet()
         - clear_worksheet(start_col=1, end_col=3)
         """
+        autosave = manager.preflight_autosave("clear_worksheet")
         target_name = _resolve_worksheet_name(sheet_name, manager)
 
         def _clear(op: Any) -> dict[str, Any]:
@@ -788,6 +805,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
                 "sheet_name": target_name,
                 "start_col": start_col,
                 "end_col": end_col,
+                "autosave": autosave,
             }
 
         result = manager.execute(_clear)
@@ -804,6 +822,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
             message=msg,
             data=result,
             resource=manager.get_resource_context(),
+            warnings=collect_autosave_warnings(autosave),
             next_suggestions=["import_csv", "import_data_from_text"],
         )
 
@@ -811,7 +830,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # set_column_formula
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=IDEMPOTENT_MUTATING)
     @tool_error_handler("设置列公式", "请检查公式语法是否正确。公式中可引用列名（如 A, B, C）。")
     def set_column_formula(
         col: int | str,
@@ -868,7 +887,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # get_cell_value
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_error_handler("读取单元格", "请检查行列索引是否在范围内。")
     def get_cell_value(
         row: int,
@@ -912,7 +931,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # delete_columns
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=DESTRUCTIVE)
     @tool_error_handler("删除列", "请检查列索引是否正确。")
     def delete_columns(
         col: int | str,
@@ -933,6 +952,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         - delete_columns(col=0)
         - delete_columns(col=2, count=3)
         """
+        autosave = manager.preflight_autosave("delete_columns")
         target_name = _resolve_worksheet_name(sheet_name, manager)
 
         def _del(op: Any) -> dict[str, Any]:
@@ -943,6 +963,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
                 "deleted_from": col,
                 "count": count,
                 "remaining_cols": wks.cols,
+                "autosave": autosave,
             }
 
         result = manager.execute(_del)
@@ -951,6 +972,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
             message=f"已删除 {count} 列，剩余 {result['remaining_cols']} 列。",
             data=result,
             resource=manager.get_resource_context(),
+            warnings=collect_autosave_warnings(autosave),
             next_suggestions=["get_worksheet_info"],
         )
 
@@ -958,7 +980,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     # add_worksheet
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("添加工作表", "请检查工作簿名称是否正确。")
     def add_worksheet(
         sheet_name: str | None = None,

@@ -50,7 +50,7 @@ def register_session_resources(mcp, manager) -> None:
         manager: OriginManager instance (dependency injection).
     """
 
-    def _read(builder):
+    def _read(builder) -> str:
         try:
             def _run(op):
                 manager.peek_active_context()

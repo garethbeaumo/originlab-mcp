@@ -16,6 +16,17 @@
 - **系统阅读**：新增 `read_origin_session` 工具，只读当前 Origin 项目快照（工作表、图表、矩阵、Notes、活动对象、项目路径）
 - **MCP Resources**：新增 `originlab://session`、`originlab://worksheets`、`originlab://graphs` 及工作表/图表模板资源，供客户端通过 `resources/read` 阅读会话
 - **状态面板会话视图**：本地 UI 增加「阅读会话」，可列出当前工作表和图表
+- **ToolAnnotations**：为全部 66 个 MCP tools 补充 `readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint`，帮助客户端优先选择只读工具并规避破坏性操作
+- **FakeOrigin 契约测试**：新增可复用的内存 OriginPro mock（对齐 Excel MCP mock-backend 思路），覆盖 import→plot→style→export 与项目生命周期工作流
+- **Tool 选择引导**：统一 `change_plot_type` 的 When to use / When not to use，补齐 `save_project` / `close_origin` 的 `next_suggestions`，并交叉引用 `create_plot` / `add_plot_to_graph` / `change_plot_type`
+- **LabTalk 安全门控**：`execute_labtalk` 对删除/重置/系统类命令要求 `confirm=true`，并在错误中返回 `suggested_alternatives`
+- **错误恢复提示**：`error_response` / 常见 `ToolError` 增加 `suggested_alternatives`，引导 agent 改用标准 tools
+- **破坏性操作前自动保存**：对 `new_project` / `open_project` / `clear_worksheet` / `delete_columns` / 图表删除 / `close_origin` 与已确认破坏性 LabTalk，在已知项目路径时就地 `save`；`ORIGINLAB_MCP_AUTOSAVE`（默认开）与 `ORIGINLAB_MCP_AUTOSAVE_REQUIRED`（默认关）可调
+- **周期自动保存**：`ORIGINLAB_MCP_AUTOSAVE_INTERVAL`（默认 300s）在已知项目路径时周期性就地保存；`off`/`0` 可关
+- **COM 软超时**：`ORIGINLAB_MCP_DISPATCH_TIMEOUT`（默认 90s）在 Origin 无响应时返回结构化 `timeout`（不杀进程）；`execute_labtalk(timeout=...)` 可单次覆盖
+- **路径白名单**：可选 `ORIGINLAB_MCP_ALLOWED_ROOTS`，限制 import/export/save/open 只能访问指定根目录（默认不限制）
+- **MCP Prompts**：新增 5 个工作流模板（inspect / csv→plot / publication / fit / safe-destructive），并强化 server `instructions`
+- **环境诊断**：新增 `originlab_doctor`（对齐 origin-mcp doctor），汇总平台 / originpro / autosave / 软超时 / 允许根，可选 `ping_origin`
 
 ### 🐛 Bug 修复
 
@@ -25,16 +36,42 @@
 
 - **change_plot_type**：支持在原有图表窗口和图层中重建曲线类型，例如把点线图原位改为柱状图，不创建新的图表页
 
+### 🧹 代码质量
+
+- **mypy**：修复 `resources.py` / `ui.py` 类型错误，并为 Windows-only 的 `originpro` 添加 ignore_missing_imports
+- **平台依赖**：`originpro` 标记为 `sys_platform == 'win32'`，Linux/macOS 可直接 `uv sync` 跑测试
+
+### 🏗️ 工程
+
+- **GitHub Actions CI**：新增 `.github/workflows/ci.yml`，在 Python 3.10–3.12 上跑 ruff / mypy / pytest（跳过 Windows-only 的 originpro 安装），并上传 coverage.xml
+
 ### 🧪 测试
 
 - 新增生命周期、plot_list 兼容、原图类型替换和本地状态面板配置逻辑回归测试
 - 新增 Origin 会话快照、MCP Resources 与状态面板阅读接口测试
+- 新增 ToolAnnotations 覆盖回归测试（66 tools 全量校验）
+- 新增 FakeOrigin COM 契约测试与共享 `tests/fakes` 测试双件（DummyMCP / attach_fake_origin）
+- 新增 tool 描述与 `next_suggestions` 一致性回归测试
+- 扩展 FakeOrigin 覆盖线性/非线性拟合、LabTalk 与多图层工作流；CI 产出 coverage.xml
+- 扩展 FakeOrigin 覆盖轴定制 / 论文样式 / 系统生命周期（release→reconnect→close）
+- 新增 LabTalk confirm 门控与 `suggested_alternatives` 错误恢复测试
+- 新增 autosave 策略 / 预检测试，并扩展 FakeOrigin 契约覆盖破坏性工具与 LabTalk autosave
+- 扩展周期 autosave（`AUTOSAVE_INTERVAL`）测试
+- 新增 COM 软超时（`dispatch.py`）与 LabTalk 单次 timeout 覆盖测试
+- 新增 allowed-roots 路径沙箱测试（穿越 / 越界拒绝、工具集成）
+- 新增 MCP Prompts 注册与工作流模板契约测试
+- 新增 `originlab_doctor` 诊断测试；ToolAnnotations 覆盖 66 → 67
 
 ### 📝 文档
 
 - 默认 README 改为英文，并保留中文文档为 README.zh.md
 - README / README.en / README.zh 补充本地状态面板、Trae 配置和项目结构说明
 - README 补充 `read_origin_session`、MCP Resources 与会话阅读说明，tool 总数 65 → 66
+- README / README.zh 补充破坏性操作前 autosave 环境变量与项目结构条目
+- README 补充 `ORIGINLAB_MCP_DISPATCH_TIMEOUT` 与 `execute_labtalk(timeout=...)` 说明
+- README 补充 `ORIGINLAB_MCP_ALLOWED_ROOTS` 可选路径白名单说明
+- README 补充 MCP Prompts 工作流模板说明
+- README tool 总数 66 → 67，补充 `originlab_doctor`
 
 ---
 

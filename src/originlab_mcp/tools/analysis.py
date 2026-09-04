@@ -16,6 +16,7 @@ from originlab_mcp.exceptions import (
     FitConvergenceError,
     ToolError,
 )
+from originlab_mcp.utils.annotations import MUTATING, READ_ONLY
 from originlab_mcp.utils.constants import COMMON_FIT_FUNCTIONS
 from originlab_mcp.utils.helpers import (
     find_worksheet as _find_worksheet,
@@ -41,7 +42,7 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
     # linear_fit
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("线性拟合", "请检查列索引和数据是否有效。")
     def linear_fit(
         x_col: int,
@@ -56,6 +57,8 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
 
         When to use: For linear regression analysis to obtain slope and intercept.
         When not to use: For clearly non-linear data, use nonlinear_fit.
+        Do not use this tool just to plot raw data — use create_plot first
+        when you only need a visualization.
 
         Default behavior:
         - sheet_name omitted: uses current active worksheet
@@ -165,7 +168,7 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
     # nonlinear_fit
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=MUTATING)
     @tool_error_handler("非线性拟合", "请检查函数名、列索引和数据是否有效。调用 list_fit_functions 查看可用函数。")
     def nonlinear_fit(
         function_name: str,
@@ -308,7 +311,7 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
     # list_fit_functions
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     def list_fit_functions() -> dict:
         """List commonly used fit functions with parameter descriptions.
 

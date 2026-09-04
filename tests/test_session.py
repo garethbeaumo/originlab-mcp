@@ -19,26 +19,7 @@ from originlab_mcp.session import (
     read_worksheet_detail,
 )
 from originlab_mcp.tools.system import register_system_tools
-
-
-class DummyMCP:
-    def __init__(self) -> None:
-        self.tools: dict = {}
-        self.resources: dict = {}
-
-    def tool(self):
-        def decorator(fn):
-            self.tools[fn.__name__] = fn
-            return fn
-
-        return decorator
-
-    def resource(self, uri, **_kwargs):
-        def decorator(fn):
-            self.resources[uri] = fn
-            return fn
-
-        return decorator
+from tests.fakes import DummyMCP
 
 
 class StubSheet:

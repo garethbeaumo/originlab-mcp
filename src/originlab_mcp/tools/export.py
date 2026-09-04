@@ -17,6 +17,12 @@ import csv
 import os
 from typing import Any
 
+from originlab_mcp.utils.annotations import (
+    DESTRUCTIVE,
+    DESTRUCTIVE_OPEN_WORLD,
+    OPEN_WORLD,
+)
+from originlab_mcp.utils.autosave import collect_autosave_warnings
 from originlab_mcp.utils.constants import (
     DEFAULT_EXPORT_FORMAT,
     DEFAULT_EXPORT_WIDTH,
@@ -35,6 +41,7 @@ from originlab_mcp.utils.validators import (
     success_response,
     validate_export_format,
     validate_file_path,
+    validate_output_path,
 )
 
 
@@ -42,6 +49,10 @@ def _ensure_output_dir(path: str) -> str | None:
     """确保输出目录存在，失败时返回错误消息。"""
     if not path:
         return "输出路径不能为空"
+
+    allow_err = validate_output_path(path)
+    if allow_err:
+        return allow_err
 
     try:
         os.makedirs(path, exist_ok=True)
@@ -63,7 +74,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     # export_graph
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=OPEN_WORLD)
     @tool_error_handler("导出图表", "请检查输出路径和格式。")
     def export_graph(
         output_path: str,
@@ -99,6 +110,17 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
                 target="output_format",
                 value=fmt,
                 hint=f"支持的格式: {[e.value for e in ExportFormat]}",
+            )
+
+        allow_err = validate_output_path(output_path)
+        if allow_err:
+            return error_response(
+                message=allow_err,
+                error_type="invalid_input",
+                target="output_path",
+                value=output_path,
+                hint="请将输出路径放在 ORIGINLAB_MCP_ALLOWED_ROOTS 允许的目录下。",
+                suggested_alternatives=["get_origin_info", "save_project"],
             )
 
         # 确保输出目录存在
@@ -140,7 +162,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     # export_all_graphs
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=OPEN_WORLD)
     @tool_error_handler("批量导出图表", "请检查输出目录和导出格式。")
     def export_all_graphs(
         output_dir: str,
@@ -229,7 +251,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     # export_worksheet_to_csv
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=OPEN_WORLD)
     @tool_error_handler("导出工作表", "请检查工作表和输出路径。")
     def export_worksheet_to_csv(
         output_path: str,
@@ -247,6 +269,17 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
         - export_worksheet_to_csv(output_path="C:\output\data.csv")
         """
         target_name = resolve_worksheet_name(sheet_name, manager)
+
+        allow_err = validate_output_path(output_path)
+        if allow_err:
+            return error_response(
+                message=allow_err,
+                error_type="invalid_input",
+                target="output_path",
+                value=output_path,
+                hint="请将输出路径放在 ORIGINLAB_MCP_ALLOWED_ROOTS 允许的目录下。",
+                suggested_alternatives=["get_origin_info", "get_worksheet_data"],
+            )
 
         # 确保输出目录存在
         output_dir = os.path.dirname(output_path)
@@ -297,7 +330,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     # save_project
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=OPEN_WORLD)
     @tool_error_handler("保存项目", "请检查文件路径和写入权限。")
     def save_project(file_path: str | None = None) -> dict:
         """Save the current Origin project.
@@ -312,16 +345,33 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
         - save_project()
         - save_project(file_path="C:\\data\analysis.opju")
         """
+        if file_path:
+            allow_err = validate_output_path(file_path)
+            if allow_err:
+                return error_response(
+                    message=allow_err,
+                    error_type="invalid_input",
+                    target="file_path",
+                    value=file_path,
+                    hint="请将项目保存到 ORIGINLAB_MCP_ALLOWED_ROOTS 允许的目录下。",
+                    suggested_alternatives=["get_origin_info", "export_graph"],
+                )
+
         def _save(op: Any) -> str:
             if file_path:
                 save_dir = os.path.dirname(file_path)
                 if save_dir and not os.path.isdir(save_dir):
                     os.makedirs(save_dir, exist_ok=True)
                 op.save(file_path)
-                return os.path.abspath(file_path)
+                saved = os.path.abspath(file_path)
+                manager.project_path = saved
+                return saved
             else:
                 op.save()
-                return "current project"
+                current = manager.resolve_project_path(op) or "current project"
+                if current != "current project":
+                    manager.project_path = current
+                return current
 
         saved_path = manager.execute(_save)
 
@@ -329,13 +379,18 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
             message=f"项目已保存到 '{saved_path}'。",
             data={"saved_path": saved_path},
             resource=manager.get_resource_context(),
+            next_suggestions=[
+                "export_graph",
+                "read_origin_session",
+                "release_origin",
+            ],
         )
 
     # =================================================================
     # open_project
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=DESTRUCTIVE_OPEN_WORLD)
     @tool_error_handler("打开项目", "请检查文件是否为有效的 Origin 项目文件。")
     def open_project(file_path: str, readonly: bool = False) -> dict:
         """Open an Origin project file.
@@ -357,14 +412,21 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
                 error_type="invalid_input",
                 target="file_path",
                 value=file_path,
-                hint="文件不存在，请检查文件路径。",
+                hint=(
+                    "请确认项目文件存在，且路径位于 ORIGINLAB_MCP_ALLOWED_ROOTS "
+                    "允许范围内（未配置时不限制）。"
+                ),
+                suggested_alternatives=["get_origin_info", "new_project", "save_project"],
             )
+
+        autosave = manager.preflight_autosave("open_project")
 
         def _open(op: Any) -> str:
             op.open(file=file_path, readonly=readonly)
 
             manager.active_worksheet = None
             manager.active_graph = None
+            manager.project_path = os.path.abspath(file_path)
 
             # 尝试将第一个工作表设为活动
             try:
@@ -382,8 +444,13 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
 
         return success_response(
             message=f"项目已打开: '{opened_path}'。",
-            data={"file_path": opened_path, "readonly": readonly},
+            data={
+                "file_path": opened_path,
+                "readonly": readonly,
+                "autosave": autosave,
+            },
             resource=manager.get_resource_context(),
+            warnings=collect_autosave_warnings(autosave),
             next_suggestions=["list_worksheets", "list_graphs"],
         )
 
@@ -391,7 +458,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
     # new_project
     # =================================================================
 
-    @mcp.tool()
+    @mcp.tool(annotations=DESTRUCTIVE)
     @tool_error_handler("新建项目", "请检查 Origin 连接状态。")
     def new_project() -> dict:
         """Create a new blank Origin project.
@@ -402,18 +469,24 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
         Examples:
         - new_project()
         """
+        autosave = manager.preflight_autosave("new_project")
+
         def _new(op: Any) -> None:
             op.new()
             manager.active_worksheet = None
             manager.active_graph = None
+            manager.project_path = None
 
         manager.execute(_new)
 
+        warnings = ["之前项目中未保存的内容已丢失。"]
+        warnings.extend(collect_autosave_warnings(autosave))
+
         return success_response(
             message="已创建新的空白项目。",
-            data={"status": "reset"},
+            data={"status": "reset", "autosave": autosave},
             resource=manager.get_resource_context(),
-            warnings=["之前项目中未保存的内容已丢失。"],
+            warnings=warnings,
             next_suggestions=[
                 "import_csv",
                 "import_excel",

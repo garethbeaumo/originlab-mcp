@@ -60,6 +60,7 @@ def error_response(
     target: str,
     value: Any = None,
     hint: str = "",
+    suggested_alternatives: list[str] | None = None,
 ) -> dict[str, Any]:
     """构建统一的错误返回结构。
 
@@ -69,19 +70,23 @@ def error_response(
         target: 出错的参数名或对象名。
         value: 导致错误的实际值。
         hint: 给 AI 的修复建议。
+        suggested_alternatives: 建议改用的 typed tools（提高失败恢复成功率）。
 
     Returns:
         统一格式的错误返回字典。
     """
+    error: dict[str, Any] = {
+        "type": str(error_type.value if isinstance(error_type, ErrorType) else error_type),
+        "target": target,
+        "value": value,
+        "hint": hint,
+    }
+    if suggested_alternatives:
+        error["suggested_alternatives"] = list(suggested_alternatives)
     return {
         "ok": False,
         "message": message,
-        "error": {
-            "type": str(error_type.value if isinstance(error_type, ErrorType) else error_type),
-            "target": target,
-            "value": value,
-            "hint": hint,
-        },
+        "error": error,
     }
 
 
@@ -91,22 +96,41 @@ def error_response(
 
 
 def validate_file_path(file_path: str) -> str | None:
-    """验证文件路径是否存在。
+    """验证文件路径是否存在，并检查 allowed roots。
 
     Returns:
         如果路径无效，返回错误描述；否则返回 None。
     """
     if not file_path:
         return "file_path 不能为空"
+    from originlab_mcp.utils.paths import check_allowed_path
+
+    allow_err = check_allowed_path(file_path)
+    if allow_err:
+        return allow_err
     if not os.path.isfile(file_path):
         return f"文件不存在: {file_path}"
     return None
+
+
+def validate_output_path(file_path: str) -> str | None:
+    """验证输出文件/目录路径（可不存在），并检查 allowed roots。"""
+    if not file_path:
+        return "输出路径不能为空"
+    from originlab_mcp.utils.paths import check_allowed_path
+
+    return check_allowed_path(file_path)
 
 
 def validate_dir_path(dir_path: str) -> str | None:
     """验证目录路径是否存在。"""
     if not dir_path:
         return "目录路径不能为空"
+    from originlab_mcp.utils.paths import check_allowed_path
+
+    allow_err = check_allowed_path(dir_path)
+    if allow_err:
+        return allow_err
     if not os.path.isdir(dir_path):
         return f"目录不存在: {dir_path}"
     return None
@@ -185,11 +209,13 @@ def error_response_from_exception(exc: Exception) -> dict[str, Any]:
             target=exc.target,
             value=exc.value,
             hint=exc.hint,
+            suggested_alternatives=getattr(exc, "suggested_alternatives", None),
         )
     return error_response(
         message=str(exc),
         error_type="internal_error",
         target="unknown",
         hint="发生未知错误，请检查 Origin 连接状态。",
+        suggested_alternatives=["get_origin_info", "read_origin_session"],
     )
 

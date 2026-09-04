@@ -25,12 +25,14 @@ class ToolError(Exception):
         target: str = "",
         value: object = None,
         hint: str = "",
+        suggested_alternatives: list[str] | None = None,
     ) -> None:
         super().__init__(message)
         self.error_type = error_type
         self.target = target
         self.value = value
         self.hint = hint
+        self.suggested_alternatives = suggested_alternatives or []
 
 
 class WorksheetNotFoundError(ToolError):
@@ -43,6 +45,7 @@ class WorksheetNotFoundError(ToolError):
             target="worksheet",
             value=sheet_name,
             hint="请调用 list_worksheets 查看可用的工作表名称。",
+            suggested_alternatives=["list_worksheets", "import_csv"],
         )
 
 
@@ -56,6 +59,7 @@ class GraphNotFoundError(ToolError):
             target="graph",
             value=graph_name,
             hint="请调用 list_graphs 查看可用的图表名称。",
+            suggested_alternatives=["list_graphs", "create_plot"],
         )
 
 
@@ -68,6 +72,7 @@ class NoActiveWorksheetError(ToolError):
             error_type="invalid_input",
             target="sheet_name",
             hint="请指定 sheet_name，或先调用 import_csv / list_worksheets。",
+            suggested_alternatives=["import_csv", "list_worksheets", "import_data_from_text"],
         )
 
 
@@ -80,6 +85,7 @@ class NoActiveGraphError(ToolError):
             error_type="invalid_input",
             target="graph_name",
             hint="请指定 graph_name 或先创建图表。",
+            suggested_alternatives=["create_plot", "list_graphs"],
         )
 
 
@@ -94,6 +100,7 @@ class ColumnIndexError(ToolError):
             target="col",
             value=col_index,
             hint="请调用 get_worksheet_info 查看列信息。",
+            suggested_alternatives=["get_worksheet_info", "get_worksheet_data"],
         )
 
 
@@ -120,6 +127,7 @@ class PlotIndexError(ToolError):
             target="plot_index",
             value=plot_index,
             hint="请检查图表中的曲线数量。plot_index 从 0 开始。",
+            suggested_alternatives=["get_graph_info"],
         )
 
 
@@ -133,6 +141,7 @@ class LayerIndexError(ToolError):
             target="layer_index",
             value=layer_index,
             hint="layer_index 从 0 开始，默认为 0（主图层）。使用 get_graph_info 查看图层信息。",
+            suggested_alternatives=["get_graph_info", "add_graph_layer"],
         )
 
 
@@ -146,6 +155,7 @@ class FitFunctionNotFoundError(ToolError):
             target="function_name",
             value=function_name,
             hint="请调用 list_fit_functions 查看可用的拟合函数。",
+            suggested_alternatives=["list_fit_functions", "linear_fit"],
         )
 
 
@@ -162,5 +172,6 @@ class FitConvergenceError(ToolError):
             target="fit",
             value=function_name,
             hint="请尝试调整初始参数值或选择其他拟合函数。",
+            suggested_alternatives=["list_fit_functions", "nonlinear_fit", "linear_fit"],
         )
 
