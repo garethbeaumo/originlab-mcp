@@ -26,6 +26,7 @@
 - **COM 软超时**：`ORIGINLAB_MCP_DISPATCH_TIMEOUT`（默认 90s）在 Origin 无响应时返回结构化 `timeout`（不杀进程）；`execute_labtalk(timeout=...)` 可单次覆盖
 - **路径白名单**：可选 `ORIGINLAB_MCP_ALLOWED_ROOTS`，限制 import/export/save/open 只能访问指定根目录（默认不限制）
 - **MCP Prompts**：新增 5 个工作流模板（inspect / csv→plot / publication / fit / safe-destructive），并强化 server `instructions`
+- **环境诊断**：新增 `originlab_doctor`（对齐 origin-mcp doctor），汇总平台 / originpro / autosave / 软超时 / 允许根，可选 `ping_origin`
 
 ### 🐛 Bug 修复
 
@@ -59,6 +60,7 @@
 - 新增 COM 软超时（`dispatch.py`）与 LabTalk 单次 timeout 覆盖测试
 - 新增 allowed-roots 路径沙箱测试（穿越 / 越界拒绝、工具集成）
 - 新增 MCP Prompts 注册与工作流模板契约测试
+- 新增 `originlab_doctor` 诊断测试；ToolAnnotations 覆盖 66 → 67
 
 ### 📝 文档
 
@@ -69,6 +71,7 @@
 - README 补充 `ORIGINLAB_MCP_DISPATCH_TIMEOUT` 与 `execute_labtalk(timeout=...)` 说明
 - README 补充 `ORIGINLAB_MCP_ALLOWED_ROOTS` 可选路径白名单说明
 - README 补充 MCP Prompts 工作流模板说明
+- README tool 总数 66 → 67，补充 `originlab_doctor`
 
 ---
 

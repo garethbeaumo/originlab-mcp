@@ -13,7 +13,8 @@ SERVER_INSTRUCTIONS = """\
 OriginLab MCP Server — control OriginLab via MCP.
 
 Preferred workflow:
-1. Read first: use resource originlab://session or tool read_origin_session.
+1. Read first: use resource originlab://session or tool read_origin_session
+   (or originlab_doctor when diagnosing setup).
 2. Mutate with typed tools (import_*, create_plot, set_*, fit, export_*).
 3. Prefer standard tools over execute_labtalk; LabTalk is a last resort and
    destructive/system commands require confirm=true.

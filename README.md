@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
     <img src="https://img.shields.io/badge/version-0.2.1-green.svg" alt="Version">
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
-    <img src="https://img.shields.io/badge/tools-66-orange.svg" alt="Tools">
+    <img src="https://img.shields.io/badge/tools-67-orange.svg" alt="Tools">
   </p>
   <p align="center">
     <a href="#quick-start">Quick Start</a> · <a href="#features">Features</a> · <a href="#examples">Examples</a> · <a href="#client-configuration">Client Configuration</a>
@@ -137,7 +137,7 @@ uv run originlab-mcp-ui
 
 ## Features
 
-The server provides **66 tools** covering the OriginLab data workflow.
+The server provides **67 tools** covering the OriginLab data workflow.
 
 ### Data Management (14 Tools)
 
@@ -183,9 +183,11 @@ The server provides **66 tools** covering the OriginLab data workflow.
 
 `export_graph` · `export_all_graphs` · `export_worksheet_to_csv` · `save_project` · `open_project` · `new_project`
 
-### System Management (5 Tools)
+### System Management (6 Tools)
 
-`get_origin_info` · `read_origin_session` · `release_origin` · `reconnect_origin` · `close_origin`
+`get_origin_info` · `originlab_doctor` · `read_origin_session` · `release_origin` · `reconnect_origin` · `close_origin`
+
+> `originlab_doctor` is a read-only environment checklist (platform, originpro, autosave / dispatch / allowed-roots policy). Pass `ping_origin=true` to attempt a live Origin connect.
 
 > `read_origin_session` is a read-only snapshot of the current project: workbooks/worksheets, graphs, matrices, notes, active objects, and project path. Pass `include_preview=true` to include a truncated preview of the active worksheet.
 
@@ -380,12 +382,13 @@ originlab-mcp/
 │   │   ├── customize.py          # Graph customization (25)
 │   │   ├── analysis.py           # Linear and nonlinear fitting (3)
 │   │   ├── export.py             # Export and project management (6)
-│   │   ├── system.py             # System and connection management (5)
+│   │   ├── system.py             # System and connection management (6)
 │   │   └── advanced.py           # LabTalk escape hatch (2)
 │   └── utils/
 │       ├── annotations.py        # MCP ToolAnnotations presets
 │       ├── autosave.py           # Preflight autosave policy
 │       ├── dispatch.py           # Soft COM dispatch timeout
+│       ├── doctor.py             # originlab_doctor diagnostics
 │       ├── paths.py              # Allowed-roots path sandbox
 │       ├── labtalk_safe.py        # LabTalk confirm-gate scanner
 │       ├── constants.py          # Enums, defaults, and fit-function metadata
@@ -399,6 +402,7 @@ originlab-mcp/
     ├── test_dispatch.py          # Soft dispatch timeout tests
     ├── test_paths.py             # Allowed-roots sandbox tests
     ├── test_prompts.py           # MCP prompt workflow templates
+    ├── test_doctor.py            # originlab_doctor diagnostics
     ├── test_origin_contract.py   # Multi-tool COM contract workflows
     ├── test_tool_guidance.py     # Description / next_suggestions contracts
     ├── test_helpers.py           # Helper tests

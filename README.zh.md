@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
     <img src="https://img.shields.io/badge/version-0.2.1-green.svg" alt="Version">
     <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
-    <img src="https://img.shields.io/badge/tools-66-orange.svg" alt="Tools">
+    <img src="https://img.shields.io/badge/tools-67-orange.svg" alt="Tools">
   </p>
   <p align="center">
     <a href="#-快速开始">快速开始</a> · <a href="#-功能一览">功能一览</a> · <a href="#-使用示例">使用示例</a> · <a href="#-客户端配置">客户端配置</a>
@@ -136,7 +136,7 @@ uv run originlab-mcp-ui
 
 ## 🧰 功能一览
 
-共提供 **66 个工具**，覆盖 OriginLab 的数据全流程：
+共提供 **67 个工具**，覆盖 OriginLab 的数据全流程：
 
 ### 📊 数据管理（14 个工具）
 
@@ -182,9 +182,11 @@ uv run originlab-mcp-ui
 
 `export_graph` · `export_all_graphs` · `export_worksheet_to_csv` · `save_project` · `open_project` · `new_project`
 
-### 🔧 系统管理（5 个工具）
+### 🔧 系统管理（6 个工具）
 
-`get_origin_info` · `read_origin_session` · `release_origin` · `reconnect_origin` · `close_origin`
+`get_origin_info` · `originlab_doctor` · `read_origin_session` · `release_origin` · `reconnect_origin` · `close_origin`
+
+> `originlab_doctor` 为只读环境体检（平台、originpro、autosave / 软超时 / 允许根目录策略）。需要探测真机 Origin 时传入 `ping_origin=true`。
 
 > `read_origin_session` 只读当前项目快照：工作簿/工作表、图表、矩阵、Notes、活动对象和项目路径。需要单元格预览时传入 `include_preview=true`。
 
@@ -381,12 +383,13 @@ originlab-mcp/
 │   │   ├── customize.py          # 🎨 图表外观定制 (25)
 │   │   ├── analysis.py           # 📐 线性/非线性拟合 (3)
 │   │   ├── export.py             # 💾 导出与项目管理 (6)
-│   │   ├── system.py             # 🔧 系统与连接管理 (5)
+│   │   ├── system.py             # 🔧 系统与连接管理 (6)
 │   │   └── advanced.py           # ⚡ LabTalk 逃生舱 (2)
 │   └── utils/
 │       ├── annotations.py        # MCP ToolAnnotations 预设
 │       ├── autosave.py           # 破坏性操作前自动保存策略
 │       ├── dispatch.py           # COM 软超时
+│       ├── doctor.py             # originlab_doctor 环境诊断
 │       ├── paths.py              # 允许根目录路径沙箱
 │       ├── labtalk_safe.py        # LabTalk confirm 门控扫描
 │       ├── constants.py          # 枚举、默认值、拟合函数定义
@@ -400,6 +403,7 @@ originlab-mcp/
     ├── test_dispatch.py          # COM 软超时测试
     ├── test_paths.py             # 允许根目录沙箱测试
     ├── test_prompts.py           # MCP 工作流 prompt 模板
+    ├── test_doctor.py            # originlab_doctor 诊断
     ├── test_origin_contract.py   # 多 tool COM 契约工作流
     ├── test_tool_guidance.py     # 描述 / next_suggestions 契约
     ├── test_helpers.py           # helpers 辅助函数测试

@@ -10,6 +10,7 @@ from originlab_mcp.session import build_session_snapshot
 from originlab_mcp.utils.annotations import DESTRUCTIVE, MUTATING, READ_ONLY
 from originlab_mcp.utils.autosave import collect_autosave_warnings
 from originlab_mcp.utils.constants import DEFAULT_MAX_PREVIEW_ROWS
+from originlab_mcp.utils.doctor import build_doctor_report
 from originlab_mcp.utils.helpers import tool_error_handler
 from originlab_mcp.utils.validators import error_response, success_response
 
@@ -74,6 +75,44 @@ def register_system_tools(mcp, manager) -> None:
                 target="origin_connection",
                 hint="请检查 Origin 是否在运行，或尝试重启 MCP Server。",
             )
+
+    @mcp.tool(annotations=READ_ONLY)
+    @tool_error_handler("Origin 环境诊断", "请检查平台、originpro 安装与环境变量配置。")
+    def originlab_doctor(ping_origin: bool = False) -> dict:
+        """Diagnose OriginLab MCP environment, policies, and optional live Origin ping.
+
+        When to use: First step when tools fail to connect, timeouts appear, or
+        autosave / allowed-roots policy seems wrong. Inspired by origin-mcp doctor.
+        When not to use: For normal data/plot work once the environment is healthy.
+
+        Default behavior:
+        - ping_origin defaults to false (no COM connect attempt)
+        - reports platform, Python, originpro importability, autosave /
+          dispatch timeout / allowed-roots policy, and connection state
+
+        Examples:
+        - originlab_doctor()
+        - originlab_doctor(ping_origin=True)
+        """
+        report = build_doctor_report(manager, ping_origin=ping_origin)
+        overall = report["overall"]
+        if overall == "ok":
+            message = "OriginLab MCP 环境诊断通过。"
+        elif overall == "degraded":
+            message = "OriginLab MCP 环境可用但有警告，请查看 checks。"
+        else:
+            message = "OriginLab MCP 环境诊断发现问题，请查看 checks。"
+
+        return success_response(
+            message=message,
+            data=report,
+            resource=manager.get_resource_context(),
+            next_suggestions=[
+                "get_origin_info",
+                "read_origin_session",
+                "release_origin",
+            ],
+        )
 
     @mcp.tool(annotations=READ_ONLY)
     @tool_error_handler("阅读 Origin 会话", "请确认 Origin 已连接。可调用 get_origin_info 检查状态。")

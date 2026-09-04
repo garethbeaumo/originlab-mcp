@@ -8,6 +8,7 @@ from originlab_mcp.server import mcp
 
 READ_ONLY_TOOLS = {
     "get_origin_info",
+    "originlab_doctor",
     "read_origin_session",
     "list_worksheets",
     "get_worksheet_info",
@@ -51,7 +52,7 @@ def _tools_by_name():
 
 def test_all_tools_have_annotations():
     by_name = _tools_by_name()
-    assert len(by_name) == 66
+    assert len(by_name) == 67
     missing = [name for name, tool in by_name.items() if tool.annotations is None]
     assert missing == [], f"tools missing annotations: {missing}"
 
