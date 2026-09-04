@@ -34,5 +34,12 @@ jobs:
       - name: Mypy
         run: uv run --no-sync mypy src
 
-      - name: Pytest
+      - name: Pytest with coverage
         run: uv run --no-sync pytest -q
+
+      - name: Upload coverage XML
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml

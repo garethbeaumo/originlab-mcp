@@ -310,7 +310,7 @@ uv run python -m pytest tests/ -v
 pytest tests/ -v
 ```
 
-The basic test suite does not require OriginLab to be installed. On Linux/macOS, `originpro` is skipped automatically because it is marked Windows-only in `pyproject.toml`. GitHub Actions runs ruff, mypy, and pytest on Python 3.10–3.12.
+The basic test suite does not require OriginLab to be installed. On Linux/macOS, `originpro` is skipped automatically because it is marked Windows-only in `pyproject.toml`. GitHub Actions runs ruff, mypy, and pytest (with coverage XML) on Python 3.10–3.12.
 
 ## Project Structure
 

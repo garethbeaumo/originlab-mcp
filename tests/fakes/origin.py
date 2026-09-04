@@ -78,9 +78,11 @@ class FakeGraph:
         self.name = name
         self.lname = name
         self.template = template
-        self._layers = [FakeLayer()]
+        layer_count = 2 if template.lower() in {"doubley", "doubleY"} else 1
+        self._layers = [FakeLayer() for _ in range(layer_count)]
         self.saved: list[tuple[str, dict[str, Any]]] = []
         self.copied: list[dict[str, Any]] = []
+        self.added_layer_types: list[int] = []
 
     def __getitem__(self, index: int) -> FakeLayer:
         return self._layers[index]
@@ -97,12 +99,161 @@ class FakeGraph:
     def add_layer(self, layer_type: int = 0) -> FakeLayer:
         layer = FakeLayer()
         self._layers.append(layer)
+        self.added_layer_types.append(layer_type)
         return layer
 
     def copy_page(self, fmt: str, dpi: int, quality: int, transparent: bool) -> None:
         self.copied.append(
             {"fmt": fmt, "dpi": dpi, "quality": quality, "transparent": transparent}
         )
+
+
+class FakeLinearFit:
+    """Minimal originpro.LinearFit stand-in with deterministic results."""
+
+    def __init__(self) -> None:
+        self._wks: FakeSheet | None = None
+        self._x_col = 0
+        self._y_col = 0
+        self._yerr_col: int | None = None
+        self.fix_slope: float | None = None
+        self.fix_intercept: float | None = None
+        self.calls: list[str] = []
+
+    def set_data(
+        self,
+        wks: FakeSheet,
+        x_col: int,
+        y_col: int,
+        yerr_col: int | None = None,
+    ) -> None:
+        self.calls.append("set_data")
+        self._wks = wks
+        self._x_col = x_col
+        self._y_col = y_col
+        self._yerr_col = yerr_col
+
+    def _fit_params(self) -> dict[str, Any]:
+        if self._wks is None:
+            return {
+                "Parameters": {
+                    "Slope": {"Value": 1.0, "Error": 0.01},
+                    "Intercept": {"Value": 0.0, "Error": 0.01},
+                },
+                "Statistics": {"RSqCOD": 1.0},
+            }
+
+        xs = [float(v) for v in self._wks.to_list(self._x_col)]
+        ys = [float(v) for v in self._wks.to_list(self._y_col)]
+        n = min(len(xs), len(ys))
+        if n == 0:
+            slope = 0.0
+            intercept = 0.0
+        elif self.fix_slope is not None and self.fix_intercept is not None:
+            slope = float(self.fix_slope)
+            intercept = float(self.fix_intercept)
+        elif self.fix_slope is not None:
+            slope = float(self.fix_slope)
+            intercept = sum(ys[i] - slope * xs[i] for i in range(n)) / n
+        elif self.fix_intercept is not None:
+            intercept = float(self.fix_intercept)
+            denom = sum(xs[i] * xs[i] for i in range(n)) or 1.0
+            slope = sum((ys[i] - intercept) * xs[i] for i in range(n)) / denom
+        else:
+            mean_x = sum(xs[:n]) / n
+            mean_y = sum(ys[:n]) / n
+            denom = sum((xs[i] - mean_x) ** 2 for i in range(n)) or 1.0
+            slope = sum((xs[i] - mean_x) * (ys[i] - mean_y) for i in range(n)) / denom
+            intercept = mean_y - slope * mean_x
+
+        return {
+            "Parameters": {
+                "Slope": {"Value": slope, "Error": 0.01},
+                "Intercept": {"Value": intercept, "Error": 0.01},
+            },
+            "Statistics": {"RSqCOD": 0.99, "N": n},
+        }
+
+    def result(self) -> dict[str, Any]:
+        self.calls.append("result")
+        return self._fit_params()
+
+    def report(self, band: int = 0) -> tuple[str, str]:
+        self.calls.append(f"report:{band}")
+        return ("[Book1]FitReport", "[Book1]FitCurves")
+
+
+class FakeNLFit:
+    """Minimal originpro.NLFit stand-in."""
+
+    SUPPORTED = {
+        "Gauss",
+        "Lorentz",
+        "ExpDec1",
+        "Boltzmann",
+        "Allometric1",
+        "PolyLine",
+    }
+
+    def __init__(self, function_name: str) -> None:
+        if function_name not in self.SUPPORTED:
+            raise ValueError(f"unknown fit function: {function_name}")
+        self.function_name = function_name
+        self._params: dict[str, float] = {}
+        self._fixed: dict[str, float] = {}
+        self._fitted = False
+        self.calls: list[str] = []
+
+    def set_data(
+        self,
+        wks: FakeSheet,
+        x_col: int,
+        y_col: int,
+        yerr: int | None = None,
+    ) -> None:
+        self.calls.append("set_data")
+        self._wks = wks
+        self._x_col = x_col
+        self._y_col = y_col
+        self._yerr = yerr
+
+    def set_param(self, name: str, value: float) -> None:
+        self.calls.append(f"set_param:{name}")
+        self._params[name] = float(value)
+
+    def fix_param(self, name: str, value: Any) -> None:
+        self.calls.append(f"fix_param:{name}")
+        if value is False:
+            self._fixed.pop(name, None)
+        else:
+            self._fixed[name] = float(value)
+
+    def fit(self) -> None:
+        self.calls.append("fit")
+        self._fitted = True
+        if "xc" not in self._params:
+            self._params["xc"] = 0.0
+        if "w" not in self._params:
+            self._params["w"] = 1.0
+        if "A" not in self._params:
+            self._params["A"] = 1.0
+        self._params.update(self._fixed)
+
+    def result(self) -> dict[str, Any]:
+        self.calls.append("result")
+        if not self._fitted:
+            self.fit()
+        return {
+            "Parameters": {
+                name: {"Value": value, "Error": 0.02}
+                for name, value in self._params.items()
+            },
+            "Statistics": {"RSqCOD": 0.98},
+        }
+
+    def report(self) -> tuple[str, str]:
+        self.calls.append("report")
+        return ("[Book1]NLFitReport", "[Book1]NLFitCurves")
 
 
 class FakeBook:
@@ -264,6 +415,18 @@ class FakeOrigin:
         self.exited = False
         self.exe_path = r"C:\Program Files\OriginLab\Origin\Origin.exe"
         self.user_path = r"C:\Users\Test\Documents\OriginLab"
+        self.linear_fits: list[FakeLinearFit] = []
+        self.nl_fits: list[FakeNLFit] = []
+
+    def LinearFit(self) -> FakeLinearFit:
+        fit = FakeLinearFit()
+        self.linear_fits.append(fit)
+        return fit
+
+    def NLFit(self, function_name: str) -> FakeNLFit:
+        fit = FakeNLFit(function_name)
+        self.nl_fits.append(fit)
+        return fit
 
     def _next_book_name(self) -> str:
         self._book_counter += 1

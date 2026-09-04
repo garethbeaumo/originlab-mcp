@@ -311,7 +311,7 @@ uv run python -m pytest tests/ -v
 pytest tests/ -v
 ```
 
-基础测试不依赖 Origin 安装，可在任何环境运行。Linux/macOS 上 `originpro` 因 `pyproject.toml` 的 Windows 平台标记会自动跳过安装。GitHub Actions 会在 Python 3.10–3.12 上运行 ruff、mypy 与 pytest。
+基础测试不依赖 Origin 安装，可在任何环境运行。Linux/macOS 上 `originpro` 因 `pyproject.toml` 的 Windows 平台标记会自动跳过安装。GitHub Actions 会在 Python 3.10–3.12 上运行 ruff、mypy 与 pytest（并产出 coverage.xml）。
 
 ## 📁 项目结构
 

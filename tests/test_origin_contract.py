@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from originlab_mcp.tools.advanced import register_advanced_tools
+from originlab_mcp.tools.analysis import register_analysis_tools
 from originlab_mcp.tools.customize import register_customize_tools
 from originlab_mcp.tools.data import register_data_tools
 from originlab_mcp.tools.export import register_export_tools
@@ -25,6 +27,8 @@ def _register_core(mcp: DummyMCP, manager) -> None:
     register_customize_tools(mcp, manager)
     register_export_tools(mcp, manager)
     register_system_tools(mcp, manager)
+    register_analysis_tools(mcp, manager)
+    register_advanced_tools(mcp, manager)
 
 
 class TestFakeOriginProtocol:
@@ -152,3 +156,98 @@ class TestResponseContract:
         assert called["n"] == 1
         assert path.endswith("Origin.exe")
         assert fresh_manager.is_connected
+
+
+class TestAnalysisContract:
+    def test_linear_fit_and_list_fit_functions(self, fresh_manager, fake_origin):
+        mcp = DummyMCP()
+        _register_core(mcp, fresh_manager)
+
+        mcp.tools["import_data_from_text"](
+            data="X,Y\n1,2\n2,4\n3,6\n4,8",
+            has_header=True,
+        )
+        listed = mcp.tools["list_fit_functions"]()
+        assert listed["ok"] is True
+        assert listed["data"]["functions"]
+
+        fitted = mcp.tools["linear_fit"](x_col=0, y_col=1)
+        assert fitted["ok"] is True
+        assert fitted["data"]["method"] == "linear"
+        assert fitted["data"]["parameters"]["Slope"]["value"] == 2.0
+        assert fitted["data"]["parameters"]["Intercept"]["value"] == 0.0
+        assert fake_origin.linear_fits
+        assert "result" in fake_origin.linear_fits[0].calls
+
+    def test_nonlinear_gauss_fit(self, fresh_manager, fake_origin):
+        mcp = DummyMCP()
+        _register_core(mcp, fresh_manager)
+
+        mcp.tools["import_data_from_text"](
+            data="X,Y\n0,1\n1,2\n2,1",
+            has_header=True,
+        )
+        fitted = mcp.tools["nonlinear_fit"](
+            function_name="Gauss",
+            x_col=0,
+            y_col=1,
+            initial_params={"xc": 1.0, "w": 0.5, "A": 2.0},
+        )
+        assert fitted["ok"] is True
+        assert fitted["data"]["function_name"] == "Gauss"
+        assert "xc" in fitted["data"]["parameters"]
+        assert fake_origin.nl_fits
+        assert "fit" in fake_origin.nl_fits[0].calls
+
+        unknown = mcp.tools["nonlinear_fit"](
+            function_name="NotARealFunction",
+            x_col=0,
+            y_col=1,
+        )
+        assert unknown["ok"] is False
+        assert unknown["error"]["target"] == "function_name"
+
+
+class TestLabTalkContract:
+    def test_execute_and_read_labtalk_variable(self, fresh_manager, fake_origin):
+        mcp = DummyMCP()
+        _register_core(mcp, fresh_manager)
+
+        fake_origin.lt_strings["fname$"] = "Book1"
+        fake_origin.lt_floats["pi"] = 3.14
+
+        executed = mcp.tools["execute_labtalk"](command="window -a Graph1")
+        assert executed["ok"] is True
+        assert fake_origin.lt_commands == ["window -a Graph1"]
+
+        string_var = mcp.tools["get_labtalk_variable"](name="fname$")
+        assert string_var["ok"] is True
+        assert string_var["data"]["value"] == "Book1"
+
+        numeric_var = mcp.tools["get_labtalk_variable"](name="pi")
+        assert numeric_var["ok"] is True
+        assert numeric_var["data"]["value"] == 3.14
+
+
+class TestMultiLayerContract:
+    def test_double_y_and_add_layer(self, fresh_manager, fake_origin):
+        mcp = DummyMCP()
+        _register_core(mcp, fresh_manager)
+
+        mcp.tools["import_data_from_text"](
+            data="X,Y1,Y2\n1,10,100\n2,20,200\n3,30,150",
+            has_header=True,
+        )
+        plotted = mcp.tools["create_double_y_plot"](x_col=0, y1_col=1, y2_col=2)
+        assert plotted["ok"] is True
+        graph = fake_origin.find_graph(plotted["data"]["graph_name"])
+        assert graph is not None
+        assert graph.template == "doubley"
+        assert len(graph) == 2
+        assert graph[0].num_plots == 1
+        assert graph[1].num_plots == 1
+
+        layered = mcp.tools["add_graph_layer"](layer_type=3)
+        assert layered["ok"] is True
+        assert layered["data"]["total_layers"] == 3
+        assert graph.added_layer_types == [3]

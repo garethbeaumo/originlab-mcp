@@ -35,7 +35,7 @@
 
 ### 🏗️ 工程
 
-- **GitHub Actions CI**：新增 `.github/workflows/ci.yml`，在 Python 3.10–3.12 上跑 ruff / mypy / pytest（跳过 Windows-only 的 originpro 安装）
+- **GitHub Actions CI**：新增 `.github/workflows/ci.yml`，在 Python 3.10–3.12 上跑 ruff / mypy / pytest（跳过 Windows-only 的 originpro 安装），并上传 coverage.xml
 
 ### 🧪 测试
 
@@ -44,6 +44,7 @@
 - 新增 ToolAnnotations 覆盖回归测试（66 tools 全量校验）
 - 新增 FakeOrigin COM 契约测试与共享 `tests/fakes` 测试双件（DummyMCP / attach_fake_origin）
 - 新增 tool 描述与 `next_suggestions` 一致性回归测试
+- 扩展 FakeOrigin 覆盖线性/非线性拟合、LabTalk 与多图层工作流；CI 产出 coverage.xml
 
 ### 📝 文档
 

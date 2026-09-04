@@ -25,6 +25,7 @@ packages = ["src/originlab_mcp"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "pytest-cov>=6.0.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
 ]
@@ -52,3 +53,20 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = [
+    "--cov=originlab_mcp",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=xml:coverage.xml",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["originlab_mcp"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
