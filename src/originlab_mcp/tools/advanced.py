@@ -12,6 +12,10 @@ from __future__ import annotations
 import re
 
 from originlab_mcp.utils.annotations import LABTALK, READ_ONLY
+from originlab_mcp.utils.autosave import (
+    collect_autosave_warnings,
+    should_autosave_labtalk,
+)
 from originlab_mcp.utils.helpers import tool_error_handler
 from originlab_mcp.utils.labtalk_safe import classify_labtalk_script
 from originlab_mcp.utils.validators import error_response, success_response
@@ -89,6 +93,10 @@ def register_advanced_tools(mcp, manager) -> None:
                 ],
             )
 
+        autosave = {"attempted": False, "saved": False, "path": None, "message": ""}
+        if should_autosave_labtalk(command, confirm=confirm):
+            autosave = manager.preflight_autosave("execute_labtalk")
+
         def _exec(op):
             result = op.lt_exec(command)
             return result
@@ -101,6 +109,7 @@ def register_advanced_tools(mcp, manager) -> None:
         ]
         if requires_confirm:
             warnings.append(f"已确认执行高风险 LabTalk 操作：{reason}")
+        warnings.extend(collect_autosave_warnings(autosave))
 
         return success_response(
             message="LabTalk 命令已执行。",
@@ -108,6 +117,7 @@ def register_advanced_tools(mcp, manager) -> None:
                 "command": command,
                 "result": str(result) if result is not None else None,
                 "confirmed_risk": reason if requires_confirm else None,
+                "autosave": autosave,
             },
             resource=manager.get_resource_context(),
             warnings=warnings,

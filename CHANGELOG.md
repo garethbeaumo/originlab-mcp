@@ -21,6 +21,7 @@
 - **Tool 选择引导**：统一 `change_plot_type` 的 When to use / When not to use，补齐 `save_project` / `close_origin` 的 `next_suggestions`，并交叉引用 `create_plot` / `add_plot_to_graph` / `change_plot_type`
 - **LabTalk 安全门控**：`execute_labtalk` 对删除/重置/系统类命令要求 `confirm=true`，并在错误中返回 `suggested_alternatives`
 - **错误恢复提示**：`error_response` / 常见 `ToolError` 增加 `suggested_alternatives`，引导 agent 改用标准 tools
+- **破坏性操作前自动保存**：对 `new_project` / `open_project` / `clear_worksheet` / `delete_columns` / 图表删除 / `close_origin` 与已确认破坏性 LabTalk，在已知项目路径时就地 `save`；`ORIGINLAB_MCP_AUTOSAVE`（默认开）与 `ORIGINLAB_MCP_AUTOSAVE_REQUIRED`（默认关）可调
 
 ### 🐛 Bug 修复
 
@@ -48,12 +49,14 @@
 - 新增 tool 描述与 `next_suggestions` 一致性回归测试
 - 扩展 FakeOrigin 覆盖线性/非线性拟合、LabTalk 与多图层工作流；CI 产出 coverage.xml
 - 新增 LabTalk confirm 门控与 `suggested_alternatives` 错误恢复测试
+- 新增 autosave 策略 / 预检测试，并扩展 FakeOrigin 契约覆盖破坏性工具与 LabTalk autosave
 
 ### 📝 文档
 
 - 默认 README 改为英文，并保留中文文档为 README.zh.md
 - README / README.en / README.zh 补充本地状态面板、Trae 配置和项目结构说明
 - README 补充 `read_origin_session`、MCP Resources 与会话阅读说明，tool 总数 65 → 66
+- README / README.zh 补充破坏性操作前 autosave 环境变量与项目结构条目
 
 ---
 

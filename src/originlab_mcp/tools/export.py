@@ -22,6 +22,7 @@ from originlab_mcp.utils.annotations import (
     DESTRUCTIVE_OPEN_WORLD,
     OPEN_WORLD,
 )
+from originlab_mcp.utils.autosave import collect_autosave_warnings
 from originlab_mcp.utils.constants import (
     DEFAULT_EXPORT_FORMAT,
     DEFAULT_EXPORT_WIDTH,
@@ -323,10 +324,15 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
                 if save_dir and not os.path.isdir(save_dir):
                     os.makedirs(save_dir, exist_ok=True)
                 op.save(file_path)
-                return os.path.abspath(file_path)
+                saved = os.path.abspath(file_path)
+                manager.project_path = saved
+                return saved
             else:
                 op.save()
-                return "current project"
+                current = manager.resolve_project_path(op) or "current project"
+                if current != "current project":
+                    manager.project_path = current
+                return current
 
         saved_path = manager.execute(_save)
 
@@ -370,11 +376,14 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
                 hint="文件不存在，请检查文件路径。",
             )
 
+        autosave = manager.preflight_autosave("open_project")
+
         def _open(op: Any) -> str:
             op.open(file=file_path, readonly=readonly)
 
             manager.active_worksheet = None
             manager.active_graph = None
+            manager.project_path = os.path.abspath(file_path)
 
             # 尝试将第一个工作表设为活动
             try:
@@ -392,8 +401,13 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
 
         return success_response(
             message=f"项目已打开: '{opened_path}'。",
-            data={"file_path": opened_path, "readonly": readonly},
+            data={
+                "file_path": opened_path,
+                "readonly": readonly,
+                "autosave": autosave,
+            },
             resource=manager.get_resource_context(),
+            warnings=collect_autosave_warnings(autosave),
             next_suggestions=["list_worksheets", "list_graphs"],
         )
 
@@ -412,18 +426,24 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
         Examples:
         - new_project()
         """
+        autosave = manager.preflight_autosave("new_project")
+
         def _new(op: Any) -> None:
             op.new()
             manager.active_worksheet = None
             manager.active_graph = None
+            manager.project_path = None
 
         manager.execute(_new)
 
+        warnings = ["之前项目中未保存的内容已丢失。"]
+        warnings.extend(collect_autosave_warnings(autosave))
+
         return success_response(
             message="已创建新的空白项目。",
-            data={"status": "reset"},
+            data={"status": "reset", "autosave": autosave},
             resource=manager.get_resource_context(),
-            warnings=["之前项目中未保存的内容已丢失。"],
+            warnings=warnings,
             next_suggestions=[
                 "import_csv",
                 "import_excel",

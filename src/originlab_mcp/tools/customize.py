@@ -28,6 +28,7 @@ from originlab_mcp.utils.annotations import (
     MUTATING,
     READ_ONLY,
 )
+from originlab_mcp.utils.autosave import collect_autosave_warnings
 from originlab_mcp.utils.constants import (
     SCALE_TYPE_TO_ORIGIN,
     ScaleType,
@@ -918,6 +919,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
         - remove_graph_label(label_name="Text1")
         - remove_graph_label(label_name="xb")
         """
+        autosave = manager.preflight_autosave("remove_graph_label")
         target_name = _resolve_graph_name(graph_name, manager)
 
         def _remove(op: Any) -> dict[str, Any]:
@@ -928,6 +930,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
             return {
                 "graph_name": target_name,
                 "removed_label": label_name,
+                "autosave": autosave,
             }
 
         result = manager.execute(_remove)
@@ -936,6 +939,7 @@ def register_customize_tools(mcp: Any, manager: Any) -> None:
             message=f"已移除标签 '{label_name}'。",
             data=result,
             resource=manager.get_resource_context(),
+            warnings=collect_autosave_warnings(autosave),
             next_suggestions=["add_text_label", "get_graph_info"],
         )
 

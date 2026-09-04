@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from originlab_mcp.session import build_session_snapshot
 from originlab_mcp.utils.annotations import DESTRUCTIVE, MUTATING, READ_ONLY
+from originlab_mcp.utils.autosave import collect_autosave_warnings
 from originlab_mcp.utils.constants import DEFAULT_MAX_PREVIEW_ROWS
 from originlab_mcp.utils.helpers import tool_error_handler
 from originlab_mcp.utils.validators import error_response, success_response
@@ -238,12 +239,16 @@ def register_system_tools(mcp, manager) -> None:
                 next_suggestions=["get_origin_info", "reconnect_origin"],
             )
 
+        autosave = manager.preflight_autosave("close_origin")
+
         try:
             manager.close_and_exit()
+            manager.project_path = None
             return success_response(
                 message="Origin 已正确关闭，COM 连接已释放。",
-                data={"was_connected": True, "closed": True},
+                data={"was_connected": True, "closed": True, "autosave": autosave},
                 resource=manager.get_resource_context(),
+                warnings=collect_autosave_warnings(autosave),
                 next_suggestions=["get_origin_info"],
             )
         except Exception as e:
@@ -252,4 +257,5 @@ def register_system_tools(mcp, manager) -> None:
                 error_type="internal_error",
                 target="origin_connection",
                 hint="可尝试在任务管理器中手动结束 Origin64.exe 进程。",
+                suggested_alternatives=["save_project", "release_origin"],
             )

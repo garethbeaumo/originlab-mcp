@@ -205,7 +205,18 @@ In addition to tools, clients can inspect the Origin session through MCP `resour
 
 `execute_labtalk` · `get_labtalk_variable`
 
-`execute_labtalk` is an escape hatch for operations not covered by standard tools. `get_labtalk_variable` safely reads LabTalk variable values.
+`execute_labtalk` is an escape hatch for operations not covered by standard tools. `get_labtalk_variable` safely reads LabTalk variable values. Destructive LabTalk (delete / `doc -n` / `win -c`, etc.) requires `confirm=true`.
+
+### Safety: Preflight Autosave
+
+Before destructive tools (`new_project`, `open_project`, `clear_worksheet`, `delete_columns`, `remove_plot_from_graph`, `remove_graph_label`, `close_origin`, and confirmed destructive LabTalk), the server attempts an in-place project save when a project path is known:
+
+| Environment variable | Default | Effect |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_AUTOSAVE` | on | Set `off` / `false` / `0` to skip preflight saves |
+| `ORIGINLAB_MCP_AUTOSAVE_REQUIRED` | off | When on, block the destructive tool if autosave cannot run (no path or save failure) |
+
+Call `save_project(file_path=...)` early so later destructive steps can autosave in place.
 
 ## Examples
 
@@ -339,6 +350,7 @@ originlab-mcp/
 │   │   └── advanced.py           # LabTalk escape hatch (2)
 │   └── utils/
 │       ├── annotations.py        # MCP ToolAnnotations presets
+│       ├── autosave.py           # Preflight autosave policy
 │       ├── labtalk_safe.py        # LabTalk confirm-gate scanner
 │       ├── constants.py          # Enums, defaults, and fit-function metadata
 │       ├── helpers.py            # Graph/sheet resolution and error handling helpers
@@ -347,6 +359,7 @@ originlab-mcp/
     ├── conftest.py               # Shared fixtures (manager / fake Origin)
     ├── fakes/                    # In-memory OriginPro + DummyMCP doubles
     ├── test_annotations.py       # ToolAnnotations coverage tests
+    ├── test_autosave.py          # Autosave policy / preflight tests
     ├── test_origin_contract.py   # Multi-tool COM contract workflows
     ├── test_tool_guidance.py     # Description / next_suggestions contracts
     ├── test_helpers.py           # Helper tests

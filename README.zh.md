@@ -204,7 +204,18 @@ uv run originlab-mcp-ui
 
 `execute_labtalk` · `get_labtalk_variable`
 
-其中 `execute_labtalk` 用于最后手段的脚本逃生舱，`get_labtalk_variable` 用于安全读取 LabTalk 变量值。
+其中 `execute_labtalk` 用于最后手段的脚本逃生舱，`get_labtalk_variable` 用于安全读取 LabTalk 变量值。删除 / `doc -n` / `win -c` 等破坏性 LabTalk 需要 `confirm=true`。
+
+### 安全：破坏性操作前自动保存
+
+在 `new_project`、`open_project`、`clear_worksheet`、`delete_columns`、`remove_plot_from_graph`、`remove_graph_label`、`close_origin` 以及已确认的破坏性 LabTalk 执行前，若已知项目路径，服务器会尝试就地保存：
+
+| 环境变量 | 默认 | 作用 |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_AUTOSAVE` | 开启 | 设为 `off` / `false` / `0` 可关闭预检保存 |
+| `ORIGINLAB_MCP_AUTOSAVE_REQUIRED` | 关闭 | 开启后，无法自动保存（无路径或保存失败）时阻止破坏性操作 |
+
+建议尽早调用 `save_project(file_path=...)`，后续破坏性步骤才能就地 autosave。
 
 ## 💬 使用示例
 
@@ -340,6 +351,7 @@ originlab-mcp/
 │   │   └── advanced.py           # ⚡ LabTalk 逃生舱 (2)
 │   └── utils/
 │       ├── annotations.py        # MCP ToolAnnotations 预设
+│       ├── autosave.py           # 破坏性操作前自动保存策略
 │       ├── labtalk_safe.py        # LabTalk confirm 门控扫描
 │       ├── constants.py          # 枚举、默认值、拟合函数定义
 │       ├── helpers.py            # 图层/工作表/图表解析、错误处理装饰器
@@ -348,6 +360,7 @@ originlab-mcp/
     ├── conftest.py               # 共享 fixtures（manager / FakeOrigin）
     ├── fakes/                    # 内存 OriginPro + DummyMCP 测试双件
     ├── test_annotations.py       # ToolAnnotations 覆盖测试
+    ├── test_autosave.py          # Autosave 策略 / 预检测试
     ├── test_origin_contract.py   # 多 tool COM 契约工作流
     ├── test_tool_guidance.py     # 描述 / next_suggestions 契约
     ├── test_helpers.py           # helpers 辅助函数测试

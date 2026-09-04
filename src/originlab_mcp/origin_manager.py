@@ -62,6 +62,8 @@ class OriginManager:
         # 活动对象追踪
         self._active_worksheet: str | None = None
         self._active_graph: str | None = None
+        # Last known project path for in-place autosave (optional)
+        self._project_path: str | None = None
 
         logger.info(
             "OriginManager 初始化完成（空闲超时=%ds）", self._idle_timeout
@@ -307,6 +309,111 @@ class OriginManager:
             "active_worksheet": self._active_worksheet,
             "active_graph": self._active_graph,
         }
+
+    @property
+    def project_path(self) -> str | None:
+        """Last known Origin project path used for in-place autosave."""
+        return self._project_path
+
+    @project_path.setter
+    def project_path(self, path: str | None) -> None:
+        self._project_path = path or None
+
+    def resolve_project_path(self, op: OriginProProtocol | None = None) -> str | None:
+        """Best-effort resolve of the current project file path."""
+        if self._project_path:
+            return self._project_path
+        current = op if op is not None else (self._op if self._connected else None)
+        if current is None:
+            return None
+        direct = getattr(current, "project_path", None)
+        if isinstance(direct, str) and direct.strip():
+            self._project_path = direct.strip()
+            return self._project_path
+        for var_name in ("pe_path$", "filename$", "doc.path$"):
+            with suppress(Exception):
+                value = current.get_lt_str(var_name)
+                if isinstance(value, str) and value.strip():
+                    self._project_path = value.strip()
+                    return self._project_path
+        return None
+
+    def preflight_autosave(self, reason: str) -> dict[str, Any]:
+        """Save the project in place before a destructive operation.
+
+        Returns a small status dict consumed by tool responses:
+        ``{"attempted": bool, "saved": bool, "path": str|None, "message": str}``
+
+        When ``ORIGINLAB_MCP_AUTOSAVE_REQUIRED`` is on, missing path or save
+        failure raises ``ToolError`` and blocks the destructive tool.
+        """
+        from originlab_mcp.exceptions import ToolError
+        from originlab_mcp.utils.autosave import AutosavePolicy
+
+        policy = AutosavePolicy.from_env()
+        if not policy.enabled:
+            return {
+                "attempted": False,
+                "saved": False,
+                "path": None,
+                "message": "autosave disabled",
+            }
+
+        def _save(op: OriginProProtocol) -> dict[str, Any]:
+            path = self.resolve_project_path(op)
+            if not path:
+                return {
+                    "attempted": False,
+                    "saved": False,
+                    "path": None,
+                    "message": "no project path; autosave skipped",
+                }
+            # Pass path explicitly so in-memory fakes and Origin both persist
+            # to the known project file (not an anonymous empty save).
+            op.save(path)
+            return {
+                "attempted": True,
+                "saved": True,
+                "path": path,
+                "message": f"preflight autosave ({reason}) -> {path}",
+            }
+
+        try:
+            # Prefer execute() so connection/idle timer semantics stay consistent.
+            # Callers must invoke this *before* their own execute() — Lock is
+            # non-reentrant.
+            status = self.execute(_save)
+        except ToolError:
+            raise
+        except Exception as exc:
+            if policy.required:
+                raise ToolError(
+                    f"破坏性操作前自动保存失败: {exc}",
+                    error_type="internal_error",
+                    target="autosave",
+                    hint="请先调用 save_project，或设置 ORIGINLAB_MCP_AUTOSAVE=off 跳过预检。",
+                    suggested_alternatives=["save_project"],
+                ) from exc
+            return {
+                "attempted": True,
+                "saved": False,
+                "path": self._project_path,
+                "message": f"autosave failed (continuing): {exc}",
+            }
+
+        if policy.required and not status.get("saved"):
+            raise ToolError(
+                f"破坏性操作前需要已保存的项目路径（reason={reason}）。",
+                error_type="invalid_input",
+                target="autosave",
+                hint=(
+                    "请先调用 save_project(file_path=...) 建立项目路径，"
+                    "或设置 ORIGINLAB_MCP_AUTOSAVE=off / "
+                    "ORIGINLAB_MCP_AUTOSAVE_REQUIRED=off。"
+                ),
+                suggested_alternatives=["save_project"],
+            )
+        return status
 
     def peek_active_context(self) -> dict[str, str | None]:
         """Refresh active objects. Caller must already be inside execute()."""

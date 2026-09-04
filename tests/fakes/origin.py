@@ -35,6 +35,7 @@ class FakeLayer:
         self.yscale: str | None = None
         self.rescaled = False
         self.grouped = False
+        self.removed_labels: list[str] = []
 
     def add_plot(self, wks: Any, **kwargs: Any) -> FakePlot:
         plot = FakePlot(source={"wks": getattr(wks, "name", None), **kwargs})
@@ -71,6 +72,9 @@ class FakeLayer:
 
     def axis(self, name: str) -> FakeAxis:
         return self._axes[name.lower()]
+
+    def remove_label(self, label_name: str) -> None:
+        self.removed_labels.append(label_name)
 
 
 class FakeGraph:
@@ -415,6 +419,7 @@ class FakeOrigin:
         self.exited = False
         self.exe_path = r"C:\Program Files\OriginLab\Origin\Origin.exe"
         self.user_path = r"C:\Users\Test\Documents\OriginLab"
+        self.project_path: str | None = None
         self.linear_fits: list[FakeLinearFit] = []
         self.nl_fits: list[FakeNLFit] = []
 
@@ -480,10 +485,17 @@ class FakeOrigin:
         return list(mapping.get(kind, []))
 
     def save(self, path: str = "") -> None:
-        self.saved_paths.append(path)
+        if path:
+            self.project_path = path
+            self.saved_paths.append(path)
+        elif self.project_path:
+            self.saved_paths.append(self.project_path)
+        else:
+            self.saved_paths.append("")
 
     def open(self, file: str = "", readonly: bool = False) -> None:
         self.opened_paths.append((file, readonly))
+        self.project_path = file or None
         # Simulate replacing the live project.
         self.books.clear()
         self.graphs.clear()
@@ -494,6 +506,7 @@ class FakeOrigin:
     def new(self) -> None:
         self.books.clear()
         self.graphs.clear()
+        self.project_path = None
         self._sheet_counter = 0
         self._graph_counter = 0
         self._book_counter = 0

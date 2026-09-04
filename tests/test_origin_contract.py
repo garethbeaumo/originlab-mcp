@@ -130,6 +130,50 @@ class TestProjectLifecycleContract:
         assert len(fake_origin.graphs) == 0
         assert len(fake_origin.books) == 1
         assert fresh_manager.active_graph is None
+        assert result["data"]["autosave"]["saved"] is False
+        assert any("no project path" in w for w in result["warnings"])
+
+    def test_destructive_tools_autosave_when_path_set(
+        self, fresh_manager, fake_origin, tmp_path, monkeypatch
+    ):
+        monkeypatch.delenv("ORIGINLAB_MCP_AUTOSAVE_REQUIRED", raising=False)
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE", "1")
+        mcp = DummyMCP()
+        _register_core(mcp, fresh_manager)
+
+        project = tmp_path / "work.opju"
+        mcp.tools["import_data_from_text"](data="A,B,C\n1,2,3\n4,5,6")
+        saved = mcp.tools["save_project"](file_path=str(project))
+        assert saved["ok"] is True
+        assert fresh_manager.project_path == str(project.resolve())
+
+        cleared = mcp.tools["clear_worksheet"]()
+        assert cleared["ok"] is True
+        assert cleared["data"]["autosave"]["saved"] is True
+        assert fake_origin.saved_paths[-1] == str(project.resolve())
+
+        mcp.tools["import_data_from_text"](data="A,B,C\n1,2,3\n4,5,6")
+        deleted = mcp.tools["delete_columns"](col=2)
+        assert deleted["ok"] is True
+        assert deleted["data"]["autosave"]["saved"] is True
+
+        reset = mcp.tools["new_project"]()
+        assert reset["ok"] is True
+        assert reset["data"]["autosave"]["saved"] is True
+        assert fresh_manager.project_path is None
+
+    def test_required_autosave_blocks_new_project(
+        self, fresh_manager, fake_origin, monkeypatch
+    ):
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE", "1")
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE_REQUIRED", "1")
+        mcp = DummyMCP()
+        _register_core(mcp, fresh_manager)
+
+        mcp.tools["import_data_from_text"](data="A,B\n1,2")
+        result = mcp.tools["new_project"]()
+        assert result["ok"] is False
+        assert result["error"]["target"] == "autosave"
 
 
 class TestResponseContract:
@@ -227,6 +271,25 @@ class TestLabTalkContract:
         numeric_var = mcp.tools["get_labtalk_variable"](name="pi")
         assert numeric_var["ok"] is True
         assert numeric_var["data"]["value"] == 3.14
+
+    def test_confirmed_destructive_labtalk_autosaves(
+        self, fresh_manager, fake_origin, tmp_path, monkeypatch
+    ):
+        monkeypatch.delenv("ORIGINLAB_MCP_AUTOSAVE_REQUIRED", raising=False)
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE", "1")
+        mcp = DummyMCP()
+        _register_core(mcp, fresh_manager)
+
+        project = tmp_path / "lt.opju"
+        mcp.tools["import_data_from_text"](data="A,B\n1,2")
+        mcp.tools["save_project"](file_path=str(project))
+        before = len(fake_origin.saved_paths)
+
+        executed = mcp.tools["execute_labtalk"](command="doc -n;", confirm=True)
+        assert executed["ok"] is True
+        assert executed["data"]["autosave"]["saved"] is True
+        assert len(fake_origin.saved_paths) == before + 1
+        assert fake_origin.lt_commands[-1] == "doc -n;"
 
 
 class TestMultiLayerContract:

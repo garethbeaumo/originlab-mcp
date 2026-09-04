@@ -28,6 +28,7 @@ from originlab_mcp.utils.annotations import (
     OPEN_WORLD,
     READ_ONLY,
 )
+from originlab_mcp.utils.autosave import collect_autosave_warnings
 from originlab_mcp.utils.constants import (
     DEFAULT_HAS_HEADER,
     DEFAULT_MAX_PREVIEW_ROWS,
@@ -781,6 +782,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         - clear_worksheet()
         - clear_worksheet(start_col=1, end_col=3)
         """
+        autosave = manager.preflight_autosave("clear_worksheet")
         target_name = _resolve_worksheet_name(sheet_name, manager)
 
         def _clear(op: Any) -> dict[str, Any]:
@@ -795,6 +797,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
                 "sheet_name": target_name,
                 "start_col": start_col,
                 "end_col": end_col,
+                "autosave": autosave,
             }
 
         result = manager.execute(_clear)
@@ -811,6 +814,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
             message=msg,
             data=result,
             resource=manager.get_resource_context(),
+            warnings=collect_autosave_warnings(autosave),
             next_suggestions=["import_csv", "import_data_from_text"],
         )
 
@@ -940,6 +944,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         - delete_columns(col=0)
         - delete_columns(col=2, count=3)
         """
+        autosave = manager.preflight_autosave("delete_columns")
         target_name = _resolve_worksheet_name(sheet_name, manager)
 
         def _del(op: Any) -> dict[str, Any]:
@@ -950,6 +955,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
                 "deleted_from": col,
                 "count": count,
                 "remaining_cols": wks.cols,
+                "autosave": autosave,
             }
 
         result = manager.execute(_del)
@@ -958,6 +964,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
             message=f"已删除 {count} 列，剩余 {result['remaining_cols']} 列。",
             data=result,
             resource=manager.get_resource_context(),
+            warnings=collect_autosave_warnings(autosave),
             next_suggestions=["get_worksheet_info"],
         )
 

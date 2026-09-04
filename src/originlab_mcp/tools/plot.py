@@ -16,6 +16,7 @@ from contextlib import suppress
 from typing import Any
 
 from originlab_mcp.utils.annotations import DESTRUCTIVE, MUTATING, OPEN_WORLD, READ_ONLY
+from originlab_mcp.utils.autosave import collect_autosave_warnings
 from originlab_mcp.utils.constants import (
     DEFAULT_PLOT_TYPE,
     PLOT_TYPE_TO_TEMPLATE,
@@ -610,6 +611,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         - remove_plot_from_graph(plot_index=0)
         - remove_plot_from_graph(plot_index=2, graph_name="Graph1")
         """
+        autosave = manager.preflight_autosave("remove_plot_from_graph")
         target_graph = _resolve_graph_name(graph_name, manager)
 
         def _remove(op: Any) -> dict[str, Any]:
@@ -624,6 +626,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
                 "graph_name": target_graph,
                 "removed_index": plot_index,
                 "remaining_plots": remaining,
+                "autosave": autosave,
             }
 
         result = manager.execute(_remove)
@@ -635,6 +638,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
             ),
             data=result,
             resource=manager.get_resource_context(),
+            warnings=collect_autosave_warnings(autosave),
             next_suggestions=["get_graph_info", "export_graph"],
         )
 
