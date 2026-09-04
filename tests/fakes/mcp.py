@@ -36,10 +36,28 @@ def attach_fake_origin(manager: OriginManager, op: Any) -> Any:
     manager._op = op
     manager._connected = True
 
-    def _execute(self: OriginManager, func, *args, **kwargs):
-        self._cancel_idle_timer()
-        with self._com_lock:
-            return func(op, *args, **kwargs)
+    def _execute(
+        self: OriginManager,
+        func,
+        *args,
+        dispatch_timeout=None,
+        **kwargs,
+    ):
+        from originlab_mcp.utils.dispatch import (
+            UNSET,
+            resolve_dispatch_timeout,
+            run_with_soft_timeout,
+        )
+
+        override = UNSET if dispatch_timeout is None else dispatch_timeout
+        budget = resolve_dispatch_timeout(override)
+
+        def _run():
+            self._cancel_idle_timer()
+            with self._com_lock:
+                return func(op, *args, **kwargs)
+
+        return run_with_soft_timeout(budget, _run)
 
     manager.execute = MethodType(_execute, manager)
     return op

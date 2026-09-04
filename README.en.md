@@ -218,6 +218,16 @@ Before destructive tools (`new_project`, `open_project`, `clear_worksheet`, `del
 
 Call `save_project(file_path=...)` early so later destructive steps can autosave in place.
 
+### Safety: Soft Dispatch Timeout
+
+Each COM-backed tool call has a soft wall-clock budget (default **90s**). If Origin does not return in time — often because a modal dialog is open — the server raises a structured `timeout` error **without** killing Origin. The underlying COM call may still be running and will hold the lock until Origin unblocks.
+
+| Environment variable | Default | Effect |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_DISPATCH_TIMEOUT` | `90` | Soft budget in seconds; set `off` / `0` to disable |
+
+`execute_labtalk(..., timeout=120)` overrides the budget for that call only (`0` disables).
+
 ## Examples
 
 | Request | Typical tool call |
@@ -351,6 +361,7 @@ originlab-mcp/
 │   └── utils/
 │       ├── annotations.py        # MCP ToolAnnotations presets
 │       ├── autosave.py           # Preflight autosave policy
+│       ├── dispatch.py           # Soft COM dispatch timeout
 │       ├── labtalk_safe.py        # LabTalk confirm-gate scanner
 │       ├── constants.py          # Enums, defaults, and fit-function metadata
 │       ├── helpers.py            # Graph/sheet resolution and error handling helpers
@@ -360,6 +371,7 @@ originlab-mcp/
     ├── fakes/                    # In-memory OriginPro + DummyMCP doubles
     ├── test_annotations.py       # ToolAnnotations coverage tests
     ├── test_autosave.py          # Autosave policy / preflight tests
+    ├── test_dispatch.py          # Soft dispatch timeout tests
     ├── test_origin_contract.py   # Multi-tool COM contract workflows
     ├── test_tool_guidance.py     # Description / next_suggestions contracts
     ├── test_helpers.py           # Helper tests

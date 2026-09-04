@@ -217,6 +217,16 @@ uv run originlab-mcp-ui
 
 建议尽早调用 `save_project(file_path=...)`，后续破坏性步骤才能就地 autosave。
 
+### 安全：COM 软超时
+
+每个依赖 COM 的 tool 调用有软超时预算（默认 **90 秒**）。若 Origin 未在时限内返回（常见原因是模态对话框），服务器返回结构化 `timeout` 错误，**不会**强制结束 Origin。底层 COM 调用可能仍在阻塞，锁会一直持有到 Origin 恢复响应。
+
+| 环境变量 | 默认 | 作用 |
+| :--- | :--- | :--- |
+| `ORIGINLAB_MCP_DISPATCH_TIMEOUT` | `90` | 软超时秒数；设为 `off` / `0` 可关闭 |
+
+`execute_labtalk(..., timeout=120)` 可覆盖单次调用预算（`0` 表示关闭）。
+
 ## 💬 使用示例
 
 配置好客户端后，在 AI 对话中直接用自然语言操作：
@@ -352,6 +362,7 @@ originlab-mcp/
 │   └── utils/
 │       ├── annotations.py        # MCP ToolAnnotations 预设
 │       ├── autosave.py           # 破坏性操作前自动保存策略
+│       ├── dispatch.py           # COM 软超时
 │       ├── labtalk_safe.py        # LabTalk confirm 门控扫描
 │       ├── constants.py          # 枚举、默认值、拟合函数定义
 │       ├── helpers.py            # 图层/工作表/图表解析、错误处理装饰器
@@ -361,6 +372,7 @@ originlab-mcp/
     ├── fakes/                    # 内存 OriginPro + DummyMCP 测试双件
     ├── test_annotations.py       # ToolAnnotations 覆盖测试
     ├── test_autosave.py          # Autosave 策略 / 预检测试
+    ├── test_dispatch.py          # COM 软超时测试
     ├── test_origin_contract.py   # 多 tool COM 契约工作流
     ├── test_tool_guidance.py     # 描述 / next_suggestions 契约
     ├── test_helpers.py           # helpers 辅助函数测试

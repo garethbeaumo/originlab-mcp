@@ -251,12 +251,21 @@ class OriginManager:
     # 线程安全执行
     # -----------------------------------------------------------------
 
-    def execute(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    def execute(
+        self,
+        func: Callable[..., T],
+        *args: Any,
+        dispatch_timeout: float | None | object = None,
+        **kwargs: Any,
+    ) -> T:
         """在 COM 锁保护下执行函数。
 
         自动确保连接有效，并在 COM 锁内串行执行。
         不再在每次操作后 detach，而是重置空闲计时器。
         当空闲超时后自动释放 COM 控制权。
+
+        Soft dispatch timeout (``ORIGINLAB_MCP_DISPATCH_TIMEOUT``, default 90s)
+        raises ``ToolError`` without killing Origin when the budget is exceeded.
 
         Parameters
         ----------
@@ -264,18 +273,36 @@ class OriginManager:
             要执行的函数，第一个参数会接收 originpro 模块。
         *args, **kwargs
             传给 func 的额外参数。
+        dispatch_timeout :
+            Per-call soft budget in seconds. Default (``None``) uses the env
+            policy. Pass ``0`` to disable the soft timeout for this call only.
         """
-        # 先取消可能正在运行的空闲计时器（防止执行期间触发 detach）
-        self._cancel_idle_timer()
+        from originlab_mcp.utils.dispatch import (
+            UNSET,
+            resolve_dispatch_timeout,
+            run_with_soft_timeout,
+        )
 
-        with self._com_lock:
-            self.ensure_connected()
-            op = self.op
-            try:
-                return func(op, *args, **kwargs)
-            finally:
-                # 操作完成后启动空闲计时器（而不是立即 detach）
-                self._reset_idle_timer()
+        # Keyword default None means "use env" so existing callers stay unchanged.
+        # Pass 0 to disable for a single call; positive floats override the budget.
+        override: float | None | object = (
+            UNSET if dispatch_timeout is None else dispatch_timeout
+        )
+        budget = resolve_dispatch_timeout(override)
+
+        def _run() -> T:
+            # 先取消可能正在运行的空闲计时器（防止执行期间触发 detach）
+            self._cancel_idle_timer()
+            with self._com_lock:
+                self.ensure_connected()
+                op = self.op
+                try:
+                    return func(op, *args, **kwargs)
+                finally:
+                    # 操作完成后启动空闲计时器（而不是立即 detach）
+                    self._reset_idle_timer()
+
+        return run_with_soft_timeout(budget, _run)
 
     # -----------------------------------------------------------------
     # 活动对象追踪
@@ -481,6 +508,10 @@ class OriginManager:
             "connected": self.is_connected,
             "idle_timeout": self._idle_timeout,
         }
+
+        from originlab_mcp.utils.dispatch import parse_dispatch_timeout_seconds
+
+        info["dispatch_timeout"] = parse_dispatch_timeout_seconds()
 
         if self.is_connected:
             try:

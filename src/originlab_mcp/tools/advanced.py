@@ -33,7 +33,11 @@ def register_advanced_tools(mcp, manager) -> None:
 
     @mcp.tool(annotations=LABTALK)
     @tool_error_handler("LabTalk命令执行", "请检查 LabTalk 命令语法是否正确。")
-    def execute_labtalk(command: str, confirm: bool = False) -> dict:
+    def execute_labtalk(
+        command: str,
+        confirm: bool = False,
+        timeout: float | None = None,
+    ) -> dict:
         """Execute an arbitrary LabTalk command (high risk, use only when standard tools are insufficient).
 
         ⚠️ HIGH RISK TOOL: This tool directly executes LabTalk commands and may cause unpredictable effects on the Origin project.
@@ -43,11 +47,14 @@ def register_advanced_tools(mcp, manager) -> None:
 
         Parameter notes:
         - confirm: set true only after reviewing a gated destructive/system command
+        - timeout: optional soft dispatch budget in seconds for this call only;
+          omit to use ORIGINLAB_MCP_DISPATCH_TIMEOUT; pass 0 to disable
 
         Examples:
         - execute_labtalk(command="window -a Graph1")
         - execute_labtalk(command="type -a \\"hello\\"")
         - execute_labtalk(command="doc -s", confirm=True)
+        - execute_labtalk(command="run.section(...)", timeout=120)
         """
         if not command or not command.strip():
             return error_response(
@@ -101,7 +108,10 @@ def register_advanced_tools(mcp, manager) -> None:
             result = op.lt_exec(command)
             return result
 
-        result = manager.execute(_exec)
+        if timeout is None:
+            result = manager.execute(_exec)
+        else:
+            result = manager.execute(_exec, dispatch_timeout=timeout)
 
         warnings = [
             "此操作通过逃生舱（execute_labtalk）执行，不属于标准调用路径。",
@@ -118,6 +128,7 @@ def register_advanced_tools(mcp, manager) -> None:
                 "result": str(result) if result is not None else None,
                 "confirmed_risk": reason if requires_confirm else None,
                 "autosave": autosave,
+                "dispatch_timeout": timeout,
             },
             resource=manager.get_resource_context(),
             warnings=warnings,
