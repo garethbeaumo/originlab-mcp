@@ -64,7 +64,11 @@ def attach_fake_origin(manager: OriginManager, op: Any) -> Any:
         def _run():
             self._cancel_idle_timer()
             with self._com_lock:
-                return func(op, *args, **kwargs)
+                try:
+                    return func(op, *args, **kwargs)
+                finally:
+                    self._reset_idle_timer()
+                    self._reset_autosave_timer()
 
         return run_with_soft_timeout(budget, _run)
 

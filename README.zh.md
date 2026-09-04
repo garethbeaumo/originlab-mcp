@@ -226,6 +226,7 @@ uv run originlab-mcp-ui
 | :--- | :--- | :--- |
 | `ORIGINLAB_MCP_AUTOSAVE` | 开启 | 设为 `off` / `false` / `0` 可关闭预检保存 |
 | `ORIGINLAB_MCP_AUTOSAVE_REQUIRED` | 关闭 | 开启后，无法自动保存（无路径或保存失败）时阻止破坏性操作 |
+| `ORIGINLAB_MCP_AUTOSAVE_INTERVAL` | `300` | 已知项目路径时每隔 N 秒就地保存；`off` / `0` 关闭周期保存（预检仍生效） |
 
 建议尽早调用 `save_project(file_path=...)`，后续破坏性步骤才能就地 autosave。
 

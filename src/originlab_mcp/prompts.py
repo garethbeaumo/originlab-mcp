@@ -17,8 +17,9 @@ Preferred workflow:
 2. Mutate with typed tools (import_*, create_plot, set_*, fit, export_*).
 3. Prefer standard tools over execute_labtalk; LabTalk is a last resort and
    destructive/system commands require confirm=true.
-4. Call save_project(file_path=...) early so preflight autosave can protect
-   destructive ops (new_project, clear_worksheet, delete_columns, etc.).
+4. Call save_project(file_path=...) early so project_path is known —
+   enabling preflight and periodic autosave
+   (ORIGINLAB_MCP_AUTOSAVE / _REQUIRED / _INTERVAL).
 5. Respect ORIGINLAB_MCP_ALLOWED_ROOTS when configured; paths outside the
    allowlist are rejected.
 6. If a tool returns error.type=timeout, check Origin for a modal dialog,

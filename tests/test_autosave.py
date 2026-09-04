@@ -29,6 +29,7 @@ class TestPolicyHelpers:
         policy = AutosavePolicy.from_env({})
         assert policy.enabled is True
         assert policy.required is False
+        assert policy.interval_seconds == 300.0
 
     def test_policy_aliases(self) -> None:
         assert AutosavePolicy.from_env({"ORIGINLAB_MCP_AUTOSAVE": "off"}).enabled is False
@@ -42,6 +43,24 @@ class TestPolicyHelpers:
         assert (
             AutosavePolicy.from_env({"ORIGINLAB_MCP_AUTOSAVE_REQUIRED": "true"}).required
             is True
+        )
+        assert (
+            AutosavePolicy.from_env({"ORIGINLAB_MCP_AUTOSAVE_INTERVAL": "off"}).interval_seconds
+            is None
+        )
+        assert (
+            AutosavePolicy.from_env({"ORIGINLAB_MCP_AUTOSAVE_INTERVAL": "60"}).interval_seconds
+            == 60.0
+        )
+        # Master switch off also disables periodic interval.
+        assert (
+            AutosavePolicy.from_env(
+                {
+                    "ORIGINLAB_MCP_AUTOSAVE": "off",
+                    "ORIGINLAB_MCP_AUTOSAVE_INTERVAL": "60",
+                }
+            ).interval_seconds
+            is None
         )
 
     def test_labtalk_destructive_gate(self) -> None:
@@ -150,3 +169,57 @@ class TestPreflightAutosave:
         manager, _origin = manager_with_fake
         with pytest.raises(ToolError, match="项目路径"):
             manager.preflight_autosave("open_project")
+
+
+class TestPeriodicAutosave:
+    def test_tick_saves_when_path_known(
+        self, monkeypatch: pytest.MonkeyPatch, manager_with_fake, tmp_path
+    ) -> None:
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE", "1")
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE_INTERVAL", "60")
+        manager, origin = manager_with_fake
+        path = str(tmp_path / "periodic.opju")
+        manager.project_path = path
+        status = manager.periodic_autosave_tick()
+        assert status["saved"] is True
+        assert status["path"] == path
+        assert origin.saved_paths == [path]
+
+    def test_tick_skips_without_path(
+        self, monkeypatch: pytest.MonkeyPatch, manager_with_fake
+    ) -> None:
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE_INTERVAL", "60")
+        manager, origin = manager_with_fake
+        status = manager.periodic_autosave_tick()
+        assert status["saved"] is False
+        assert "no project path" in status["message"]
+        assert origin.saved_paths == []
+
+    def test_tick_disabled_by_interval_off(
+        self, monkeypatch: pytest.MonkeyPatch, manager_with_fake, tmp_path
+    ) -> None:
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE_INTERVAL", "off")
+        manager, origin = manager_with_fake
+        manager.project_path = str(tmp_path / "x.opju")
+        status = manager.periodic_autosave_tick()
+        assert status["message"] == "periodic autosave disabled"
+        assert origin.saved_paths == []
+
+    def test_setting_path_schedules_timer(
+        self, monkeypatch: pytest.MonkeyPatch, manager_with_fake, tmp_path
+    ) -> None:
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE", "1")
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE_INTERVAL", "3600")
+        manager, _origin = manager_with_fake
+        manager.project_path = str(tmp_path / "sched.opju")
+        assert manager._autosave_timer is not None
+        manager.project_path = None
+        assert manager._autosave_timer is None
+
+    def test_get_info_reports_interval(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE_INTERVAL", "120")
+        info = OriginManager(idle_timeout=0).get_info()
+        assert info["autosave_interval"] == 120.0
+        assert info["autosave_enabled"] is True

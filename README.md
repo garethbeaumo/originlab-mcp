@@ -227,6 +227,7 @@ Before destructive tools (`new_project`, `open_project`, `clear_worksheet`, `del
 | :--- | :--- | :--- |
 | `ORIGINLAB_MCP_AUTOSAVE` | on | Set `off` / `false` / `0` to skip preflight saves |
 | `ORIGINLAB_MCP_AUTOSAVE_REQUIRED` | off | When on, block the destructive tool if autosave cannot run (no path or save failure) |
+| `ORIGINLAB_MCP_AUTOSAVE_INTERVAL` | `300` | Also save in place every N seconds when a project path is known; `off` / `0` disables periodic saves (preflight still runs) |
 
 Call `save_project(file_path=...)` early so later destructive steps can autosave in place.
 

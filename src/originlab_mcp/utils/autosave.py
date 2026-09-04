@@ -47,10 +47,14 @@ class AutosavePolicy:
     ``ORIGINLAB_MCP_AUTOSAVE``          default ON; set off/false/no/0 to disable
     ``ORIGINLAB_MCP_AUTOSAVE_REQUIRED`` default OFF; when ON, failed preflight
                                        blocks the destructive operation
+    ``ORIGINLAB_MCP_AUTOSAVE_INTERVAL`` default 300; periodic in-place save
+                                       interval in seconds; off/0 disables
+                                       (preflight still runs when enabled)
     """
 
     enabled: bool = True
     required: bool = False
+    interval_seconds: float | None = 300.0
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> AutosavePolicy:
@@ -59,7 +63,23 @@ class AutosavePolicy:
         enabled = True if raw is None else not _falsey(raw)
         req_raw = env.get("ORIGINLAB_MCP_AUTOSAVE_REQUIRED")
         required = False if req_raw is None else not _falsey(req_raw)
-        return cls(enabled=enabled, required=required)
+
+        interval: float | None
+        interval_raw = env.get("ORIGINLAB_MCP_AUTOSAVE_INTERVAL")
+        if not enabled:
+            interval = None
+        elif interval_raw is None:
+            interval = 300.0
+        elif _falsey(interval_raw):
+            interval = None
+        else:
+            try:
+                value = float(interval_raw.strip())
+            except ValueError:
+                value = 300.0
+            interval = None if value <= 0 else value
+
+        return cls(enabled=enabled, required=required, interval_seconds=interval)
 
 
 def should_autosave_labtalk(command: str, *, confirm: bool) -> bool:

@@ -12,6 +12,7 @@ from tests.fakes import DummyMCP, FakeOrigin, attach_fake_origin
 def _disable_dispatch_timeout_by_default(monkeypatch: pytest.MonkeyPatch):
     """Keep the suite fast; timeout-specific tests re-enable the budget."""
     monkeypatch.setenv("ORIGINLAB_MCP_DISPATCH_TIMEOUT", "off")
+    monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE_INTERVAL", "off")
 
 
 @pytest.fixture
