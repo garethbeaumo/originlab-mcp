@@ -344,7 +344,10 @@ originlab-mcp/
 │       ├── helpers.py            # 图层/工作表/图表解析、错误处理装饰器
 │       └── validators.py         # 参数校验与统一返回结构
 └── tests/
+    ├── conftest.py               # 共享 fixtures（manager / FakeOrigin）
+    ├── fakes/                    # 内存 OriginPro + DummyMCP 测试双件
     ├── test_annotations.py       # ToolAnnotations 覆盖测试
+    ├── test_origin_contract.py   # 多 tool COM 契约工作流
     ├── test_helpers.py           # helpers 辅助函数测试
     ├── test_phase3.py            # LabTalk 防护与 resolve 范式测试
     ├── test_session.py           # 会话阅读与 MCP Resources 测试

@@ -343,7 +343,10 @@ originlab-mcp/
 │       ├── helpers.py            # Graph/sheet resolution and error handling helpers
 │       └── validators.py         # Input validation and standard response builders
 └── tests/
+    ├── conftest.py               # Shared fixtures (manager / fake Origin)
+    ├── fakes/                    # In-memory OriginPro + DummyMCP doubles
     ├── test_annotations.py       # ToolAnnotations coverage tests
+    ├── test_origin_contract.py   # Multi-tool COM contract workflows
     ├── test_helpers.py           # Helper tests
     ├── test_phase3.py            # LabTalk safety and resolve-pattern tests
     ├── test_session.py           # Session reading and MCP resource tests

@@ -13,7 +13,6 @@ from types import MethodType
 import pytest
 
 from originlab_mcp import __version__
-from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.tools.advanced import register_advanced_tools
 from originlab_mcp.tools.customize import register_customize_tools
 from originlab_mcp.tools.data import register_data_tools
@@ -34,6 +33,7 @@ from originlab_mcp.utils.validators import (
     validate_plot_type,
     validate_scale_type,
 )
+from tests.fakes import DummyMCP
 
 # ===================================================================
 # success_response 测试
@@ -182,21 +182,6 @@ class TestNormalizeYCols:
             normalize_y_cols(True)  # type: ignore[arg-type]
 
 
-class DummyMCP:
-    def __init__(self):
-        self.tools = {}
-
-    def tool(self, **_kwargs):
-        def decorator(fn):
-            self.tools[fn.__name__] = fn
-            return fn
-
-        return decorator
-
-
-@pytest.fixture
-def fresh_manager():
-    return OriginManager(auto_recover_active=False)
 
 
 class TestToolRegressions:
