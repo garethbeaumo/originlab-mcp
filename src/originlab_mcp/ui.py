@@ -398,7 +398,7 @@ def read_origin_session() -> dict[str, Any]:
     try:
         snapshot = _read_live_session()
         counts = snapshot.get("counts") or {}
-        status = {
+        status: dict[str, Any] = {
             "ok": True,
             "state": "connected",
             "message": (
@@ -417,15 +417,19 @@ def read_origin_session() -> dict[str, Any]:
             "session": None,
         }
 
+    message = str(status["message"])
+    session = status.get("session")
+    session_payload = session if isinstance(session, dict) else None
+
     with STATE.lock:
         STATE.origin_status = {
             "state": status["state"],
-            "message": status["message"],
+            "message": message,
             "exe_path": status.get("exe_path"),
             "user_path": status.get("user_path"),
         }
-        STATE.origin_session = status.get("session")
-    STATE.log(status["message"])
+        STATE.origin_session = session_payload
+    STATE.log(message)
     return status
 
 

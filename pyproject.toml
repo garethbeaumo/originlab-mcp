@@ -7,7 +7,8 @@ license = { text = "MIT" }
 requires-python = ">=3.10"
 dependencies = [
     "mcp[cli]>=1.0.0",
-    "originpro>=1.1.0",
+    # Windows-only COM bridge; Linux/macOS sync/tests skip installing it.
+    "originpro>=1.1.0; sys_platform == 'win32'",
 ]
 
 [project.scripts]
@@ -43,3 +44,11 @@ known-first-party = ["originlab_mcp"]
 python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["originpro", "originpro.*", "originext", "originext.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

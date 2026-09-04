@@ -9,5 +9,6 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # `originpro`/`originext` only ship Windows wheels and cannot install on Linux.
 # They are imported lazily and are only needed for a live OriginLab (Windows)
-# connection, so the MCP server, UI panel, and test suite all run without them.
-uv sync --no-install-package originpro --no-install-package originext
+# connection. On non-Windows platforms, pyproject marks them as optional via
+# `sys_platform == 'win32'`, so a normal sync is enough.
+uv sync
