@@ -417,6 +417,7 @@ class FakeOrigin:
         self.show_calls: list[bool] = []
         self.detached = False
         self.exited = False
+        self.attach_calls = 0
         self.exe_path = r"C:\Program Files\OriginLab\Origin\Origin.exe"
         self.user_path = r"C:\Users\Test\Documents\OriginLab"
         self.project_path: str | None = None
@@ -533,6 +534,10 @@ class FakeOrigin:
 
     def set_show(self, visible: bool) -> None:
         self.show_calls.append(visible)
+
+    def attach(self) -> None:
+        self.detached = False
+        self.attach_calls = getattr(self, "attach_calls", 0) + 1
 
     def detach(self) -> None:
         self.detached = True

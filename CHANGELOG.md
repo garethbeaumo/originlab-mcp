@@ -52,6 +52,7 @@
 - 新增 FakeOrigin COM 契约测试与共享 `tests/fakes` 测试双件（DummyMCP / attach_fake_origin）
 - 新增 tool 描述与 `next_suggestions` 一致性回归测试
 - 扩展 FakeOrigin 覆盖线性/非线性拟合、LabTalk 与多图层工作流；CI 产出 coverage.xml
+- 扩展 FakeOrigin 覆盖轴定制 / 论文样式 / 系统生命周期（release→reconnect→close）
 - 新增 LabTalk confirm 门控与 `suggested_alternatives` 错误恢复测试
 - 新增 autosave 策略 / 预检测试，并扩展 FakeOrigin 契约覆盖破坏性工具与 LabTalk autosave
 - 扩展周期 autosave（`AUTOSAVE_INTERVAL`）测试

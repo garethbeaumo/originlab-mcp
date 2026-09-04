@@ -314,3 +314,91 @@ class TestMultiLayerContract:
         assert layered["ok"] is True
         assert layered["data"]["total_layers"] == 3
         assert graph.added_layer_types == [3]
+
+
+class TestCustomizeContract:
+    def test_axis_scale_range_title_legend_and_publication(
+        self, fresh_manager, fake_origin
+    ):
+        mcp = DummyMCP()
+        _register_core(mcp, fresh_manager)
+
+        mcp.tools["import_data_from_text"](
+            data="X,Y\n1,2\n2,4\n3,8\n4,16",
+            has_header=True,
+        )
+        plotted = mcp.tools["create_plot"](x_col=0, y_cols=1, plot_type="scatter")
+        assert plotted["ok"] is True
+        graph = fake_origin.find_graph(plotted["data"]["graph_name"])
+        assert graph is not None
+
+        ranged = mcp.tools["set_axis_range"](axis="x", min_val=0, max_val=10)
+        assert ranged["ok"] is True
+        assert graph[0]._xlim == (0, 10, 0)
+
+        scaled = mcp.tools["set_axis_scale"](axis="y", scale_type="log")
+        assert scaled["ok"] is True
+        assert graph[0].yscale == "log10"
+
+        titled = mcp.tools["set_graph_title"](title="Demo Figure")
+        assert titled["ok"] is True
+        assert graph.lname == "Demo Figure"
+
+        legend = mcp.tools["set_legend"](
+            visible=True,
+            position="top_right",
+            font_size=12,
+        )
+        assert legend["ok"] is True
+        assert any("legend" in cmd for cmd in fake_origin.lt_commands)
+
+        styled = mcp.tools["apply_publication_style"](
+            x_label="Time (s)",
+            y_label="Signal",
+            x_min=0,
+            x_max=5,
+            line_width=3,
+            symbol_size=11,
+        )
+        assert styled["ok"] is True
+        assert graph[0].plot(0) is not None
+        assert graph[0].plot(0).symbol_size == 11
+        assert any("xb.text$" in cmd for cmd in fake_origin.lt_commands)
+
+
+class TestSystemLifecycleContract:
+    def test_info_release_reconnect_and_close(
+        self, fresh_manager, fake_origin, tmp_path, monkeypatch
+    ):
+        monkeypatch.delenv("ORIGINLAB_MCP_AUTOSAVE_REQUIRED", raising=False)
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE", "1")
+        mcp = DummyMCP()
+        _register_core(mcp, fresh_manager)
+
+        info = mcp.tools["get_origin_info"]()
+        assert info["ok"] is True
+        assert info["data"]["connected"] is True
+        assert "dispatch_timeout" in info["data"]
+        assert "autosave_interval" in info["data"]
+
+        mcp.tools["import_data_from_text"](data="A,B\n1,2")
+        saved = mcp.tools["save_project"](file_path=str(tmp_path / "life.opju"))
+        assert saved["ok"] is True
+
+        released = mcp.tools["release_origin"]()
+        assert released["ok"] is True
+        assert released["data"]["released"] is True
+        assert fake_origin.detached is True
+        assert fresh_manager.is_connected is False
+
+        reconnected = mcp.tools["reconnect_origin"]()
+        assert reconnected["ok"] is True
+        assert fresh_manager.is_connected is True
+        assert fake_origin.detached is False
+        assert fake_origin.attach_calls >= 1
+
+        closed = mcp.tools["close_origin"]()
+        assert closed["ok"] is True
+        assert closed["data"]["closed"] is True
+        assert fake_origin.exited is True
+        assert fresh_manager.project_path is None

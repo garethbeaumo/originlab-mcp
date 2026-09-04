@@ -211,10 +211,27 @@ class OriginManager:
         """建立与 Origin 的 COM 连接。
 
         首次调用时导入 originpro 并初始化连接。
-        如果已连接则跳过。
+        如果已连接则跳过。release() 之后优先复用已绑定的 originpro 模块。
         """
         if self._connected and self._op is not None:
             return
+
+        # After release()/detach, _op is kept for fast reconnect.
+        if self._op is not None and not self._connected:
+            try:
+                op = self._op
+                with suppress(Exception):
+                    if hasattr(op, "attach"):
+                        op.attach()
+                op.set_show(True)
+                self._connected = True
+                self._refresh_active_context_unlocked()
+                logger.info("已重新连接到 Origin")
+                return
+            except Exception as e:
+                logger.warning("复用已有 Origin 连接失败，尝试重新导入: %s", e)
+                self._connected = False
+                self._op = None
 
         try:
             module = importlib.import_module("originpro")
