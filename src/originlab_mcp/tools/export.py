@@ -205,7 +205,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
 
         def _export_all(op: Any) -> dict[str, Any]:
             exported: list[dict[str, str]] = []
-            for index, gr in enumerate(op.pages("Graph"), start=1):
+            for index, gr in enumerate(op.pages("g"), start=1):
                 graph_name = getattr(gr, "name", f"Graph{index}")
                 file_path = os.path.abspath(
                     os.path.join(output_dir, f"{graph_name}.{fmt}")
@@ -362,16 +362,17 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
                 save_dir = os.path.dirname(file_path)
                 if save_dir and not os.path.isdir(save_dir):
                     os.makedirs(save_dir, exist_ok=True)
-                op.save(file_path)
                 saved = os.path.abspath(file_path)
+                manager.save_project_checked(op, saved)
                 manager.project_path = saved
                 return saved
             else:
-                op.save()
-                current = manager.resolve_project_path(op) or "current project"
-                if current != "current project":
-                    manager.project_path = current
-                return current
+                current = manager.resolve_project_path(op)
+                if not current:
+                    raise ValueError("当前项目没有已知保存路径，请指定 file_path。")
+                manager.save_project_checked(op, current)
+                manager.project_path = current
+                return str(current)
 
         saved_path = manager.execute(_save)
 
@@ -422,7 +423,8 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
         autosave = manager.preflight_autosave("open_project")
 
         def _open(op: Any) -> str:
-            op.open(file=file_path, readonly=readonly)
+            if not op.open(file=file_path, readonly=readonly):
+                raise RuntimeError(f"Origin 未能打开项目: {file_path}")
 
             manager.active_worksheet = None
             manager.active_graph = None
@@ -430,7 +432,7 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
 
             # 尝试将第一个工作表设为活动
             try:
-                for book in op.pages("Book"):
+                for book in op.pages("w"):
                     for sheet in book:
                         manager.active_worksheet = f"[{book.name}]{sheet.name}"
                         break

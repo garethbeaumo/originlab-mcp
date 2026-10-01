@@ -30,6 +30,12 @@
 
 ### 🐛 Bug 修复
 
+- 按 originpro 1.1.15 真实契约使用 `pages("w"/"g"/"m")`，修复列表、会话和批量导出的空结果；同步假对象契约。
+- 保存/打开检查布尔返回值，保存失败不会报告成功；required autosave 在 False 或异常时阻止破坏操作。
+- 显式、隐式、预检与周期保存均校验 allowed roots；隐式保存拒绝未知/冲突的当前项目路径，避免缓存路径误写。
+- 重连、释放及活动对象刷新清除旧上下文；排队超时的操作不会在 COM 恢复后迟到执行。
+- Codex 配置助手写入 `.codex/config.toml` / `mcp_servers`，保留其他设置与注释；增加实际 stdio 和 Windows 验收脚本。
+
 - **Origin 生命周期**：MCP Server 关闭时默认只 detach，不再直接退出用户的 Origin 实例
 - **活动对象恢复**：当内存中的 active worksheet / graph 丢失时，尝试从当前 Origin 会话恢复活动对象
 - **OriginPro API 兼容**：统一封装列标签和曲线获取逻辑，兼容没有 `WSheet.get_col()` / `GLayer.plot()` 的 originpro 版本

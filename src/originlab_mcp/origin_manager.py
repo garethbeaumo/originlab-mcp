@@ -14,8 +14,10 @@ from __future__ import annotations
 import importlib
 import logging
 import threading
+import time
 from collections.abc import Callable
 from contextlib import suppress
+from pathlib import Path
 from typing import Any, TypeVar, cast
 
 from originlab_mcp.types import OriginProProtocol
@@ -184,7 +186,7 @@ class OriginManager:
                     "path": None,
                     "message": "no project path; periodic autosave skipped",
                 }
-            op.save(path)
+            self.save_project_checked(op, path)
             return {
                 "attempted": True,
                 "saved": True,
@@ -215,6 +217,10 @@ class OriginManager:
         """
         if self._connected and self._op is not None:
             return
+
+        self.project_path = None
+        self._active_worksheet = None
+        self._active_graph = None
 
         # After release()/detach, _op is kept for fast reconnect.
         if self._op is not None and not self._connected:
@@ -271,6 +277,9 @@ class OriginManager:
                 logger.debug("detach 时出错（可忽略）: %s", e)
             finally:
                 self._connected = False
+                self._project_path = None
+                self._active_worksheet = None
+                self._active_graph = None
 
     def release(self) -> bool:
         """显式释放 Origin COM 控制权。
@@ -310,6 +319,9 @@ class OriginManager:
                 finally:
                     self._connected = False
                     self._op = None
+                    self._project_path = None
+                    self._active_worksheet = None
+                    self._active_graph = None
 
     def close_and_exit(self) -> None:
         """关闭 Origin 应用程序并释放连接。
@@ -409,11 +421,27 @@ class OriginManager:
             UNSET if dispatch_timeout is None else dispatch_timeout
         )
         budget = resolve_dispatch_timeout(override)
+        deadline = time.monotonic() + budget if budget is not None else None
 
         def _run() -> T:
-            # 先取消可能正在运行的空闲计时器（防止执行期间触发 detach）
-            self._cancel_idle_timer()
-            with self._com_lock:
+            # A timed-out queued mutation must never run when Origin unblocks.
+            if deadline is None:
+                acquired = self._com_lock.acquire()
+            else:
+                acquired = self._com_lock.acquire(
+                    timeout=max(0.0, deadline - time.monotonic())
+                )
+            try:
+                if not acquired or (deadline is not None and time.monotonic() >= deadline):
+                    from originlab_mcp.exceptions import ToolError
+
+                    raise ToolError(
+                        "等待 Origin COM 锁超时；此操作未执行。",
+                        error_type="timeout",
+                        target="dispatch_timeout",
+                        hint="请等待前一个操作完成并关闭 Origin 对话框，再重新提交。",
+                    )
+                self._cancel_idle_timer()
                 self.ensure_connected()
                 op = self.op
                 try:
@@ -422,6 +450,9 @@ class OriginManager:
                     # 操作完成后启动空闲计时器（而不是立即 detach）
                     self._reset_idle_timer()
                     self._reset_autosave_timer()
+            finally:
+                if acquired:
+                    self._com_lock.release()
 
         return run_with_soft_timeout(budget, _run)
 
@@ -472,23 +503,44 @@ class OriginManager:
             self._cancel_autosave_timer()
 
     def resolve_project_path(self, op: OriginProProtocol | None = None) -> str | None:
-        """Best-effort resolve of the current project file path."""
-        if self._project_path:
-            return self._project_path
+        """Resolve a live project path; never use a cached save destination.
+
+        Origin may have switched projects through its UI or after reattachment.
+        Unavailable/ambiguous metadata must fail closed for implicit saves.
+        """
         current = op if op is not None else (self._op if self._connected else None)
-        if current is None:
-            return None
-        direct = getattr(current, "project_path", None)
-        if isinstance(direct, str) and direct.strip():
-            self._project_path = direct.strip()
-            return self._project_path
-        for var_name in ("pe_path$", "filename$", "doc.path$"):
-            with suppress(Exception):
-                value = current.get_lt_str(var_name)
-                if isinstance(value, str) and value.strip():
-                    self._project_path = value.strip()
-                    return self._project_path
-        return None
+        candidates: list[str] = []
+        if current is not None:
+            direct = getattr(current, "project_path", None)
+            if isinstance(direct, str):
+                candidates.append(direct)
+            for var_name in ("pe_path$", "filename$", "doc.path$"):
+                with suppress(Exception):
+                    value = current.get_lt_str(var_name)
+                    if isinstance(value, str):
+                        candidates.append(value)
+        paths = {
+            str(Path(value.strip()).resolve())
+            for value in candidates
+            if value.strip()
+            and Path(value.strip()).is_absolute()
+            and Path(value.strip()).suffix.lower() in {".opj", ".opju"}
+        }
+        self._project_path = paths.pop() if len(paths) == 1 else None
+        return self._project_path
+
+    def save_project_checked(self, op: OriginProProtocol, path: str) -> None:
+        """Validate every save destination and require Origin's success result.
+
+        Called inside execute(), including preflight and periodic autosave.
+        """
+        from originlab_mcp.utils.validators import validate_output_path
+
+        error = validate_output_path(path)
+        if error:
+            raise ValueError(error)
+        if not op.save(path):
+            raise RuntimeError(f"Origin 未能保存项目: {path}")
 
     def preflight_autosave(self, reason: str) -> dict[str, Any]:
         """Save the project in place before a destructive operation.
@@ -522,7 +574,7 @@ class OriginManager:
                 }
             # Pass path explicitly so in-memory fakes and Origin both persist
             # to the known project file (not an anonymous empty save).
-            op.save(path)
+            self.save_project_checked(op, path)
             return {
                 "attempted": True,
                 "saved": True,
@@ -584,6 +636,8 @@ class OriginManager:
 
     def _refresh_active_context_unlocked(self) -> None:
         """Refresh active Origin objects without acquiring the COM lock."""
+        self._active_worksheet = None
+        self._active_graph = None
         if self._op is None:
             return
 
@@ -659,7 +713,7 @@ class OriginManager:
                 # 尝试获取当前项目中的工作表和图表数量
                 try:
                     worksheets = []
-                    for book in op.pages("Book"):
+                    for book in op.pages("w"):
                         for sheet in book:
                             worksheets.append(f"[{book.name}]{sheet.name}")
                     info["worksheet_count"] = len(worksheets)
@@ -667,7 +721,7 @@ class OriginManager:
                     info["worksheet_count"] = None
 
                 try:
-                    graphs = [g.name for g in op.pages("Graph")]
+                    graphs = [g.name for g in op.pages("g")]
                     info["graph_count"] = len(graphs)
                 except Exception:
                     info["graph_count"] = None

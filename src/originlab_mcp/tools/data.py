@@ -415,7 +415,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
         """
         def _list(op: Any) -> list[dict[str, Any]]:
             worksheets = []
-            for book in op.pages("Book"):
+            for book in op.pages("w"):
                 for sheet in book:
                     worksheets.append({
                         "book_name": book.name,
@@ -1004,7 +1004,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
             if book_name:
                 # 查找指定的工作簿
                 target_book = None
-                for book in op.pages("Book"):
+                for book in op.pages("w"):
                     if book.name == book_name:
                         target_book = book
                         break

@@ -58,9 +58,9 @@ def test_detect_client_configs_reports_codex_and_trae(tmp_path, monkeypatch):
     statuses = {item.id: item for item in ui.detect_client_configs()}
 
     assert statuses["codex"].configured is True
-    assert statuses["codex"].path.endswith(".codex\\config.json") or statuses[
+    assert statuses["codex"].path.endswith(".codex\\config.toml") or statuses[
         "codex"
-    ].path.endswith(".codex/config.json")
+    ].path.endswith(".codex/config.toml")
     assert statuses["trae"].configured is True
     assert statuses["trae"].path.endswith(".trae\\mcp.json") or statuses[
         "trae"
@@ -126,3 +126,49 @@ def test_read_origin_session_records_failure(monkeypatch):
     assert result["session"] is None
     assert ui.STATE.origin_status["state"] == "failed"
     assert "originpro missing" in result["message"]
+
+
+def test_codex_toml_preserves_unrelated_settings_and_comments(tmp_path, monkeypatch):
+    import tomlkit
+
+    monkeypatch.setattr(ui, "_repo_root", lambda: tmp_path)
+    path = tmp_path / ".codex" / "config.toml"
+    path.parent.mkdir()
+    original = '# Keep this comment\nmodel = "my-model"\n[mcp_servers.other]\ncommand = "other-tool"\n'
+    path.write_text(original, encoding="utf-8")
+    result = ui.configure_client("codex")
+    assert result["ok"] is True
+    text = path.read_text(encoding="utf-8")
+    data = tomlkit.parse(text)
+    assert data["model"] == "my-model"
+    assert data["mcp_servers"]["other"]["command"] == "other-tool"
+    assert data["mcp_servers"]["originlab"] == ui._server_config()
+    assert "# Keep this comment" in text
+    assert list(path.parent.glob("config.toml.bak-*"))[0].read_text(encoding="utf-8") == original
+    assert ui.configure_client("codex")["changed"] is False
+    assert not (path.parent / "config.json").exists()
+
+
+def test_codex_update_existing_entry(tmp_path, monkeypatch):
+    import tomlkit
+
+    monkeypatch.setattr(ui, "_repo_root", lambda: tmp_path)
+    path = tmp_path / ".codex" / "config.toml"
+    path.parent.mkdir()
+    path.write_text('[mcp_servers.originlab]\ncommand = "old"\n', encoding="utf-8")
+    result = ui.configure_client("codex")
+    assert result["updated_existing"] is True
+    assert tomlkit.parse(path.read_text())["mcp_servers"]["originlab"] == ui._server_config()
+
+
+def test_invalid_codex_toml_is_not_replaced_or_reported_configured(tmp_path, monkeypatch):
+    monkeypatch.setattr(ui, "_repo_root", lambda: tmp_path)
+    path = tmp_path / ".codex" / "config.toml"
+    path.parent.mkdir()
+    original = '[mcp_servers.originlab\ncommand = "broken"\n'
+    path.write_text(original, encoding="utf-8")
+    result = ui.configure_client("codex")
+    assert result["ok"] is False
+    assert "TOML" in result["message"]
+    assert path.read_text(encoding="utf-8") == original
+    assert not ui._is_originlab_configured(path)

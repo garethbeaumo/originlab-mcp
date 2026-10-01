@@ -526,7 +526,7 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
         """
         def _list(op: Any) -> list[dict[str, Any]]:
             graphs = []
-            for g in op.pages("Graph"):
+            for g in op.pages("g"):
                 graphs.append({
                     "graph_name": g.name,
                     "layers": (

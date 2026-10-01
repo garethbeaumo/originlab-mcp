@@ -230,7 +230,7 @@ uv run originlab-mcp-ui
 | `ORIGINLAB_MCP_AUTOSAVE_REQUIRED` | 关闭 | 开启后，无法自动保存（无路径或保存失败）时阻止破坏性操作 |
 | `ORIGINLAB_MCP_AUTOSAVE_INTERVAL` | `300` | 已知项目路径时每隔 N 秒就地保存；`off` / `0` 关闭周期保存（预检仍生效） |
 
-建议尽早调用 `save_project(file_path=...)`，后续破坏性步骤才能就地 autosave。
+建议显式调用 `save_project(file_path=...)` 保存。隐式保存和 autosave 必须从当前会话取得唯一、完整的项目路径，不再使用旧缓存作为写入目的地；无法确认时跳过自动保存，required 模式阻止破坏性操作。手动切换项目或重连后同样执行此检查。部分 Origin 版本可能无法提供目前支持的路径元数据，此时请显式指定保存路径，并参照 [Windows 验收](docs/windows-validation.md) 记录结果。就地保存覆盖当前文件，不是版本化备份；保存预检与后续破坏操作尚不是原子事务。
 
 ### 安全：COM 软超时
 
@@ -343,7 +343,15 @@ uv run originlab-mcp-ui
 <details>
 <summary><b>Codex (OpenAI)</b></summary>
 
-在项目根目录创建 `.codex/config.json`，内容格式同上。
+在受信任项目根目录创建 `.codex/config.toml`（Codex 使用 TOML）：
+
+```toml
+[mcp_servers.originlab]
+command = "uv"
+args = ["--directory", 'C:\path\to\originlab-mcp', "run", "originlab-mcp"]
+```
+
+状态面板会保留其他 TOML 配置与注释，并在修改前备份已有文件。
 
 </details>
 
@@ -449,3 +457,7 @@ originlab-mcp/
 ## 📜 许可证
 
 [MIT](LICENSE) © 2025 garethbeaumo
+
+真实 stdio 检查及 Windows + Origin 验收步骤见 [验收指南](docs/windows-validation.md)，后续工作见 [证据驱动待办](docs/follow-up.md)。
+
+排队中的调用若在取得 COM 锁前耗尽预算，将不再执行；已开始的调用仍可能在超时后完成。

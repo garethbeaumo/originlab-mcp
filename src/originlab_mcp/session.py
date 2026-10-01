@@ -20,9 +20,9 @@ from originlab_mcp.utils.helpers import (
     get_plot_count,
 )
 
-PAGE_KIND_BOOK = "Book"
-PAGE_KIND_GRAPH = "Graph"
-PAGE_KIND_MATRIX = "Matrix"
+PAGE_KIND_BOOK = "w"
+PAGE_KIND_GRAPH = "g"
+PAGE_KIND_MATRIX = "m"
 PAGE_KIND_NOTES = "Notes"
 PAGE_KIND_EXCEL = "Excel"
 

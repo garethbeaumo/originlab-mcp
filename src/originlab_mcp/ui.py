@@ -18,6 +18,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+import tomlkit
+from tomlkit.exceptions import ParseError
+
 HOST = "127.0.0.1"
 PORT = 8765
 MAX_LOG_LINES = 300
@@ -118,9 +121,9 @@ def _client_definitions() -> list[ClientDefinition]:
         ClientDefinition(
             id="codex",
             name="Codex",
-            path=root / ".codex" / "config.json",
+            path=root / ".codex" / "config.toml",
             scope="Project",
-            hint="Writes .codex/config.json.",
+            hint="Writes .codex/config.toml (trusted projects only).",
         ),
         ClientDefinition(
             id="trae",
@@ -146,15 +149,25 @@ def _client_definition(client_id: str) -> ClientDefinition | None:
     return None
 
 
+def _read_client_config(path: Path) -> dict[str, Any]:
+    if path.suffix == ".toml":
+        return tomlkit.parse(_read_text(path)) if path.is_file() else tomlkit.document()
+    return _read_json_file(path)
+
+
+def _server_section(path: Path) -> str:
+    return "mcp_servers" if path.suffix == ".toml" else "mcpServers"
+
+
 def _is_originlab_configured(path: Path) -> bool:
     if not path.is_file():
         return False
     try:
-        data = _read_json_file(path)
-    except (json.JSONDecodeError, ValueError):
-        return "originlab" in _read_text(path).lower()
+        data = _read_client_config(path)
+    except (ValueError, ParseError):
+        return False
 
-    servers = data.get("mcpServers")
+    servers = data.get(_server_section(path))
     return isinstance(servers, dict) and SERVER_NAME in servers
 
 
@@ -187,11 +200,11 @@ def configure_client(client_id: str) -> dict[str, Any]:
         }
 
     try:
-        data = _read_json_file(definition.path)
-    except json.JSONDecodeError as exc:
+        data = _read_client_config(definition.path)
+    except (json.JSONDecodeError, ParseError) as exc:
         return {
             "ok": False,
-            "message": f"Config is not valid JSON: {exc}",
+            "message": f"Config is not valid {'TOML' if definition.path.suffix == '.toml' else 'JSON'}: {exc}",
             "path": str(definition.path),
         }
     except ValueError as exc:
@@ -201,11 +214,12 @@ def configure_client(client_id: str) -> dict[str, Any]:
             "path": str(definition.path),
         }
 
-    servers = data.setdefault("mcpServers", {})
+    section = _server_section(definition.path)
+    servers = data.setdefault(section, {})
     if not isinstance(servers, dict):
         return {
             "ok": False,
-            "message": "The mcpServers field must be a JSON object.",
+            "message": f"The {section} field must be a table/object.",
             "path": str(definition.path),
         }
 
@@ -213,7 +227,11 @@ def configure_client(client_id: str) -> dict[str, Any]:
     previous = servers.get(SERVER_NAME)
     servers[SERVER_NAME] = _server_config()
 
-    new_text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    new_text = (
+        tomlkit.dumps(data)
+        if definition.path.suffix == ".toml"
+        else json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    )
     old_text = _read_text(definition.path) if existed else None
     backup_path = None
     changed = old_text != new_text

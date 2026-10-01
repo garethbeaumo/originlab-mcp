@@ -80,7 +80,8 @@ def run_with_soft_timeout(budget: float | None, fn: Callable[[], T]) -> T:
 
     On timeout, raises ``ToolError`` and does **not** cancel ``fn`` — the COM
     call may still be blocked (e.g. modal dialog). Subsequent ``execute``
-    calls will wait on the COM lock until it clears.
+    calls wait on the COM lock only within their remaining budget; expired
+    queued calls are rejected by OriginManager before invoking their callback.
     """
     if budget is None or budget <= 0:
         return fn()

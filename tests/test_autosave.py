@@ -145,6 +145,7 @@ class TestPreflightAutosave:
         path = str(tmp_path / "autosave.opju")
         manager, origin = manager_with_fake
         manager.project_path = path
+        origin.project_path = path
         status = manager.preflight_autosave("delete_columns")
         assert status["saved"] is True
         assert status["path"] == path
@@ -180,6 +181,7 @@ class TestPeriodicAutosave:
         manager, origin = manager_with_fake
         path = str(tmp_path / "periodic.opju")
         manager.project_path = path
+        origin.project_path = path
         status = manager.periodic_autosave_tick()
         assert status["saved"] is True
         assert status["path"] == path

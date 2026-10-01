@@ -231,7 +231,7 @@ Before destructive tools (`new_project`, `open_project`, `clear_worksheet`, `del
 | `ORIGINLAB_MCP_AUTOSAVE_REQUIRED` | off | When on, block the destructive tool if autosave cannot run (no path or save failure) |
 | `ORIGINLAB_MCP_AUTOSAVE_INTERVAL` | `300` | Also save in place every N seconds when a project path is known; `off` / `0` disables periodic saves (preflight still runs) |
 
-Call `save_project(file_path=...)` early so later destructive steps can autosave in place.
+Save explicitly with `save_project(file_path=...)`. Implicit saves and autosave now require a unique, full project path from the live session; cached destinations are never reused after a manual project switch or reconnect. Missing or ambiguous metadata skips autosave and blocks destructive operations in required mode. Some Origin versions may not expose the currently supported path metadata; use an explicit save path and record the result in the [Windows acceptance checklist](docs/windows-validation.md). In-place saving overwrites the file and is not a versioned backup. Preflight save and the following mutation are not yet an atomic transaction.
 
 ### Safety: Soft Dispatch Timeout
 
@@ -342,7 +342,15 @@ Create `.trae/mcp.json` in the project root using the same format as above.
 <details>
 <summary><b>Codex (OpenAI)</b></summary>
 
-Create `.codex/config.json` in the project root using the same format as above.
+Create `.codex/config.toml` in a trusted project root (Codex uses TOML):
+
+```toml
+[mcp_servers.originlab]
+command = "uv"
+args = ["--directory", 'C:\path\to\originlab-mcp', "run", "originlab-mcp"]
+```
+
+The status panel preserves other TOML settings and comments and backs up existing files before updating them.
 
 </details>
 
@@ -448,3 +456,7 @@ Check that:
 ## License
 
 [MIT](LICENSE) © 2025 garethbeaumo
+
+For real stdio and Windows + Origin checks, see the [acceptance guide](docs/windows-validation.md) and [evidence-driven follow-up](docs/follow-up.md).
+
+Queued calls whose budget expires before acquiring the COM lock never execute; already-started calls may still finish after a soft timeout.

@@ -106,9 +106,9 @@ class StubOp:
             long_name="Demo",
         )
         self._pages = {
-            "Book": [StubBook("Book1", [self.sheet])],
-            "Graph": [self.graph],
-            "Matrix": [StubBook("MBook1", [])],
+            "w": [StubBook("Book1", [self.sheet])],
+            "g": [self.graph],
+            "m": [StubBook("MBook1", [])],
             "Notes": [StubNote("Notes1")],
             "Excel": [],
         }

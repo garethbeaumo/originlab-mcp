@@ -9,6 +9,7 @@ dependencies = [
     "mcp[cli]>=1.0.0",
     # Windows-only COM bridge; Linux/macOS sync/tests skip installing it.
     "originpro>=1.1.0; sys_platform == 'win32'",
+    "tomlkit>=0.13.2,<1",
 ]
 
 [project.scripts]

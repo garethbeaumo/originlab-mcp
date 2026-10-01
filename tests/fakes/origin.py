@@ -477,15 +477,15 @@ class FakeOrigin:
 
     def pages(self, kind: str):
         mapping = {
-            "Book": self.books,
-            "Graph": self.graphs,
-            "Matrix": self.matrices,
+            "w": self.books,
+            "g": self.graphs,
+            "m": self.matrices,
             "Notes": self.notes,
             "Excel": self.excel_books,
         }
         return list(mapping.get(kind, []))
 
-    def save(self, path: str = "") -> None:
+    def save(self, path: str = "") -> bool:
         if path:
             self.project_path = path
             self.saved_paths.append(path)
@@ -493,8 +493,9 @@ class FakeOrigin:
             self.saved_paths.append(self.project_path)
         else:
             self.saved_paths.append("")
+        return True
 
-    def open(self, file: str = "", readonly: bool = False) -> None:
+    def open(self, file: str = "", readonly: bool = False) -> bool:
         self.opened_paths.append((file, readonly))
         self.project_path = file or None
         # Simulate replacing the live project.
@@ -503,6 +504,7 @@ class FakeOrigin:
         book = FakeBook("Book1")
         book.add_sheet("Sheet1")
         self.books.append(book)
+        return True
 
     def new(self) -> None:
         self.books.clear()

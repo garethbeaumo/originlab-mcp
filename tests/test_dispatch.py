@@ -109,3 +109,46 @@ class TestLabTalkTimeoutOverride:
         assert result["ok"] is False
         assert result["error"]["type"] == "timeout"
         assert result["error"]["target"] == "dispatch_timeout"
+
+
+def test_expired_queued_mutation_never_runs(monkeypatch):
+    import threading
+
+    monkeypatch.setenv("ORIGINLAB_MCP_DISPATCH_TIMEOUT", "0.05")
+    manager = OriginManager(auto_recover_active=False, idle_timeout=0)
+    manager._op = FakeOrigin()
+    manager._connected = True
+    finished_waiting = threading.Event()
+    lock = threading.Lock()
+    writes = []
+
+    class ObservedLock:
+        def acquire(self, *args, **kwargs):
+            try:
+                return lock.acquire(*args, **kwargs)
+            finally:
+                finished_waiting.set()
+
+        def release(self):
+            lock.release()
+
+        def __enter__(self):
+            self.acquire()
+            return self
+
+        def __exit__(self, *args):
+            self.release()
+
+    manager._com_lock = ObservedLock()
+    lock.acquire()
+    try:
+        with pytest.raises(ToolError) as error:
+            manager.execute(lambda op: writes.append("expired"))
+        assert error.value.error_type == "timeout"
+        # The queued worker must finish its bounded wait before the lock opens.
+        assert finished_waiting.wait(1)
+        assert writes == []
+    finally:
+        lock.release()
+    manager.execute(lambda op: writes.append("fresh"), dispatch_timeout=1)
+    assert writes == ["fresh"]

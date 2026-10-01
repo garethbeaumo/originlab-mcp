@@ -721,7 +721,7 @@ class TestToolRegressions:
                 self.graphs = [StubGraph("Graph1"), StubGraph("Graph2")]
 
             def pages(self, kind: str):
-                assert kind == "Graph"
+                assert kind == "g"
                 return self.graphs
 
         op = StubOp()
