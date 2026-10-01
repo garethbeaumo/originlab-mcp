@@ -10,8 +10,6 @@ Do not merge or publish on the strength of fake tests alone.
 | P0 | Atomic preflight + destructive dispatch | Current tools perform two separate `execute()` calls; add deterministic competing-call tests before changing API | Do not claim current save/mutation pair is transactional |
 | P1 | Authoritative live project identity | Cached-path reuse reproduced; current fix refuses cache-only saves. Validate a documented live full filename API, readonly behavior and same-directory UI switches | Unknown/ambiguous path skips autosave; strict mode blocks mutation |
 | P1 | Actual periodic save semantics | `_reset_autosave_timer` runs after every operation; default interval equals idle timeout | Prove repeated editing and idle behavior with a controlled clock and Windows run |
-| P1 | MCP error contract | Verify real `ClientSession.call_tool` result for `ok:false`; decide mapping to `isError:true` | Existing tool error payloads must remain inspectable |
-| P1 | SDK compatibility policy | Lock currently uses MCP 1.26.0; declaration has no major-version upper bound | Pin a tested compatibility range; do not upgrade major version as unrelated work |
 | P2 | Broaden real API contract coverage | A fake accepted `pages("Book")` / `pages("Graph")`, hiding empty real results | Validate high-use APIs against locked package and Windows outputs before adding tools |
 
 The queue-late-write issue was independently reproduced with threading Events;
@@ -31,3 +29,12 @@ this repository's behavior):
 
 Prioritize one reproduced problem with a clear acceptance test per iteration;
 retain a draft until runtime-dependent claims are supported by live evidence.
+
+## Completed protocol follow-up
+
+The bounded round after `e0cf819` reproduced three `ok:false` responses marked
+`isError:false` over real stdio. A transport-boundary adapter now preserves the
+existing JSON text while setting the protocol error flag; schema and unknown-tool
+errors remain SDK-managed. Seven wire regressions pass. The SDK remains locked at
+1.26.0, with the declaration now `>=1.26.0,<2`. See
+[protocol handoff](protocol-handoff.md) for scope, evidence and compatibility limits.

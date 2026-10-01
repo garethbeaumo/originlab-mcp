@@ -18,6 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.prompts import SERVER_INSTRUCTIONS, register_prompts
+from originlab_mcp.protocol import OriginFastMCP
 from originlab_mcp.resources import register_session_resources
 from originlab_mcp.tools.advanced import register_advanced_tools
 from originlab_mcp.tools.analysis import register_analysis_tools
@@ -67,7 +68,7 @@ atexit.register(_manager.shutdown)
 # 创建 MCP Server 实例
 # ---------------------------------------------------------------------------
 
-mcp = FastMCP(
+mcp = OriginFastMCP(
     "originlab",
     instructions=SERVER_INSTRUCTIONS,
     lifespan=_lifespan,

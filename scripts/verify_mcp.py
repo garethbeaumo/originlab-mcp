@@ -56,6 +56,11 @@ async def verify(args: argparse.Namespace) -> None:
             return payload["data"]
 
         await call("originlab_doctor", ping_origin=args.live)
+        invalid = await session.call_tool("execute_labtalk", {"command": ""})
+        failure = json.loads(invalid.content[0].text)
+        if not invalid.isError or failure.get("ok") is not False:
+            raise RuntimeError("Tool failure was not reported as an MCP error")
+        print("PASS: business failure retains its JSON payload and sets isError=true.")
         if not args.live:
             print("PASS: portable MCP discovery and diagnostic call; no Origin operations run.")
             return

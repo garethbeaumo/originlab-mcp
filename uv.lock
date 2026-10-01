@@ -680,7 +680,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "mcp", extras = ["cli"], specifier = ">=1.0.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.26.0,<2" },
     { name = "originpro", marker = "sys_platform == 'win32'", specifier = ">=1.1.0" },
     { name = "tomlkit", specifier = ">=0.13.2,<1" },
 ]

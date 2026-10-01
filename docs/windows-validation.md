@@ -28,7 +28,8 @@ uv run --no-sync python scripts/verify_mcp.py --live --allow-project-reset --out
 ```
 
 The portable command checks actual stdio initialization, tools/prompts/resources
-discovery and `originlab_doctor` without connecting to Origin. The live command
+discovery, `originlab_doctor`, and an invalid-command response with `isError:true`
+without connecting to Origin. The live command
 imports three rows of synthetic data, lists worksheets, creates and lists a
 scatter plot, reads the session, saves, batch-exports a PNG and a CSV, checks
 nonempty output files, reopens the project, and releases Origin. Inspect the
