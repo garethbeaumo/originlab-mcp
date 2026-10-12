@@ -15,6 +15,7 @@ from __future__ import annotations
 from contextlib import suppress
 from typing import Any
 
+from originlab_mcp.exceptions import ToolError
 from originlab_mcp.utils.annotations import DESTRUCTIVE, MUTATING, OPEN_WORLD, READ_ONLY
 from originlab_mcp.utils.autosave import collect_autosave_warnings
 from originlab_mcp.utils.constants import (
@@ -22,6 +23,10 @@ from originlab_mcp.utils.constants import (
     PLOT_TYPE_TO_TEMPLATE,
     AddPlotType,
     PlotType,
+)
+from originlab_mcp.utils.helpers import (
+    error_response_from_exception,
+    tool_error_handler,
 )
 from originlab_mcp.utils.helpers import (
     find_graph as _find_graph,
@@ -43,9 +48,6 @@ from originlab_mcp.utils.helpers import (
 )
 from originlab_mcp.utils.helpers import (
     resolve_worksheet_name as _resolve_worksheet_name,
-)
-from originlab_mcp.utils.helpers import (
-    tool_error_handler,
 )
 from originlab_mcp.utils.helpers import (
     validate_column_indices as _validate_cols,
@@ -130,54 +132,98 @@ def register_plot_tools(mcp: Any, manager: Any) -> None:
                 hint="请传入单个整数列索引，或整数列表。",
             )
 
+        # Replace snapshots rather than sharing mutable lists with a worker
+        # that may continue after a soft timeout. No COM reads in the handler.
+        progress: dict[str, Any] = {
+            "graph_name": None,
+            "creation_state": "not_attempted",
+            "plot_type": plot_type,
+            "sheet_name": target_name,
+            "curves": [],
+            "curve_count": 0,
+            "completed_steps": [],
+            "failed_step": "preflight",
+        }
+
+        def step(name: str, **updates: Any) -> None:
+            nonlocal progress
+            progress = {**progress, **updates, "failed_step": name}
+
+        def complete(name: str, **updates: Any) -> None:
+            nonlocal progress
+            progress = {
+                **progress, **updates,
+                "completed_steps": [*progress["completed_steps"], name],
+            }
+
         def _plot(op: Any) -> dict[str, Any]:
             wks = _find_worksheet(op, target_name)
-            total_cols = wks.cols
-
             cols_to_check = [x_col] + y_col_list
             if yerr_col is not None:
                 cols_to_check.append(yerr_col)
             if xerr_col is not None:
                 cols_to_check.append(xerr_col)
-            _validate_cols(cols_to_check, total_cols)
+            _validate_cols(cols_to_check, wks.cols)
+            complete("preflight")
 
             template = PLOT_TYPE_TO_TEMPLATE.get(plot_type, "line")
+            step("new_graph", creation_state="unknown")
             gr = op.new_graph(template=template)
+            if gr is None:
+                raise RuntimeError("Origin 未返回新建图表对象")
+            complete("new_graph", creation_state="created")
+            step("identify_graph")
+            graph_name = gr.name
+            if not graph_name:
+                raise RuntimeError("Origin 未返回新建图表名称")
+            complete("identify_graph", graph_name=graph_name)
+            manager.active_graph = graph_name
+            step("get_layer")
             gl = _get_layer(gr, 0)
+            complete("get_layer")
 
-            curves = []
             for i, yc in enumerate(y_col_list):
+                step(f"add_plot:{i}")
                 plot_kwargs = {"coly": yc, "colx": x_col}
                 if yerr_col is not None:
                     plot_kwargs["colyerr"] = yerr_col
                 if xerr_col is not None:
                     plot_kwargs["colxerr"] = xerr_col
-                gl.add_plot(wks, **plot_kwargs)
-                curve_info = {
-                    "y_col": yc, "x_col": x_col, "plot_index": i,
-                }
+                added = gl.add_plot(wks, **plot_kwargs)
+                if added is None:
+                    raise RuntimeError("Origin 未返回已添加的曲线")
+                curve_info = {"y_col": yc, "x_col": x_col, "plot_index": i}
                 if yerr_col is not None:
                     curve_info["yerr_col"] = yerr_col
                 if xerr_col is not None:
                     curve_info["xerr_col"] = xerr_col
-                curves.append(curve_info)
+                complete(f"add_plot:{i}", curves=[*progress["curves"], curve_info], curve_count=i + 1)
 
+            step("rescale")
             gl.rescale()
-            with suppress(Exception):
-                gl.group()
+            complete("rescale")
+            step("group")
+            gl.group()
+            complete("group")
+            step("complete")
+            return {**progress, "failed_step": None}
 
-            graph_name = gr.name
-            manager.active_graph = graph_name
-
-            return {
-                "graph_name": graph_name,
-                "plot_type": plot_type,
-                "sheet_name": target_name,
-                "curves": curves,
-                "curve_count": len(curves),
-            }
-
-        result = manager.execute(_plot)
+        try:
+            result = manager.execute(_plot)
+        except Exception as exc:
+            response = error_response_from_exception(exc) if isinstance(exc, ToolError) else error_response(
+                message=f"创建图表未完成: {exc}",
+                error_type="internal_error",
+                target="create_plot",
+            )
+            response["error"]["hint"] = (
+                "请先检查 Origin 中的图表和已完成步骤再重试。"
+                "失败调用的副作用或断连后的当前状态未确认；没有自动删除任何内容。"
+            )
+            response["data"] = {**progress, "current_state_verified": False}
+            # Avoid asking a disconnected COM server for more context.
+            response["resource"] = {"graph_name": response["data"]["graph_name"]}
+            return response
 
         return success_response(
             message=(

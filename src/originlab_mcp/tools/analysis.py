@@ -84,15 +84,17 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
 
             # 可选：固定斜率或截距
             if fix_slope is not None:
-                lr.fix_slope = fix_slope
+                lr.fix_slope(fix_slope)
             if fix_intercept is not None:
-                lr.fix_intercept = fix_intercept
+                lr.fix_intercept(fix_intercept)
 
             # 执行拟合
             if confidence_band:
                 band = 3  # 同时生成置信带和预测带
                 r, c = lr.report(band)
-                result = lr.result() if hasattr(lr, 'result') else {}
+                if not r or not c:
+                    raise RuntimeError("Origin 未返回拟合报告或曲线范围")
+                result = lr.result()
                 report_info = {
                     "report_range": str(r) if r else None,
                     "curves_range": str(c) if c else None,
@@ -109,6 +111,8 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
                 "method": "linear",
             }
 
+            if not isinstance(result, dict) or not result.get("Parameters"):
+                raise RuntimeError("Origin 未返回有效的线性拟合参数")
             if result:
                 # 提取 Parameters
                 params = result.get("Parameters", {})
@@ -119,6 +123,10 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
                             "value": pinfo.get("Value"),
                             "error": pinfo.get("Error"),
                         }
+
+                for name in ("Slope", "Intercept"):
+                    if fit_result["parameters"].get(name, {}).get("value") is None:
+                        raise RuntimeError(f"Origin 拟合结果缺少 {name}")
 
                 # 提取统计量
                 stats = result.get("Statistics", {})
@@ -246,33 +254,31 @@ def register_analysis_tools(mcp: Any, manager: Any) -> None:
             }
 
             if generate_report:
-                try:
-                    r, c = model.report()
-                    fit_result["report"] = {
-                        "report_range": str(r) if r else None,
-                        "curves_range": str(c) if c else None,
-                    }
-                except Exception:
-                    pass
-                # report 之后不能再调用 result
-            else:
-                try:
-                    result = model.result()
-                    if result:
-                        params = result.get("Parameters", {})
-                        fit_result["parameters"] = {}
-                        for pname, pinfo in params.items():
-                            if isinstance(pinfo, dict):
-                                fit_result["parameters"][pname] = {
-                                    "value": pinfo.get("Value"),
-                                    "error": pinfo.get("Error"),
-                                }
+                r, c = model.report()
+                if not r or not c:
+                    raise RuntimeError("Origin 未返回拟合报告或曲线范围")
+                fit_result["report"] = {
+                    "report_range": str(r),
+                    "curves_range": str(c),
+                }
 
-                        stats = result.get("Statistics", {})
-                        if stats:
-                            fit_result["statistics"] = stats
-                except Exception:
-                    pass
+            # originpro 1.1.15 returns the flat nltree. report must precede
+            # result when both are requested. Keep the full tree for custom
+            # functions and statistics rather than inventing a nested schema.
+            result = model.result()
+            if not isinstance(result, dict) or not result:
+                raise RuntimeError("Origin 未返回非线性拟合结果")
+            fit_result["result"] = result
+            known = COMMON_FIT_FUNCTIONS.get(function_name)
+            names = set(known.params if known else ())
+            names.update(initial_params or {})
+            names.update(fixed_params or {})
+            names.update(key[2:] for key in result if key.startswith("f_"))
+            fit_result["parameters"] = {
+                name: {"value": result[name], "error": result.get(f"e_{name}")}
+                for name in sorted(names)
+                if name in result and isinstance(result[name], (int, float))
+            }
 
             return fit_result
 

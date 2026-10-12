@@ -81,3 +81,15 @@ Record PASS / FAIL / NOT RUN for portable checks, live workflow, config loading,
 failure handling, identity switching, periodic saving, and modal timeout. Attach
 `origin-smoke.log`, `coverage.xml`, output files and version information. A green
 fake suite cannot replace any NOT RUN live item.
+
+
+## Fitting and result-contract acceptance (October 12 follow-up)
+
+In a confirmed disposable Origin session only, the live verification script now
+imports X=[1,2,3], Y=[3,5,7] and asserts free slope/intercept 2/1, slope 17/7
+with intercept fixed at zero, and intercept 5 with slope fixed at zero. Never run
+`--allow-project-reset` against a user-owned project. On a checkout without Origin,
+`uv run --no-sync python scripts/verify_mcp.py --fake-workflow` verifies these
+numbers plus report/result error flags over real MCP stdio using only the test
+backend. See [result contract handoff](result-contract-handoff.md) for the
+remaining real-runtime validation boundary.

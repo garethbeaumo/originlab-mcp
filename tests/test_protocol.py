@@ -15,8 +15,9 @@ from mcp.client.stdio import stdio_client
 
 
 @pytest.fixture(scope="module")
-def wire_results():
+def wire_results(tmp_path_factory):
     async def collect():
+        output_dir = tmp_path_factory.mktemp("wire-export")
         root = Path(__file__).resolve().parents[1]
         env = dict(os.environ)
         # Exercise this checkout, not a stale installed wheel or a .pth file.
@@ -41,6 +42,19 @@ def wire_results():
             results["schema"] = await session.call_tool("create_plot", {"x_col": "not-an-int", "y_cols": 1})
             results["unknown"] = await session.call_tool("nonexistent_tool", {})
             results["success"] = await session.call_tool("list_fit_functions", {})
+            for name, kwargs in (("free", {}), ("intercept", {"fix_intercept": 0}), ("slope", {"fix_slope": 0})):
+                results[name] = await session.call_tool("linear_fit", {"sheet_name": "FitData", "x_col": 0, "y_col": 1, **kwargs})
+            for tool in ("linear_fit", "nonlinear_fit"):
+                for stage in ("result", "report"):
+                    kwargs = {"sheet_name": "ResultFailure" if stage == "result" else "ReportFailure", "x_col": 0, "y_col": 1}
+                    if tool == "linear_fit":
+                        kwargs["confidence_band"] = stage == "report"
+                    else:
+                        kwargs.update(function_name="Gauss", generate_report=stage == "report")
+                    results[f"{tool}_{stage}"] = await session.call_tool(tool, kwargs)
+            results["plot_partial"] = await session.call_tool("create_plot", {"sheet_name": "PlotPartial", "x_col": 0, "y_cols": [1, 2]})
+            results["export_failure"] = await session.call_tool("export_graph", {"graph_name": "ExportFailure", "output_path": str(output_dir / "single.png")})
+            results["export_partial"] = await session.call_tool("export_all_graphs", {"output_dir": str(output_dir)})
             results["tools"] = await session.list_tools()
             return results
 
@@ -85,3 +99,33 @@ def test_success_and_discovery_remain_compatible(wire_results):
         assert tool.annotations is not None
         assert tool.inputSchema["type"] == "object"
         assert tool.outputSchema is None
+
+
+@pytest.mark.parametrize("case,slope,intercept", [("free", 2, 1), ("intercept", 17 / 7, 0), ("slope", 0, 5)])
+def test_linear_acceptance_over_stdio(wire_results, case, slope, intercept):
+    result = wire_results[case]
+    assert result.isError is False
+    payload = json.loads(result.content[0].text)
+    assert payload["ok"]
+    params = payload["data"]["parameters"]
+    assert params["Slope"]["value"] == pytest.approx(slope)
+    assert params["Intercept"]["value"] == pytest.approx(intercept)
+
+
+@pytest.mark.parametrize("case", ["linear_fit_result", "linear_fit_report", "nonlinear_fit_result", "nonlinear_fit_report", "plot_partial", "export_failure", "export_partial"])
+def test_result_failures_over_stdio(wire_results, case):
+    result = wire_results[case]
+    assert result.isError is True
+    payload = json.loads(result.content[0].text)
+    assert payload["ok"] is False
+    if case == "plot_partial":
+        assert payload["data"]["curve_count"] == 1
+        assert payload["data"]["graph_name"]
+        assert payload["data"]["failed_step"] == "add_plot:1"
+
+
+def test_export_partial_over_stdio(wire_results):
+    payload = json.loads(wire_results["export_partial"].content[0].text)
+    assert payload["data"]["count"] == 1
+    assert payload["data"]["failed_count"] == 1
+    assert payload["data"]["files"][0]["output_path"].endswith(".png")

@@ -62,6 +62,14 @@ def _ensure_output_dir(path: str) -> str | None:
     return None
 
 
+def _save_figure(graph: Any, path: str, fmt: str, width: int) -> str:
+    """save_fig returns the actual full path, or an empty string on failure."""
+    actual = graph.save_fig(path, type=fmt, width=width)
+    if not isinstance(actual, str) or not actual.strip():
+        raise RuntimeError("Origin save_fig 未返回已导出的文件路径；输出未确认")
+    return actual
+
+
 def register_export_tools(mcp: Any, manager: Any) -> None:
     """注册导出与项目管理类 tools 到 MCP Server。
 
@@ -141,10 +149,11 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
 
         def _export(op: Any) -> dict[str, Any]:
             gr = find_graph(op, target_graph)
-            gr.save_fig(output_path, type=fmt, width=width)
+            actual = _save_figure(gr, output_path, fmt, width)
             return {
                 "graph_name": target_graph,
-                "output_path": os.path.abspath(output_path),
+                "output_path": actual,
+                "requested_path": os.path.abspath(output_path),
                 "format": fmt,
                 "width": width,
             }
@@ -205,18 +214,34 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
 
         def _export_all(op: Any) -> dict[str, Any]:
             exported: list[dict[str, str]] = []
-            for index, gr in enumerate(op.pages("g"), start=1):
-                graph_name = getattr(gr, "name", f"Graph{index}")
-                file_path = os.path.abspath(
-                    os.path.join(output_dir, f"{graph_name}.{fmt}")
-                )
-                gr.save_fig(file_path, type=fmt, width=width)
-                exported.append(
-                    {
-                        "graph_name": graph_name,
-                        "output_path": file_path,
-                    }
-                )
+            failed: list[dict[str, str]] = []
+            enumeration_complete = True
+            try:
+                for index, gr in enumerate(op.pages("g"), start=1):
+                    graph_name = getattr(gr, "name", f"Graph{index}")
+                    file_path = os.path.abspath(
+                        os.path.join(output_dir, f"{graph_name}.{fmt}")
+                    )
+                    try:
+                        actual = _save_figure(gr, file_path, fmt, width)
+                    except Exception as exc:
+                        failed.append({
+                            "graph_name": graph_name,
+                            "requested_path": file_path,
+                            "error": str(exc),
+                            "output_state": "unconfirmed",
+                        })
+                        continue
+                    exported.append(
+                        {
+                            "graph_name": graph_name,
+                            "output_path": actual,
+                            "requested_path": file_path,
+                        }
+                    )
+            except Exception as exc:
+                enumeration_complete = False
+                failed.append({"stage": "enumerate_graphs", "error": str(exc), "output_state": "unconfirmed"})
 
             return {
                 "output_dir": os.path.abspath(output_dir),
@@ -224,9 +249,23 @@ def register_export_tools(mcp: Any, manager: Any) -> None:
                 "width": width,
                 "count": len(exported),
                 "files": exported,
+                "failed": failed,
+                "failed_count": len(failed),
+                "enumeration_complete": enumeration_complete,
             }
 
         result = manager.execute(_export_all)
+
+        if result["failed"]:
+            response = error_response(
+                message=f"已确认导出 {result['count']} 个图表，{result['failed_count']} 个输出未确认。",
+                error_type="internal_error",
+                target="export_all_graphs",
+                hint="检查 files 和 failed 及磁盘上的输出后再重试，避免重复导出。",
+            )
+            response["data"] = result
+            response["resource"] = manager.get_resource_context()
+            return response
 
         if result["count"] == 0:
             return success_response(

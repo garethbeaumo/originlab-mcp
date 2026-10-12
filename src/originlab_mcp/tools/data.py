@@ -21,6 +21,7 @@ from originlab_mcp.exceptions import (
     ColumnIndexError,
     ToolError,
 )
+from originlab_mcp.session import MAX_PREVIEW_COLS, collect_worksheet_preview
 from originlab_mcp.utils.annotations import (
     DESTRUCTIVE,
     IDEMPOTENT_MUTATING,
@@ -57,33 +58,6 @@ from originlab_mcp.utils.validators import (
 )
 
 # 注: _resolve_worksheet_name 和 _find_worksheet 从 utils.helpers 导入
-
-
-def _get_column_display_name(wks: Any, index: int) -> str:
-    """返回用于预览输出的列名。"""
-    long_name = _get_column_label(wks, index, "L")
-    if long_name:
-        return long_name
-
-    short_name = _get_column_label(wks, index, "G")
-    if short_name:
-        return short_name
-
-    return f"Col{index + 1}"
-
-
-def _make_unique_column_name(name: str, used: set[str]) -> str:
-    """为重复列名追加稳定后缀，避免 records 键冲突。"""
-    if name not in used:
-        used.add(name)
-        return name
-
-    suffix = 2
-    while f"{name}_{suffix}" in used:
-        suffix += 1
-    unique_name = f"{name}_{suffix}"
-    used.add(unique_name)
-    return unique_name
 
 
 def _normalize_designations(spec: str) -> str:
@@ -505,6 +479,7 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
     def get_worksheet_data(
         sheet_name: str | None = None,
         max_rows: int = DEFAULT_MAX_PREVIEW_ROWS,
+        max_cols: int = MAX_PREVIEW_COLS,
     ) -> dict:
         """Return sample data from a worksheet (for preview).
 
@@ -514,7 +489,10 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
 
         Default behavior:
         - sheet_name omitted: uses current active worksheet
-        - max_rows defaults to 20; returns at most the specified number of rows
+        - max_rows defaults to 20 (cap 100), max_cols defaults to 32 (cap 32)
+        - Total rows means used extent, including gaps; allocated_rows is separate
+        - Cell text is capped at 256 characters, total preview text at 20,000
+        - Omissions are reported explicitly; max_rows=0 reads no cell data
 
         Examples:
         - get_worksheet_data()
@@ -529,48 +507,26 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
                 hint="请传入 0 或正整数。",
             )
 
+        if max_cols < 0:
+            return error_response(
+                message="max_cols 不能小于 0",
+                error_type="invalid_input",
+                target="max_cols",
+                value=max_cols,
+                hint="请传入 0 或正整数。",
+            )
+
         target_name = _resolve_worksheet_name(sheet_name, manager)
 
         def _data(op: Any) -> dict[str, Any]:
             wks = _find_worksheet(op, target_name)
-            total_cols = wks.cols
-            used_names: set[str] = set()
-            col_names: list[str] = []
-            col_values: list[list[Any]] = []
-            for ci in range(total_cols):
-                base_name = _get_column_display_name(wks, ci)
-                col_name = _make_unique_column_name(base_name, used_names)
-                col_names.append(col_name)
-                col_values.append(list(wks.to_list(ci)))
-
-            total_rows = max((len(values) for values in col_values), default=0)
-            truncated = total_rows > max_rows
-            rows_to_return = min(total_rows, max_rows)
-
-            data_records = []
-            for ri in range(rows_to_return):
-                record = {
-                    col_names[ci]: (
-                        col_values[ci][ri] if ri < len(col_values[ci]) else None
-                    )
-                    for ci in range(total_cols)
-                }
-                data_records.append(record)
-
-            return {
-                "sheet_name": target_name,
-                "total_rows": total_rows,
-                "returned_rows": rows_to_return,
-                "truncated": truncated,
-                "columns": col_names,
-                "data": data_records,
-            }
+            return {"sheet_name": target_name, **collect_worksheet_preview(wks, max_rows, max_cols)}
 
         result = manager.execute(_data)
 
         msg = f"返回 {result['returned_rows']} 行数据"
         if result["truncated"]:
-            msg += f"（共 {result['total_rows']} 行，已截断）"
+            msg += "（" + "；".join(result["omissions"]) + "）"
         msg += "。"
 
         return success_response(

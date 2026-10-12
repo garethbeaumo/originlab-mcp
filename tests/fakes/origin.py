@@ -115,13 +115,23 @@ class FakeGraph:
 class FakeLinearFit:
     """Minimal originpro.LinearFit stand-in with deterministic results."""
 
+    __slots__ = ("_wks", "_x_col", "_y_col", "_yerr_col", "_fixed_slope", "_fixed_intercept", "calls")
+
+    def fix_slope(self, value: float) -> None:
+        self.calls.append("fix_slope")
+        self._fixed_slope = value
+
+    def fix_intercept(self, value: float) -> None:
+        self.calls.append("fix_intercept")
+        self._fixed_intercept = value
+
     def __init__(self) -> None:
         self._wks: FakeSheet | None = None
         self._x_col = 0
         self._y_col = 0
         self._yerr_col: int | None = None
-        self.fix_slope: float | None = None
-        self.fix_intercept: float | None = None
+        self._fixed_slope: float | None = None
+        self._fixed_intercept: float | None = None
         self.calls: list[str] = []
 
     def set_data(
@@ -153,14 +163,14 @@ class FakeLinearFit:
         if n == 0:
             slope = 0.0
             intercept = 0.0
-        elif self.fix_slope is not None and self.fix_intercept is not None:
-            slope = float(self.fix_slope)
-            intercept = float(self.fix_intercept)
-        elif self.fix_slope is not None:
-            slope = float(self.fix_slope)
+        elif self._fixed_slope is not None and self._fixed_intercept is not None:
+            slope = float(self._fixed_slope)
+            intercept = float(self._fixed_intercept)
+        elif self._fixed_slope is not None:
+            slope = float(self._fixed_slope)
             intercept = sum(ys[i] - slope * xs[i] for i in range(n)) / n
-        elif self.fix_intercept is not None:
-            intercept = float(self.fix_intercept)
+        elif self._fixed_intercept is not None:
+            intercept = float(self._fixed_intercept)
             denom = sum(xs[i] * xs[i] for i in range(n)) or 1.0
             slope = sum((ys[i] - intercept) * xs[i] for i in range(n)) / denom
         else:
@@ -206,6 +216,7 @@ class FakeNLFit:
         self._params: dict[str, float] = {}
         self._fixed: dict[str, float] = {}
         self._fitted = False
+        self._ended = False
         self.calls: list[str] = []
 
     def set_data(
@@ -245,18 +256,20 @@ class FakeNLFit:
 
     def result(self) -> dict[str, Any]:
         self.calls.append("result")
-        if not self._fitted:
-            self.fit()
+        self._ended = True
         return {
-            "Parameters": {
-                name: {"Value": value, "Error": 0.02}
-                for name, value in self._params.items()
-            },
-            "Statistics": {"RSqCOD": 0.98},
+            **self._params,
+            **{f"e_{name}": 0.02 for name in self._params},
+            **{f"f_{name}": int(name in self._fixed) for name in self._params},
+            "cod": 0.98,
+            "niter": 3,
         }
 
     def report(self) -> tuple[str, str]:
+        if self._ended:
+            raise ValueError("You must call report() before calling result().")
         self.calls.append("report")
+        self._ended = True
         return ("[Book1]NLFitReport", "[Book1]NLFitCurves")
 
 
@@ -342,6 +355,18 @@ class FakeSheet:
     def to_list(self, col_index: int) -> list:
         self._ensure_col(col_index)
         return list(self._columns[col_index])
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return (max(32, self.rows), self.cols)
+
+    def to_list2(self, r1: int = 0, r2: int = -1, c1: int = 0, c2: int = -1) -> list[list[Any]]:
+        r2 = self.shape[0] - 1 if r2 == -1 else r2
+        c2 = self.cols - 1 if c2 == -1 else c2
+        if not (0 <= r1 <= r2 < self.shape[0] and 0 <= c1 <= c2 < self.cols):
+            raise ValueError("Invalid worksheet rectangle")
+        return [[self._columns[c][r] if r < len(self._columns[c]) else None
+                 for c in range(c1, c2 + 1)] for r in range(r1, r2 + 1)]
 
     def cols_axis(self, spec: str) -> None:
         self.axis_specs.append(spec)

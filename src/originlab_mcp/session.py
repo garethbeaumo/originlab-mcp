@@ -16,7 +16,6 @@ from originlab_mcp.utils.helpers import (
     find_graph,
     find_worksheet,
     get_column_info,
-    get_column_label,
     get_plot_count,
 )
 
@@ -212,68 +211,102 @@ def _unique_column_name(name: str, used: set[str]) -> str:
     return unique_name
 
 
-def _column_display_name(wks: Any, index: int) -> str:
-    long_name = get_column_label(wks, index, "L")
-    if long_name:
-        return long_name
-    short_name = get_column_label(wks, index, "G")
-    if short_name:
-        return short_name
-    return f"Col{index + 1}"
-
-
 def collect_worksheet_columns(wks: Any) -> list[dict[str, Any]]:
     """Return column metadata, including designations when available."""
     columns: list[dict[str, Any]] = []
     total_cols = int(getattr(wks, "cols", 0) or 0)
-    for index in range(total_cols):
-        columns.append(get_column_info(wks, index))
+    for index in range(min(total_cols, MAX_PREVIEW_COLS)):
+        info = get_column_info(wks, index)
+        clipped = [key for key, value in info.items() if isinstance(value, str) and len(value) > 256]
+        item = {key: value[:256] if isinstance(value, str) else value for key, value in info.items()}
+        if clipped:
+            item["truncated_fields"] = clipped
+        columns.append(item)
     with suppress(Exception):
-        designations = wks.get_labels("D")
+        designations = [wks.get_label(index, "D") for index in range(len(columns))]
         for index, designation in enumerate(designations):
             if index < len(columns):
-                columns[index]["designation"] = designation
+                columns[index]["designation"] = str(designation)[:256]
+                if len(str(designation)) > 256:
+                    columns[index].setdefault("truncated_fields", []).append("designation")
     return columns
+
+
+# Bounds apply before any cell data crosses COM. Text limits bound the response;
+# Origin still returns complete cell strings within this bounded rectangle.
+MAX_PREVIEW_ROWS = 100
+MAX_PREVIEW_COLS = 32
+MAX_PREVIEW_CELL_CHARS = 256
+MAX_PREVIEW_TEXT_CHARS = 20_000
 
 
 def collect_worksheet_preview(
     wks: Any,
     max_rows: int = DEFAULT_MAX_PREVIEW_ROWS,
+    max_cols: int = MAX_PREVIEW_COLS,
 ) -> dict[str, Any]:
-    """Return a truncated row preview for a worksheet."""
-    if max_rows < 0:
-        raise ValueError("max_rows 不能小于 0")
+    """Read only a bounded rectangle; total_rows remains the used row extent."""
+    if max_rows < 0 or max_cols < 0:
+        raise ValueError("max_rows 和 max_cols 不能小于 0")
 
-    total_cols = int(getattr(wks, "cols", 0) or 0)
+    total_cols = int(wks.cols)
+    # WSheet.rows is wks.maxRows (used extent), not allocated shape[0].
+    total_rows = int(wks.rows)
+    allocated_rows = int(wks.shape[0])
+    rows_to_return = min(total_rows, max_rows, MAX_PREVIEW_ROWS)
+    cols_to_return = min(total_cols, max_cols, MAX_PREVIEW_COLS)
     used_names: set[str] = set()
     col_names: list[str] = []
-    col_values: list[list[Any]] = []
-    for index in range(total_cols):
-        col_names.append(_unique_column_name(_column_display_name(wks, index), used_names))
-        try:
-            values = list(wks.to_list(index))
-        except Exception:
-            values = []
-        col_values.append(values)
+    text_remaining = MAX_PREVIEW_TEXT_CHARS
+    shortened = 0
 
-    total_rows = max((len(values) for values in col_values), default=0)
-    rows_to_return = min(total_rows, max_rows)
-    records = []
-    for row_index in range(rows_to_return):
-        records.append(
-            {
-                col_names[col_index]: (
-                    col_values[col_index][row_index]
-                    if row_index < len(col_values[col_index])
-                    else None
-                )
-                for col_index in range(total_cols)
-            }
-        )
+    def bounded_text(value: Any, limit: int = MAX_PREVIEW_CELL_CHARS) -> Any:
+        nonlocal text_remaining, shortened
+        if not isinstance(value, str):
+            return value
+        budget = min(limit, text_remaining)
+        text_remaining -= min(len(value), budget)
+        if len(value) <= budget:
+            return value
+        shortened += 1
+        return value[:max(0, budget - 1)] + ("…" if budget else "")
+
+    for index in range(cols_to_return):
+        # Do not hide COM errors as empty labels or empty data.
+        name = wks.get_label(index, "L") or wks.get_label(index, "G") or f"Col{index + 1}"
+        col_names.append(_unique_column_name(bounded_text(str(name), 128), used_names))
+
+    # -1 means 'to the end' in to_list2: never issue a read for zero rows/cols.
+    block = wks.to_list2(0, rows_to_return - 1, 0, cols_to_return - 1) if rows_to_return and cols_to_return else []
+    if not cols_to_return:
+        rows_to_return = 0
+    if len(block) != rows_to_return or any(len(row) != cols_to_return for row in block):
+        raise RuntimeError("Origin 预览返回的区域尺寸与请求不符")
+    records = [
+        {name: bounded_text(row[index]) for index, name in enumerate(col_names)}
+        for row in block
+    ]
+    omitted_rows = total_rows - rows_to_return
+    omitted_cols = total_cols - cols_to_return
+    omissions = []
+    if omitted_rows:
+        omissions.append(f"省略 {omitted_rows} 行")
+    if omitted_cols:
+        omissions.append(f"省略 {omitted_cols} 列")
+    if shortened:
+        omissions.append(f"截短 {shortened} 个文本值或列名")
     return {
         "total_rows": total_rows,
+        "row_count_semantics": "used_extent_including_gaps",
+        "allocated_rows": allocated_rows,
+        "total_cols": total_cols,
         "returned_rows": rows_to_return,
-        "truncated": total_rows > max_rows,
+        "returned_cols": cols_to_return,
+        "omitted_rows": omitted_rows,
+        "omitted_cols": omitted_cols,
+        "shortened_text_values": shortened,
+        "omissions": omissions,
+        "truncated": bool(omissions),
         "columns": col_names,
         "data": records,
     }
@@ -293,6 +326,8 @@ def read_worksheet_detail(
         "rows": getattr(wks, "rows", None),
         "cols": getattr(wks, "cols", None),
         "columns": collect_worksheet_columns(wks),
+        "omitted_columns": max(0, int(wks.cols) - MAX_PREVIEW_COLS),
+        "column_text_limit": 256,
     }
     if include_preview:
         detail["preview"] = collect_worksheet_preview(wks, max_preview_rows)
@@ -377,11 +412,10 @@ def build_session_snapshot(
         "excel_books": excel_books,
     }
     if include_preview and active_worksheet:
-        with suppress(Exception):
-            snapshot["active_worksheet_preview"] = read_worksheet_detail(
-                op,
-                active_worksheet,
-                include_preview=True,
-                max_preview_rows=max_preview_rows,
-            )
+        snapshot["active_worksheet_preview"] = read_worksheet_detail(
+            op,
+            active_worksheet,
+            include_preview=True,
+            max_preview_rows=max_preview_rows,
+        )
     return snapshot

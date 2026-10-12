@@ -26,6 +26,7 @@ class StubSheet:
     def __init__(self, name: str, rows: int, cols: int, columns: list[list], labels: dict):
         self.name = name
         self.rows = rows
+        self.shape = (max(32, rows), cols)
         self.cols = cols
         self._columns = columns
         self._labels = labels
@@ -38,6 +39,11 @@ class StubSheet:
 
     def to_list(self, index: int) -> list:
         return self._columns[index]
+
+    def to_list2(self, r1=0, r2=-1, c1=0, c2=-1):
+        assert r2 >= r1 >= 0 and c2 >= c1 >= 0
+        return [[self._columns[c][r] if r < len(self._columns[c]) else None
+                 for c in range(c1, c2 + 1)] for r in range(r1, r2 + 1)]
 
 
 class StubBook:

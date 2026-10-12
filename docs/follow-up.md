@@ -38,3 +38,13 @@ existing JSON text while setting the protocol error flag; schema and unknown-too
 errors remain SDK-managed. Seven wire regressions pass. The SDK remains locked at
 1.26.0, with the declaration now `>=1.26.0,<2`. See
 [protocol handoff](protocol-handoff.md) for scope, evidence and compatibility limits.
+
+
+## Completed bounded result-contract follow-up
+
+The October 12 Windows round corrects fitting method calls and flat NLFit results,
+checks actual export paths and partial batches, bounds worksheet previews before
+cell transfer, and reports graph objects/steps retained after creation failures.
+See [result contract handoff](result-contract-handoff.md) for API sources,
+**269 passing Windows tests**, installed stdio evidence, and live Origin limits.
+COM owner/lifecycle and atomic preflight/mutation work remain separate.

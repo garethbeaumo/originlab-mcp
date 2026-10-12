@@ -195,7 +195,8 @@ class TestToolRegressions:
         manager.active_worksheet = "[Book1]Sheet1"
 
         class StubSheet:
-            rows = 99
+            rows = 2  # Origin used extent
+            shape = (99, 2)  # Allocated worksheet size
             cols = 2
 
             def __init__(self):
@@ -213,8 +214,9 @@ class TestToolRegressions:
                 }
                 return labels[label_type][index]
 
-            def to_list(self, index: int) -> list[int]:
-                return self._data[index]
+            def to_list2(self, r1=0, r2=-1, c1=0, c2=-1):
+                assert (r1, r2, c1, c2) == (0, 1, 0, 1)
+                return [[1, 10], [2, None]]
 
         class StubOp:
             def __init__(self):

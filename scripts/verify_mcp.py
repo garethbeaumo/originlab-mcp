@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import platform
 import sys
@@ -28,7 +29,7 @@ async def verify(args: argparse.Namespace) -> None:
         env["ORIGINLAB_MCP_DISPATCH_TIMEOUT"] = "30"
     params = StdioServerParameters(
         command=sys.executable,
-        args=["-m", "originlab_mcp.server"],
+        args=["-m", "tests.protocol_server" if args.fake_workflow else "originlab_mcp.server"],
         env=env,
     )
     async with (
@@ -61,13 +62,35 @@ async def verify(args: argparse.Namespace) -> None:
         if not invalid.isError or failure.get("ok") is not False:
             raise RuntimeError("Tool failure was not reported as an MCP error")
         print("PASS: business failure retains its JSON payload and sets isError=true.")
-        if not args.live:
+        if not args.live and not args.fake_workflow:
             print("PASS: portable MCP discovery and diagnostic call; no Origin operations run.")
             return
 
-        await call("get_origin_info")
-        await call("new_project")
-        imported = await call("import_data_from_text", data="X,Y\n1,2\n2,4\n3,6", has_header=True)
+        if args.live:
+            await call("get_origin_info")
+            await call("new_project")
+        imported = await call("import_data_from_text", data="X,Y\n1,3\n2,5\n3,7", has_header=True)
+        for fixed, slope, intercept in (({}, 2, 1), ({"fix_intercept": 0}, 17 / 7, 0), ({"fix_slope": 0}, 0, 5)):
+            fit = await call("linear_fit", x_col=0, y_col=1, **fixed)
+            for name, expected in (("Slope", slope), ("Intercept", intercept)):
+                actual = fit["parameters"][name]["value"]
+                if not math.isclose(actual, expected, rel_tol=1e-7, abs_tol=1e-7):
+                    raise RuntimeError(f"{fixed}: {name} expected {expected}, got {actual}")
+        print("PASS: linear fit acceptance (free, zero intercept, zero slope).")
+        if args.fake_workflow:
+            for tool in ("linear_fit", "nonlinear_fit"):
+                for stage in ("result", "report"):
+                    kwargs = {"sheet_name": "ResultFailure" if stage == "result" else "ReportFailure", "x_col": 0, "y_col": 1}
+                    if tool == "linear_fit":
+                        kwargs["confidence_band"] = stage == "report"
+                    else:
+                        kwargs.update(function_name="Gauss", generate_report=stage == "report")
+                    failed = await session.call_tool(tool, kwargs)
+                    payload = json.loads(failed.content[0].text)
+                    if not failed.isError or payload.get("ok") is not False:
+                        raise RuntimeError(f"{tool} {stage} failure was reported as success")
+            print("PASS: report/result failure injection over real stdio; fake Origin only.")
+            return
         sheets = await call("list_worksheets")
         if sheets["count"] < 1:
             raise RuntimeError(f"Worksheet discovery failed after import: {imported}")
@@ -97,7 +120,9 @@ async def verify(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--live", action="store_true")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--live", action="store_true")
+    modes.add_argument("--fake-workflow", action="store_true", help="Run numerical and failure acceptance over real stdio with the test backend (checkout required).")
     parser.add_argument("--allow-project-reset", action="store_true")
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args()
