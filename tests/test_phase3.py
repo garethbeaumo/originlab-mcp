@@ -6,29 +6,8 @@ import pytest
 from originlab_mcp.exceptions import (
     ToolError,
 )
-from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.utils.helpers import sanitize_labtalk_name
-
-# ===================================================================
-# DummyMCP 复用
-# ===================================================================
-
-
-class DummyMCP:
-    def __init__(self):
-        self.tools = {}
-
-    def tool(self):
-        def decorator(fn):
-            self.tools[fn.__name__] = fn
-            return fn
-        return decorator
-
-
-@pytest.fixture
-def fresh_manager():
-    return OriginManager(auto_recover_active=False)
-
+from tests.fakes import DummyMCP
 
 # ===================================================================
 # sanitize_labtalk_name 测试

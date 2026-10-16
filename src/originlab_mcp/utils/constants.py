@@ -112,6 +112,7 @@ class ErrorType(str, Enum):
     UNSUPPORTED = "unsupported"
     CONFLICT = "conflict"
     ENVIRONMENT_ERROR = "environment_error"
+    TIMEOUT = "timeout"
     INTERNAL_ERROR = "internal_error"
 
 

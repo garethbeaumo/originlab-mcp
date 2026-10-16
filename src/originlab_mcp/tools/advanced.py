@@ -11,7 +11,13 @@ from __future__ import annotations
 
 import re
 
+from originlab_mcp.utils.annotations import LABTALK, READ_ONLY
+from originlab_mcp.utils.autosave import (
+    collect_autosave_warnings,
+    should_autosave_labtalk,
+)
 from originlab_mcp.utils.helpers import tool_error_handler
+from originlab_mcp.utils.labtalk_safe import classify_labtalk_script
 from originlab_mcp.utils.validators import error_response, success_response
 
 _LABTALK_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\$?$")
@@ -25,19 +31,30 @@ def register_advanced_tools(mcp, manager) -> None:
         manager: OriginManager 实例（依赖注入）。
     """
 
-    @mcp.tool()
+    @mcp.tool(annotations=LABTALK)
     @tool_error_handler("LabTalk命令执行", "请检查 LabTalk 命令语法是否正确。")
-    def execute_labtalk(command: str) -> dict:
+    def execute_labtalk(
+        command: str,
+        confirm: bool = False,
+        timeout: float | None = None,
+    ) -> dict:
         """Execute an arbitrary LabTalk command (high risk, use only when standard tools are insufficient).
 
         ⚠️ HIGH RISK TOOL: This tool directly executes LabTalk commands and may cause unpredictable effects on the Origin project.
 
         When to use: ONLY when all standard tools (import_csv, create_plot, set_axis_title, etc.) cannot fulfill the requirement, as a last resort.
-        When not to use: Any operation achievable with standard tools should NOT use this tool.
+        When not to use: Any operation achievable with standard tools should NOT use this tool. Destructive commands (project reset/delete/system/OS) require confirm=true.
+
+        Parameter notes:
+        - confirm: set true only after reviewing a gated destructive/system command
+        - timeout: optional soft dispatch budget in seconds for this call only;
+          omit to use ORIGINLAB_MCP_DISPATCH_TIMEOUT; pass 0 to disable
 
         Examples:
         - execute_labtalk(command="window -a Graph1")
-        - execute_labtalk(command="type -a \"hello\"")
+        - execute_labtalk(command="type -a \\"hello\\"")
+        - execute_labtalk(command="doc -s", confirm=True)
+        - execute_labtalk(command="run.section(...)", timeout=120)
         """
         if not command or not command.strip():
             return error_response(
@@ -45,6 +62,11 @@ def register_advanced_tools(mcp, manager) -> None:
                 error_type="invalid_input",
                 target="command",
                 hint="请提供要执行的 LabTalk 命令。",
+                suggested_alternatives=[
+                    "list_worksheets",
+                    "list_graphs",
+                    "get_labtalk_variable",
+                ],
             )
 
         # 基本安全检查：限制命令长度，防止超长注入
@@ -54,25 +76,62 @@ def register_advanced_tools(mcp, manager) -> None:
                 error_type="invalid_input",
                 target="command",
                 hint="请缩短 LabTalk 命令。",
+                suggested_alternatives=["get_labtalk_variable"],
             )
+
+        requires_confirm, reason, alternatives = classify_labtalk_script(command)
+        if requires_confirm and not confirm:
+            return error_response(
+                message=(
+                    f"LabTalk 命令包含高风险操作 '{reason}'，"
+                    "需要 confirm=true 才会执行。"
+                ),
+                error_type="invalid_input",
+                target="confirm",
+                value=reason,
+                hint=(
+                    "若确实需要执行，请设置 confirm=true。"
+                    "更推荐改用对应的标准 tools（见 suggested_alternatives）。"
+                ),
+                suggested_alternatives=list(alternatives) or [
+                    "save_project",
+                    "new_project",
+                    "remove_plot_from_graph",
+                ],
+            )
+
+        autosave = {"attempted": False, "saved": False, "path": None, "message": ""}
+        if should_autosave_labtalk(command, confirm=confirm):
+            autosave = manager.preflight_autosave("execute_labtalk")
 
         def _exec(op):
             result = op.lt_exec(command)
             return result
 
-        result = manager.execute(_exec)
+        if timeout is None:
+            result = manager.execute(_exec)
+        else:
+            result = manager.execute(_exec, dispatch_timeout=timeout)
+
+        warnings = [
+            "此操作通过逃生舱（execute_labtalk）执行，不属于标准调用路径。",
+            "执行结果可能影响 Origin 内部状态，建议后续用 list_worksheets / list_graphs 确认当前状态。",
+        ]
+        if requires_confirm:
+            warnings.append(f"已确认执行高风险 LabTalk 操作：{reason}")
+        warnings.extend(collect_autosave_warnings(autosave))
 
         return success_response(
             message="LabTalk 命令已执行。",
             data={
                 "command": command,
                 "result": str(result) if result is not None else None,
+                "confirmed_risk": reason if requires_confirm else None,
+                "autosave": autosave,
+                "dispatch_timeout": timeout,
             },
             resource=manager.get_resource_context(),
-            warnings=[
-                "此操作通过逃生舱（execute_labtalk）执行，不属于标准调用路径。",
-                "执行结果可能影响 Origin 内部状态，建议后续用 list_worksheets / list_graphs 确认当前状态。",
-            ],
+            warnings=warnings,
             next_suggestions=[
                 "list_worksheets",
                 "list_graphs",
@@ -80,7 +139,7 @@ def register_advanced_tools(mcp, manager) -> None:
             ],
         )
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_error_handler("读取 LabTalk 变量", "请检查变量名是否存在。")
     def get_labtalk_variable(name: str) -> dict:
         """Read a LabTalk variable value without executing arbitrary commands.
@@ -103,6 +162,7 @@ def register_advanced_tools(mcp, manager) -> None:
                 error_type="invalid_input",
                 target="name",
                 hint="请提供要读取的 LabTalk 变量名。",
+                suggested_alternatives=["read_origin_session", "get_origin_info"],
             )
         if len(normalized_name) > 128:
             return error_response(
@@ -111,6 +171,7 @@ def register_advanced_tools(mcp, manager) -> None:
                 target="name",
                 value=name,
                 hint="请提供合法的 LabTalk 变量名。",
+                suggested_alternatives=["get_labtalk_variable"],
             )
         if not _LABTALK_VAR_RE.match(normalized_name):
             return error_response(
@@ -119,6 +180,7 @@ def register_advanced_tools(mcp, manager) -> None:
                 target="name",
                 value=name,
                 hint="变量名仅允许字母、数字、下划线，字符串变量可带结尾 '$'。",
+                suggested_alternatives=["get_labtalk_variable"],
             )
 
         def _read(op):
@@ -137,11 +199,8 @@ def register_advanced_tools(mcp, manager) -> None:
         result = manager.execute(_read)
 
         return success_response(
-            message=f"已读取 LabTalk 变量 '{normalized_name}'。",
+            message=f"LabTalk 变量 '{normalized_name}' = {result['value']}",
             data=result,
             resource=manager.get_resource_context(),
-            next_suggestions=[
-                "get_origin_info",
-                "execute_labtalk",
-            ],
+            next_suggestions=["execute_labtalk", "read_origin_session"],
         )
