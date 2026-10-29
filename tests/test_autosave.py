@@ -19,6 +19,9 @@ MIXED_SCRIPTS = [
     'python -s "print(1)"; doc -n;',
     'run.python("prepare.py"); win -c Graph1;',
     "%(cmd$); del col(A);",
+    "run prepare.ogs; doc -n;",
+    "doc -e %(obj$) %(cmd$); win -c Graph1;",
+    'queue -p "type 1;"; del col(A);',
 ]
 
 
@@ -77,7 +80,10 @@ class TestPolicyHelpers:
         assert not should_autosave_labtalk('type "hello";', confirm=True)
         assert not should_autosave_labtalk("doc -s;", confirm=True)
 
-    @pytest.mark.parametrize("prefix", ['python -s "print(1)";', 'run.python("prepare.py");', "%(cmd$);"])
+    @pytest.mark.parametrize("prefix", [
+        'python -s "print(1)";', 'run.python("prepare.py");', "%(cmd$);",
+        "run prepare.ogs;", "doc -e %(obj$) %(cmd$);", 'queue -p "type 1;";',
+    ])
     @pytest.mark.parametrize("destructive", ["doc -n;", "win -c Graph1;", "del col(A);"])
     @pytest.mark.parametrize("destructive_first", [False, True])
     def test_all_script_risks_are_checked_for_autosave(self, prefix, destructive, destructive_first):

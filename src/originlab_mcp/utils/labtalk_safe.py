@@ -64,6 +64,27 @@ _LABTALK_CONFIRM_RULES: Final[tuple[tuple[str, re.Pattern[str], tuple[str, ...]]
         ("get_origin_info",),
     ),
     (
+        # Legacy no-option run executes an external script file. Match only
+        # command positions and leave assignments/methods to their own rules.
+        "run script",
+        re.compile(
+            r"(?:^|[;{}\n])\s*(?:\(\s*)*run(?=\s|[;}]|$)"
+            r"(?!\s*(?:=|\.[A-Za-z]|-\s*[A-Za-z]))",
+            re.IGNORECASE,
+        ),
+        ("get_origin_info",),
+    ),
+    (
+        # A runtime selector may expand to LR plus a class or include the
+        # script itself, so its body boundary cannot be established safely.
+        "doc -e/-ef dynamic selector",
+        re.compile(
+            r"\bdoc(?:ument)?\s*-\s*ef?\s+%(?:\(|[A-Za-z1-5])",
+            re.IGNORECASE,
+        ),
+        ("get_origin_info",),
+    ),
+    (
         "dll",
         re.compile(r"\bdll\b", re.IGNORECASE),
         ("get_origin_info",),
@@ -231,7 +252,11 @@ def find_labtalk_risks(script: str) -> tuple[tuple[str, tuple[str, ...]], ...]:
     statement_boundaries = _with_statement_boundaries(cleaned)
     matches: list[tuple[int, str, tuple[str, ...]]] = []
     for label, pattern, alts in _LABTALK_CONFIRM_RULES:
-        scan = statement_boundaries if label == "%() dynamic command" else cleaned
+        scan = (
+            statement_boundaries
+            if label in {"%() dynamic command", "run script"}
+            else cleaned
+        )
         match = pattern.search(scan)
         if match is not None:
             matches.append((match.start(), label, alts))

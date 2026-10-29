@@ -206,6 +206,46 @@ class TestLabTalkClassifier:
             True, "queue -p/-ps", ("get_origin_info",)
         )
 
+    @pytest.mark.parametrize("script", [
+        "doc -e %(obj$) %(cmd$);",
+        "document -ef %A %B;",
+        "doc -e %1 %(cmd$);",
+        "doc -ef %(%(name$)) %(cmd$);",
+        'string obj$="P"; string cmd$="doc -n"; doc -e %(obj$) %(cmd$);',
+        "doc -e %(obj$) type %(name$);",
+    ])
+    def test_runtime_object_selectors_require_confirm(self, script):
+        # A selector can expand to LR plus a class, or to text containing the
+        # body itself. Its script boundary cannot be established statically.
+        assert classify_labtalk_script(script)[0] is True
+
+    @pytest.mark.parametrize("script", [
+        "run test.ogs;",
+        "run %(file$);",
+        "run %A;",
+        'run "folder with spaces/test.ogs";',
+        "RUN /* file */ test.ogs;",
+        "if (1) run test.ogs;",
+        "for(ii=1; ii<2; ii++) run %(file$);",
+        "doc -e P run test.ogs;",
+    ])
+    def test_legacy_script_file_execution_requires_confirm(self, script):
+        assert classify_labtalk_script(script) == (
+            True, "run script", ("get_origin_info",)
+        )
+
+    @pytest.mark.parametrize("script", [
+        "run = 1;",
+        "run$ = %(name$);",
+        "range rr = [run]1!col(A);",
+        "range run = col(A);",
+        "type run %(name$);",
+        'type "run test.ogs"; /* run other.ogs; */',
+        "doc -e P type %(name$);",
+    ])
+    def test_data_substitutions_and_run_identifiers_remain_safe(self, script):
+        assert classify_labtalk_script(script) == (False, "", ())
+
     @pytest.mark.parametrize("command", [
         "range rr = [case]1!col(A)[1:%(last$)];",
         "range rr = [Book1]case!col(A)[1:%(last$)];",
@@ -286,6 +326,9 @@ class TestExecuteLabtalkConfirmGate:
         'queue -p "%(cmd$);";',
         'queue -ps "doc -n;";',
         "define act {%1;}; act %(cmd$);",
+        "doc -e %(obj$) %(cmd$);",
+        "run test.ogs;",
+        "run %(file$);",
     ])
     def test_script_text_is_blocked_before_execution(self, fresh_manager, fake_origin, command):
         from originlab_mcp.tools.advanced import register_advanced_tools

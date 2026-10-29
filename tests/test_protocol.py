@@ -48,6 +48,8 @@ def wire_results(tmp_path_factory):
             results["doc_ef_confirm"] = await session.call_tool("execute_labtalk", {"command": "document -ef W %A;"})
             results["loop_confirm"] = await session.call_tool("execute_labtalk", {"command": "loop(ii, 1, 2) %(cmd$);"})
             results["queue_confirm"] = await session.call_tool("execute_labtalk", {"command": 'queue -p "%(cmd$);";'})
+            results["selector_confirm"] = await session.call_tool("execute_labtalk", {"command": "doc -e %(obj$) %(cmd$);"})
+            results["run_file_confirm"] = await session.call_tool("execute_labtalk", {"command": "run %(file$);"})
             results["mixed_autosave"] = await session.call_tool("execute_labtalk", {"command": 'python -s "print(1)"; doc -n;', "confirm": True})
             results["exception"] = await session.call_tool("list_worksheets", {})
             results["timeout"] = await session.call_tool("execute_labtalk", {"command": "type 1;", "timeout": 0.01})
@@ -86,6 +88,8 @@ def wire_results(tmp_path_factory):
     ("doc_ef_confirm", "invalid_input", "confirm"),
     ("loop_confirm", "invalid_input", "confirm"),
     ("queue_confirm", "invalid_input", "confirm"),
+    ("selector_confirm", "invalid_input", "confirm"),
+    ("run_file_confirm", "invalid_input", "confirm"),
     ("mixed_autosave", "invalid_input", "autosave"),
 ])
 def test_tool_failures_set_protocol_error_flag(wire_results, case, error_type, target):
