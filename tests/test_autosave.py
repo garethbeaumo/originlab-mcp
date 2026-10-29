@@ -13,7 +13,13 @@ from originlab_mcp.utils.autosave import (
     should_autosave_labtalk,
     should_autosave_tool,
 )
-from tests.fakes import FakeOrigin, attach_fake_origin
+from tests.fakes import DummyMCP, FakeOrigin, attach_fake_origin
+
+MIXED_SCRIPTS = [
+    'python -s "print(1)"; doc -n;',
+    'run.python("prepare.py"); win -c Graph1;',
+    "%(cmd$); del col(A);",
+]
 
 
 @pytest.fixture
@@ -71,6 +77,24 @@ class TestPolicyHelpers:
         assert not should_autosave_labtalk('type "hello";', confirm=True)
         assert not should_autosave_labtalk("doc -s;", confirm=True)
 
+    @pytest.mark.parametrize("prefix", ['python -s "print(1)";', 'run.python("prepare.py");', "%(cmd$);"])
+    @pytest.mark.parametrize("destructive", ["doc -n;", "win -c Graph1;", "del col(A);"])
+    @pytest.mark.parametrize("destructive_first", [False, True])
+    def test_all_script_risks_are_checked_for_autosave(self, prefix, destructive, destructive_first):
+        script = destructive + prefix if destructive_first else prefix + destructive
+        assert should_autosave_labtalk(script, confirm=True)
+        assert not should_autosave_labtalk(script, confirm=False)
+
+    @pytest.mark.parametrize("script", [
+        'python -s "doc -n;";',
+        'run.python("delete.py"); /* win -c Graph1; */',
+        "%(cmd$); // del col(A);",
+        "doc -s;",
+        "",
+    ])
+    def test_nondestructive_scripts_do_not_autosave(self, script):
+        assert not should_autosave_labtalk(script, confirm=True)
+
     def test_collect_warnings_from_status(self) -> None:
         assert collect_autosave_warnings(
             {
@@ -116,6 +140,62 @@ class TestPolicyHelpers:
 
 
 class TestPreflightAutosave:
+    @pytest.mark.parametrize("command", MIXED_SCRIPTS)
+    @pytest.mark.parametrize("save_outcome", ["success", "false", "error"])
+    def test_mixed_labtalk_requires_save_before_execution(
+        self, monkeypatch, manager_with_fake, tmp_path, command, save_outcome
+    ):
+        from originlab_mcp.tools.advanced import register_advanced_tools
+
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE", "1")
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE_REQUIRED", "1")
+        manager, origin = manager_with_fake
+        path = str(tmp_path / "mixed.opju")
+        origin.project_path = path
+        events = []
+        save_ok = save_outcome == "success"
+
+        def save(file_path):
+            events.append(("save", file_path))
+            if save_outcome == "error":
+                raise OSError("disk full")
+            return save_ok
+
+        def execute(script):
+            events.append(("execute", script))
+
+        monkeypatch.setattr(origin, "save", save)
+        monkeypatch.setattr(origin, "lt_exec", execute)
+        mcp = DummyMCP()
+        register_advanced_tools(mcp, manager)
+        blocked = mcp.tools["execute_labtalk"](command=command)
+        assert blocked["ok"] is False
+        assert blocked["error"]["target"] == "confirm"
+        assert events == []
+        result = mcp.tools["execute_labtalk"](command=command, confirm=True)
+        assert result["ok"] is save_ok
+        assert events == ([("save", path), ("execute", command)] if save_ok else [("save", path)])
+        if save_ok:
+            assert result["data"]["autosave"]["saved"] is True
+        else:
+            assert result["error"]["target"] == "autosave"
+
+    @pytest.mark.parametrize("command", MIXED_SCRIPTS)
+    def test_mixed_labtalk_is_blocked_without_required_save_path(
+        self, monkeypatch, manager_with_fake, command
+    ):
+        from originlab_mcp.tools.advanced import register_advanced_tools
+
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE", "1")
+        monkeypatch.setenv("ORIGINLAB_MCP_AUTOSAVE_REQUIRED", "1")
+        manager, origin = manager_with_fake
+        mcp = DummyMCP()
+        register_advanced_tools(mcp, manager)
+        result = mcp.tools["execute_labtalk"](command=command, confirm=True)
+        assert result["ok"] is False
+        assert origin.lt_commands == []
+        assert origin.saved_paths == []
+
     def test_warn_without_path_returns_skip_status(
         self, monkeypatch: pytest.MonkeyPatch, manager_with_fake
     ) -> None:

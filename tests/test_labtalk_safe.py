@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from originlab_mcp.exceptions import NoActiveWorksheetError, WorksheetNotFoundError
 from originlab_mcp.utils.labtalk_safe import (
     classify_labtalk_script,
@@ -62,6 +64,41 @@ class TestLabTalkClassifier:
             requires, _, _ = classify_labtalk_script(script)
             assert requires is False, script
 
+    @pytest.mark.parametrize("script", [
+        'string cmd$="doc -n"; if (1) %(cmd$);',
+        "if (1) %A;",
+        "if (max(1, (2 + 3))) %(cmd$);",
+        "if (1) if (2) %A;",
+        "IF /* condition */ ((1)) /* body */ %(cmd$);",
+        'if (name$ == ")") %(cmd$);',
+        "if (1 /* ) */) %A;",
+        "if (0) type 1; else %(cmd$);",
+        "if (0) {type 1;} else %A;",
+        "if (0) type 1; else if ((1)) %(cmd$);",
+    ])
+    def test_braceless_dynamic_commands_require_confirm(self, script):
+        requires, reason, alts = classify_labtalk_script(script)
+        assert requires is True
+        assert reason == "%() dynamic command"
+        assert alts == ("get_origin_info",)
+
+    @pytest.mark.parametrize("script", [
+        "if (1) %A = Book1;",
+        "if ((1)) %A=Book1; else %B = Book2;",
+        "if (1) win -a %H;",
+        "if (1) range rr = [%(page.name)]1!col(B);",
+        'if (1) type -a "%(cmd$)";',
+        "if (len(%(name$))) type 1;",
+        "if (1) type 1; // else %(cmd$);",
+        'type -a "if (1) %A;"; /* if (1) %(cmd$); */',
+    ])
+    def test_braceless_ordinary_substitutions_remain_safe(self, script):
+        assert classify_labtalk_script(script) == (False, "", ())
+
+    def test_first_risk_and_rule_priority_are_preserved(self):
+        assert classify_labtalk_script('python -s "print(1)"; doc -n;')[1] == "python"
+        assert classify_labtalk_script("run.section(a.ogs, main); doc -n;")[1] == "run.section"
+
 
 class TestSuggestedAlternatives:
     def test_error_response_includes_alternatives(self):
@@ -82,6 +119,26 @@ class TestSuggestedAlternatives:
 
 
 class TestExecuteLabtalkConfirmGate:
+    @pytest.mark.parametrize("command", [
+        "if (1) %(cmd$);",
+        "if (max(1, (2))) %A;",
+        "if (0) type 1; else %(cmd$);",
+    ])
+    def test_braceless_dynamic_command_gate(self, fresh_manager, fake_origin, command):
+        from originlab_mcp.tools.advanced import register_advanced_tools
+
+        mcp = DummyMCP()
+        register_advanced_tools(mcp, fresh_manager)
+        blocked = mcp.tools["execute_labtalk"](command=command)
+        assert blocked["ok"] is False
+        assert blocked["error"]["target"] == "confirm"
+        assert fake_origin.lt_commands == []
+
+        allowed = mcp.tools["execute_labtalk"](command=command, confirm=True)
+        assert allowed["ok"] is True
+        assert allowed["data"]["confirmed_risk"] == "%() dynamic command"
+        assert fake_origin.lt_commands == [command]
+
     def test_destructive_labtalk_is_blocked_without_confirm(
         self, fresh_manager, fake_origin
     ):

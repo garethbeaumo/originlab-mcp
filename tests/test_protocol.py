@@ -23,6 +23,8 @@ def wire_results(tmp_path_factory):
         # Exercise this checkout, not a stale installed wheel or a .pth file.
         env["PYTHONPATH"] = os.pathsep.join([str(root / "src"), str(root)])
         env["ORIGINLAB_MCP_AUTOSAVE_INTERVAL"] = "off"
+        env["ORIGINLAB_MCP_AUTOSAVE"] = "1"
+        env["ORIGINLAB_MCP_AUTOSAVE_REQUIRED"] = "1"
         env["ORIGINLAB_MCP_DISPATCH_TIMEOUT"] = "1"
         params = StdioServerParameters(
             command=sys.executable,
@@ -37,6 +39,8 @@ def wire_results(tmp_path_factory):
             await session.initialize()
             results = {}
             results["business"] = await session.call_tool("execute_labtalk", {"command": ""})
+            results["dynamic_confirm"] = await session.call_tool("execute_labtalk", {"command": "if ((1)) %(cmd$);"})
+            results["mixed_autosave"] = await session.call_tool("execute_labtalk", {"command": 'python -s "print(1)"; doc -n;', "confirm": True})
             results["exception"] = await session.call_tool("list_worksheets", {})
             results["timeout"] = await session.call_tool("execute_labtalk", {"command": "type 1;", "timeout": 0.01})
             results["schema"] = await session.call_tool("create_plot", {"x_col": "not-an-int", "y_cols": 1})
@@ -65,6 +69,8 @@ def wire_results(tmp_path_factory):
     ("business", "invalid_input", "command"),
     ("exception", "internal_error", "列出工作表"),
     ("timeout", "timeout", "dispatch_timeout"),
+    ("dynamic_confirm", "invalid_input", "confirm"),
+    ("mixed_autosave", "invalid_input", "autosave"),
 ])
 def test_tool_failures_set_protocol_error_flag(wire_results, case, error_type, target):
     result = wire_results[case]

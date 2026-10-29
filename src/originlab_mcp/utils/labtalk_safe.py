@@ -151,22 +151,51 @@ def strip_labtalk_strings_and_comments(script: str) -> str:
     return "".join(out)
 
 
-def classify_labtalk_script(script: str) -> tuple[bool, str, tuple[str, ...]]:
-    """Classify whether a LabTalk script needs explicit confirmation.
+def _with_conditional_boundaries(cleaned: str) -> str:
+    """Expose braceless if/else bodies to the dynamic-command rule.
 
-    Returns:
-        (requires_confirm, reason_label, suggested_alternatives)
+    Balance condition parentheses after strings/comments have been blanked;
+    a flat regex would stop at a nested function call or parenthesized term.
+    Preserve offsets so risk ordering still refers to the original scan.
+    """
+    out = list(cleaned)
+    for header in re.finditer(r"\bif\s*\(", cleaned, re.IGNORECASE):
+        depth = 1
+        for index in range(header.end(), len(cleaned)):
+            if cleaned[index] == "(":
+                depth += 1
+            elif cleaned[index] == ")":
+                depth -= 1
+                if depth == 0:
+                    out[index] = ";"
+                    break
+    for header in re.finditer(r"\belse\b", cleaned, re.IGNORECASE):
+        out[header.end() - 1] = ";"
+    return "".join(out)
+
+
+def find_labtalk_risks(script: str) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Return every matching risk rule in script order, with rule-order ties.
+
+    Consumers such as autosave must inspect all risks: the first confirmation
+    reason can be unrelated to a later project-destructive operation.
     """
     cleaned = strip_labtalk_strings_and_comments(script)
-    best_start: int | None = None
-    best_label = ""
-    best_alts: tuple[str, ...] = ()
+    conditional_boundaries = _with_conditional_boundaries(cleaned)
+    matches: list[tuple[int, str, tuple[str, ...]]] = []
     for label, pattern, alts in _LABTALK_CONFIRM_RULES:
-        match = pattern.search(cleaned)
-        if match is not None and (best_start is None or match.start() < best_start):
-            best_start = match.start()
-            best_label = label
-            best_alts = alts
-    if best_start is None:
+        scan = conditional_boundaries if label == "%() dynamic command" else cleaned
+        match = pattern.search(scan)
+        if match is not None:
+            matches.append((match.start(), label, alts))
+    matches.sort(key=lambda match: match[0])
+    return tuple((label, alts) for _start, label, alts in matches)
+
+
+def classify_labtalk_script(script: str) -> tuple[bool, str, tuple[str, ...]]:
+    """Return (requires_confirm, first_reason_label, suggested_alternatives)."""
+    risks = find_labtalk_risks(script)
+    if not risks:
         return (False, "", ())
-    return (True, best_label, best_alts)
+    label, alternatives = risks[0]
+    return (True, label, alternatives)
