@@ -1,5 +1,10 @@
 # Bounded MCP protocol follow-up
 
+Historical protocol follow-up: the remote state and local-only actions below
+describe that round. PR #8 has since been merged; see
+[current validation status](validation-status.md). The fake backend evidence
+below does not establish live Origin acceptance.
+
 Starting checkpoint: `e0cf819d4fb288101c7a7f661f8c3cdad8f3be88`.
 The preceding API/save fixes remain unchanged and independently reviewable.
 
@@ -55,9 +60,9 @@ Windows COM correctness or reproduce a real modal dialog.
   `protocol-after.log`, `protocol-final-pytest.log`.
 - Windows/Origin and local Python 3.10/3.11 were **not run** this round.
 
-## Read-only remote verification
+## Historical read-only remote verification
 
-GitHub PR and Git-ref reads both returned:
+At the time of this protocol follow-up, GitHub PR and Git-ref reads returned:
 
 - PR #8: open, draft, head repository `garethbeaumo/originlab-mcp`.
 - Head branch: `cursor/ci-annotations-mypy-87ad`.
@@ -65,8 +70,8 @@ GitHub PR and Git-ref reads both returned:
 - `git merge-base --is-ancestor` confirms this head is an ancestor of `e0cf819`
   and the new local commit, so the current history allows a fast-forward update.
 
-No push was attempted. Write authorization, branch protections and a race with
-another remote update remain separate from ancestry; re-read the head immediately
+No push was attempted in that round. Write authorization, branch protections and
+a race with another remote update remain separate from ancestry; re-read the head immediately
 before any user-authorized push. Never force-push this work.
 
 Next priority remains Windows acceptance, then a bounded COM-owner/atomic

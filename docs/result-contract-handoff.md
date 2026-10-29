@@ -1,5 +1,9 @@
 # Result contract follow-up — 2026-10-12
 
+This is the historical October 12 handoff. PR #8 has since been merged; see
+[current validation status](validation-status.md) for the audited main commit
+and evidence. Its merge does not change the live Origin limits recorded here.
+
 Based on PR #8 head `0ad9a849f53d127caa3d1a1b761a5d6107ba8687`,
 with `main` at `09962a16561f204e559ca366090bfe4414991ec8`.
 Work was done in an independent Windows checkout. No existing user checkout,
@@ -100,8 +104,10 @@ handler). Portable tests now explicitly reject importing the live backend and
 continue using fake objects, including fake reconnects. The complete suite then
 passed with exit code 0. Production connect/detach behavior was not changed.
 
-Keep PR #8 draft. Run the live script only in a confirmed disposable, licensed
-Origin session: its explicit `--allow-project-reset` mode resets the attached
+The pre-merge instruction to keep PR #8 draft is superseded by its recorded merge;
+live acceptance and release readiness remain NOT VERIFIED. Run the live script
+only in a confirmed disposable, licensed Origin session: its explicit
+`--allow-project-reset` mode resets the attached
 project and must never be used with a user-owned project. Portable and fake
 backend results do not establish release readiness.
 
