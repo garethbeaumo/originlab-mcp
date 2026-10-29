@@ -70,6 +70,7 @@ class TestLabTalkClassifier:
         "if (max(1, (2 + 3))) %(cmd$);",
         "if (1) if (2) %A;",
         "IF /* condition */ ((1)) /* body */ %(cmd$);",
+        "if\n((%(condition$))) %(cmd$);",
         'if (name$ == ")") %(cmd$);',
         "if (1 /* ) */) %A;",
         "if (0) type 1; else %(cmd$);",
@@ -97,6 +98,10 @@ class TestLabTalkClassifier:
         "if (1) (%A = Book1;)",
         "if ((%(condition$))) type 1;",
         "if (\n(%(condition$))) type 1;",
+        "if\n(%(condition$)) type 1;",
+        "if\r\n((%(condition$))) type 1;",
+        "if /* header\ncomment */ ((%(condition$))) type 1;",
+        "if // header comment\n((%(condition$))) type 1;",
         "value = (%(number$));",
         "if (1) value = (%(number$));",
         "type -a (%(name$));",
@@ -116,6 +121,15 @@ class TestLabTalkClassifier:
         "switch(1) { case 1: for(ii=1; ii<=1; ii++) %(cmd$); }",
         "loop(ii, 1, 1) {%(cmd$);}",
         "repeat 2 {%(cmd$);}",
+        "loop(ii, 1, 2) %(cmd$);",
+        "loop(ii, min(1, 2), (2 + 3)) %A;",
+        "loop\n(ii, 1, 2) %(cmd$);",
+        "win -o Graph1 {%(cmd$);}",
+        "window -oa Graph1 {%A;}",
+        "layer -o [Graph1]2 {%(cmd$);}",
+        "queue {%(cmd$);}",
+        "define act {%1;}; act %(cmd$);",
+        "define act {%5;}; act a b c d %(cmd$);",
     ])
     def test_loop_and_case_dynamic_commands_require_confirm(self, script):
         assert classify_labtalk_script(script) == (
@@ -128,9 +142,18 @@ class TestLabTalkClassifier:
         "for(ii=1; ii<=1; ii++) range rr = [%(page.name)]1!col(B);",
         "for(ii=1; ii<=max(1, len(%(name$))); ii++) type 1;",
         "for(ii=1; (%(condition$)); ii++) type 1;",
+        "for\n((%(initial$)); ii<1; ii++) type 1;",
         "switch(1) { case 1: %A = Book1; default: %B = Book2; }",
         "switch(1) { case 1: win -a %H; }",
         "switch(%(name$)) { case 1: type 1; }",
+        "switch\n(%(value$)) { case 1: type 1; }",
+        "switch(1) { case\n%A: type 1; }",
+        "loop\n(ii, (%(start$)), 3) type 1;",
+        "loop(ii, 1, 2) %A = Book1;",
+        "loop(ii, 1, 2) type %(name$);",
+        "win -o %(name$) {type %H;}",
+        "layer -o [%(book$)]1 {type %H;}",
+        "define act {type %1;}; act %(value$);",
         "range rr = col(A)[1:%(last$)];",
         "range rr = [case]1!col(A)[1:%(last$)];",
         "range rr = [Book1]case!col(A)[1:%(last$)];",
@@ -141,6 +164,47 @@ class TestLabTalkClassifier:
     ])
     def test_loop_and_case_ordinary_substitutions_remain_safe(self, script):
         assert classify_labtalk_script(script) == (False, "", ())
+
+    @pytest.mark.parametrize("script", [
+        "doc -e P %(cmd$);",
+        "doc -e P %A;",
+        'string cmd$="doc -n"; doc -e P %(cmd$);',
+        "doc -ef W %A;",
+        "DOCUMENT /* command */ -EF /* object */ LB /* body */ %(cmd$);",
+        "document -e LR ANOVAOneWay %(cmd$);",
+        "doc -ef LR DescStats_1 %A;",
+        "doc -e LRW %(cmd$);",
+        "if (1) doc -e P %(cmd$);",
+        "doc -e W doc -e LW %A;",
+        "doc -e P {%(cmd$);}",
+    ])
+    def test_document_iteration_dynamic_commands_require_confirm(self, script):
+        assert classify_labtalk_script(script) == (
+            True, "%() dynamic command", ("get_origin_info",)
+        )
+
+    @pytest.mark.parametrize("script", [
+        "doc -e P print;",
+        "doc -e W %A = %H;",
+        "doc -ef LB win -a %H;",
+        "document -e LR ANOVAOneWay type %(name$);",
+        "doc -e P range rr = [%(page.name)]1!col(B);",
+        'doc -e P type "%(cmd$)";',
+        'type "doc -e P %(cmd$);"; /* doc -ef W %A; */',
+        "doc -e P print; // doc -ef W %(cmd$);",
+    ])
+    def test_document_iteration_ordinary_substitutions_remain_safe(self, script):
+        assert classify_labtalk_script(script) == (False, "", ())
+
+    @pytest.mark.parametrize("script", [
+        'queue -p "%(cmd$);";',
+        'queue -ps "doc -n;";',
+        "queue -p %(cmd$);",
+    ])
+    def test_queued_script_text_requires_confirm(self, script):
+        assert classify_labtalk_script(script) == (
+            True, "queue -p/-ps", ("get_origin_info",)
+        )
 
     @pytest.mark.parametrize("command", [
         "range rr = [case]1!col(A)[1:%(last$)];",
@@ -187,6 +251,10 @@ class TestExecuteLabtalkConfirmGate:
         "for(ii=1; ii<=1; ii++) %(cmd$);",
         "switch(1) { case 1: %(cmd$); }",
         "switch(1) { default: %A; }",
+        "doc -e P %(cmd$);",
+        "doc -ef W %A;",
+        "document -e LR ANOVAOneWay %(cmd$);",
+        "loop(ii, 1, 2) %(cmd$);",
     ])
     def test_braceless_dynamic_command_gate(self, fresh_manager, fake_origin, command):
         from originlab_mcp.tools.advanced import register_advanced_tools
@@ -205,6 +273,21 @@ class TestExecuteLabtalkConfirmGate:
 
     @pytest.mark.parametrize("command", ["if (1) (%(cmd$);)", "if (0) type 1; else (%A;)"])
     def test_parenthesized_script_group_is_blocked(self, fresh_manager, fake_origin, command):
+        from originlab_mcp.tools.advanced import register_advanced_tools
+
+        mcp = DummyMCP()
+        register_advanced_tools(mcp, fresh_manager)
+        result = mcp.tools["execute_labtalk"](command=command)
+        assert result["ok"] is False
+        assert result["error"]["target"] == "confirm"
+        assert fake_origin.lt_commands == []
+
+    @pytest.mark.parametrize("command", [
+        'queue -p "%(cmd$);";',
+        'queue -ps "doc -n;";',
+        "define act {%1;}; act %(cmd$);",
+    ])
+    def test_script_text_is_blocked_before_execution(self, fresh_manager, fake_origin, command):
         from originlab_mcp.tools.advanced import register_advanced_tools
 
         mcp = DummyMCP()

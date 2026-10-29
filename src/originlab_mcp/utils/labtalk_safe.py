@@ -43,12 +43,19 @@ _LABTALK_CONFIRM_RULES: Final[tuple[tuple[str, re.Pattern[str], tuple[str, ...]]
         ("get_origin_info",),
     ),
     (
-        # A statement that starts with %(...) / %A runs substituted text as a
+        # A statement starting with %(...) / %A / %1 runs substituted text as a
         # command, e.g. string s$="doc -n"; %(s$); — the scan cannot see it.
         # Enter parenthesized script groups only at a statement boundary.
         # Plain string-register assignment (%A = ...) is left alone.
         "%() dynamic command",
-        re.compile(r"(?:^|[;{}\n])\s*(?:\(\s*)*%(?:\(|[A-Za-z](?!\s*=))", re.IGNORECASE),
+        re.compile(r"(?:^|[;{}\n])\s*(?:\(\s*)*%(?:\(|[A-Za-z1-5](?!\s*=))", re.IGNORECASE),
+        ("get_origin_info",),
+    ),
+    (
+        # These options evaluate script text supplied as a string, which is
+        # intentionally blanked before keyword scanning like python's input.
+        "queue -p/-ps",
+        re.compile(r"\bqueue\s*-\s*ps?\b", re.IGNORECASE),
         ("get_origin_info",),
     ),
     (
@@ -153,14 +160,19 @@ def strip_labtalk_strings_and_comments(script: str) -> str:
 
 
 def _with_statement_boundaries(cleaned: str) -> str:
-    """Expose braceless if/else/for bodies and case/default label bodies.
+    """Expose braceless control-flow and document-iteration script bodies.
 
     Balance condition parentheses after strings/comments have been blanked;
     a flat regex would stop at a nested function call or parenthesized term.
     Preserve offsets so risk ordering still refers to the original scan.
     """
     out = list(cleaned)
-    for header in re.finditer(r"\b(?:if|for)\s*\(", cleaned, re.IGNORECASE):
+    for header in re.finditer(r"\b(?:if|for|loop|switch)\s*\(", cleaned, re.IGNORECASE):
+        # Whitespace before the opening parenthesis is still part of the
+        # header, including newlines left by blanked comments.
+        for index in range(header.start(), header.end()):
+            if cleaned[index] == "\n":
+                out[index] = " "
         depth = 1
         for index in range(header.end(), len(cleaned)):
             if cleaned[index] == "(":
@@ -174,6 +186,15 @@ def _with_statement_boundaries(cleaned: str) -> str:
                 # Control-header expressions are not script statements.
                 out[index] = " "
     for header in re.finditer(r"\belse\b", cleaned, re.IGNORECASE):
+        out[header.end() - 1] = ";"
+    # doc -e/-ef accepts a single statement after the object selector.
+    # LR additionally takes a report class name; LRW is a single selector.
+    # https://docs.originlab.com/labtalk/ref/document_options_others/
+    for header in re.finditer(
+        r"\bdoc(?:ument)?\s*-\s*ef?\s+(?:lr\s+)?[A-Za-z_]\w*\b",
+        cleaned,
+        re.IGNORECASE,
+    ):
         out[header.end() - 1] = ";"
     # Labels start statements, unlike a book/sheet/variable named "case".
     # Skip nested expression/range colons and reject assignments or unmatched
@@ -192,6 +213,9 @@ def _with_statement_boundaries(cleaned: str) -> str:
             elif ch in ";{}=" and not brackets:
                 break
             elif ch == ":" and not brackets:
+                for header_index in range(label.start(), index):
+                    if cleaned[header_index] == "\n":
+                        out[header_index] = " "
                 out[index] = ";"
                 break
     return "".join(out)
