@@ -35,6 +35,33 @@ class TestLabTalkClassifier:
         assert "win -c" in reason
         assert alts
 
+    def test_external_code_requires_confirm(self):
+        for script, label in [
+            ('python -s "import os"', "python"),
+            ('run.python("x.py")', "run.<method>"),
+            ("run.file(a.ogs);", "run.<method>"),
+            ("run.section(a.ogs, main);", "run.section"),
+        ]:
+            requires, reason, _ = classify_labtalk_script(script)
+            assert requires is True, script
+            assert reason == label, script
+
+    def test_dynamic_command_substitution_requires_confirm(self):
+        for script in ['string s$="doc -n"; %(s$);', "%A;", "if (1) {%(cmd$)}"]:
+            requires, reason, _ = classify_labtalk_script(script)
+            assert requires is True, script
+            assert reason == "%() dynamic command", script
+
+    def test_ordinary_substitution_does_not_require_confirm(self):
+        for script in [
+            "%A = Book1;",
+            "win -a %H;",
+            "range rr = [%(page.name)]1!col(B);",
+            'type -a "%(s$)";',
+        ]:
+            requires, _, _ = classify_labtalk_script(script)
+            assert requires is False, script
+
 
 class TestSuggestedAlternatives:
     def test_error_response_includes_alternatives(self):

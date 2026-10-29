@@ -3,6 +3,10 @@
 Inspired by Origin-Pro-MCP's confirm-gated LabTalk scanner: allow ordinary
 styling/analysis scripts by default, but require explicit confirmation for
 commands that can delete windows, reset the project, or reach the OS.
+
+This is a best-effort keyword scan, not a sandbox: LabTalk can build command
+text at runtime in ways a static scan cannot follow. The real safeguard is the
+tool's destructive/open-world annotation, which makes clients ask the user.
 """
 
 from __future__ import annotations
@@ -25,6 +29,25 @@ _LABTALK_CONFIRM_RULES: Final[tuple[tuple[str, re.Pattern[str], tuple[str, ...]]
     (
         "run.section",
         re.compile(r"\brun\s*\.\s*section\b", re.IGNORECASE),
+        ("get_origin_info",),
+    ),
+    (
+        # run.file / run.python / run.loadOC etc. execute external code.
+        "run.<method>",
+        re.compile(r"\brun\s*\.\s*[A-Za-z]", re.IGNORECASE),
+        ("get_origin_info",),
+    ),
+    (
+        "python",
+        re.compile(r"\bpython\b", re.IGNORECASE),
+        ("get_origin_info",),
+    ),
+    (
+        # A statement that starts with %(...) / %A runs substituted text as a
+        # command, e.g. string s$="doc -n"; %(s$); — the scan cannot see it.
+        # Plain string-register assignment (%A = ...) is left alone.
+        "%() dynamic command",
+        re.compile(r"(?:^|[;{}\n])\s*%(?:\(|[A-Za-z](?!\s*=))", re.IGNORECASE),
         ("get_origin_info",),
     ),
     (
