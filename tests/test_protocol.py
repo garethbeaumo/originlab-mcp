@@ -43,6 +43,7 @@ def wire_results(tmp_path_factory):
             results["for_confirm"] = await session.call_tool("execute_labtalk", {"command": "for(ii=1; ii<=1; ii++) %(cmd$);"})
             results["case_confirm"] = await session.call_tool("execute_labtalk", {"command": "switch(1) { case 1: %(cmd$); }"})
             results["default_confirm"] = await session.call_tool("execute_labtalk", {"command": "switch(1) { default: %A; }"})
+            results["group_confirm"] = await session.call_tool("execute_labtalk", {"command": "if (1) (%(cmd$);)"})
             results["mixed_autosave"] = await session.call_tool("execute_labtalk", {"command": 'python -s "print(1)"; doc -n;', "confirm": True})
             results["exception"] = await session.call_tool("list_worksheets", {})
             results["timeout"] = await session.call_tool("execute_labtalk", {"command": "type 1;", "timeout": 0.01})
@@ -76,6 +77,7 @@ def wire_results(tmp_path_factory):
     ("for_confirm", "invalid_input", "confirm"),
     ("case_confirm", "invalid_input", "confirm"),
     ("default_confirm", "invalid_input", "confirm"),
+    ("group_confirm", "invalid_input", "confirm"),
     ("mixed_autosave", "invalid_input", "autosave"),
 ])
 def test_tool_failures_set_protocol_error_flag(wire_results, case, error_type, target):

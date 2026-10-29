@@ -45,9 +45,10 @@ _LABTALK_CONFIRM_RULES: Final[tuple[tuple[str, re.Pattern[str], tuple[str, ...]]
     (
         # A statement that starts with %(...) / %A runs substituted text as a
         # command, e.g. string s$="doc -n"; %(s$); — the scan cannot see it.
+        # Enter parenthesized script groups only at a statement boundary.
         # Plain string-register assignment (%A = ...) is left alone.
         "%() dynamic command",
-        re.compile(r"(?:^|[;{}\n])\s*%(?:\(|[A-Za-z](?!\s*=))", re.IGNORECASE),
+        re.compile(r"(?:^|[;{}\n])\s*(?:\(\s*)*%(?:\(|[A-Za-z](?!\s*=))", re.IGNORECASE),
         ("get_origin_info",),
     ),
     (
@@ -169,11 +170,30 @@ def _with_statement_boundaries(cleaned: str) -> str:
                 if depth == 0:
                     out[index] = ";"
                     break
+            elif cleaned[index] in ";\n":
+                # Control-header expressions are not script statements.
+                out[index] = " "
     for header in re.finditer(r"\belse\b", cleaned, re.IGNORECASE):
         out[header.end() - 1] = ";"
-    # Only label colons introduce statements; range/expression colons do not.
-    for label in re.finditer(r"\b(?:case\b[^:;{}]*|default\s*):", cleaned, re.IGNORECASE):
-        out[label.end() - 1] = ";"
+    # Labels start statements, unlike a book/sheet/variable named "case".
+    # Skip nested expression/range colons and reject assignments or unmatched
+    # closing delimiters (including a multiline [case] range reference).
+    for label in re.finditer(
+        r"(?:^|(?<=[;{}\n:]))\s*(?:case|default)\b", cleaned, re.IGNORECASE
+    ):
+        brackets: list[str] = []
+        for index in range(label.end(), len(cleaned)):
+            ch = cleaned[index]
+            if ch in "([":
+                brackets.append(ch)
+            elif ch in ")]":
+                if not brackets or brackets.pop() != {")": "(", "]": "["}[ch]:
+                    break
+            elif ch in ";{}=" and not brackets:
+                break
+            elif ch == ":" and not brackets:
+                out[index] = ";"
+                break
     return "".join(out)
 
 
