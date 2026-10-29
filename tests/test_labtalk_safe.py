@@ -263,6 +263,7 @@ class TestLabTalkClassifier:
     def test_first_risk_and_rule_priority_are_preserved(self):
         assert classify_labtalk_script('python -s "print(1)"; doc -n;')[1] == "python"
         assert classify_labtalk_script("run.section(a.ogs, main); doc -n;")[1] == "run.section"
+        assert classify_labtalk_script("  run . section(a.ogs, main); doc -n;")[1] == "run.section"
 
 
 class TestSuggestedAlternatives:

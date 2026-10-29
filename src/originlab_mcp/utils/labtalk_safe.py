@@ -69,7 +69,7 @@ _LABTALK_CONFIRM_RULES: Final[tuple[tuple[str, re.Pattern[str], tuple[str, ...]]
         "run script",
         re.compile(
             r"(?:^|[;{}\n])\s*(?:\(\s*)*run(?=\s|[;}]|$)"
-            r"(?!\s*(?:=|\.[A-Za-z]|-\s*[A-Za-z]))",
+            r"(?!\s*(?:=|\.\s*[A-Za-z]|-\s*[A-Za-z]))",
             re.IGNORECASE,
         ),
         ("get_origin_info",),
