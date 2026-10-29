@@ -95,6 +95,36 @@ class TestLabTalkClassifier:
     def test_braceless_ordinary_substitutions_remain_safe(self, script):
         assert classify_labtalk_script(script) == (False, "", ())
 
+    @pytest.mark.parametrize("script", [
+        "for(ii=1; ii<=1; ii++) %(cmd$);",
+        "for(; ii < max(1, (2)); ii++) %A;",
+        "FOR /* header */ (ii=1; ii<=1; ii++) /* body */ %(cmd$);",
+        "for(ii=1; ii<=1; ii++) for(jj=1; jj<=1; jj++) %A;",
+        "switch(1) { case 1: %(cmd$); }",
+        "switch(1) { default: %A; }",
+        "switch(1) { CASE 1 2 5 to 7: /* body */ %A; }",
+        'switch(%B) { case "a:b": case "c": %(cmd$); }',
+        "switch(1) { case 1: for(ii=1; ii<=1; ii++) %(cmd$); }",
+    ])
+    def test_loop_and_case_dynamic_commands_require_confirm(self, script):
+        assert classify_labtalk_script(script) == (
+            True, "%() dynamic command", ("get_origin_info",)
+        )
+
+    @pytest.mark.parametrize("script", [
+        "for(ii=1; ii<=1; ii++) %A = Book1;",
+        "for(ii=1; ii<=1; ii++) win -a %H;",
+        "for(ii=1; ii<=1; ii++) range rr = [%(page.name)]1!col(B);",
+        "for(ii=1; ii<=max(1, len(%(name$))); ii++) type 1;",
+        "switch(1) { case 1: %A = Book1; default: %B = Book2; }",
+        "switch(1) { case 1: win -a %H; }",
+        "switch(%(name$)) { case 1: type 1; }",
+        "range rr = col(A)[1:%(last$)];",
+        'type "for(ii=1; ii<=1; ii++) %(cmd$);"; /* case 1: %A; */',
+    ])
+    def test_loop_and_case_ordinary_substitutions_remain_safe(self, script):
+        assert classify_labtalk_script(script) == (False, "", ())
+
     def test_first_risk_and_rule_priority_are_preserved(self):
         assert classify_labtalk_script('python -s "print(1)"; doc -n;')[1] == "python"
         assert classify_labtalk_script("run.section(a.ogs, main); doc -n;")[1] == "run.section"
@@ -123,6 +153,9 @@ class TestExecuteLabtalkConfirmGate:
         "if (1) %(cmd$);",
         "if (max(1, (2))) %A;",
         "if (0) type 1; else %(cmd$);",
+        "for(ii=1; ii<=1; ii++) %(cmd$);",
+        "switch(1) { case 1: %(cmd$); }",
+        "switch(1) { default: %A; }",
     ])
     def test_braceless_dynamic_command_gate(self, fresh_manager, fake_origin, command):
         from originlab_mcp.tools.advanced import register_advanced_tools

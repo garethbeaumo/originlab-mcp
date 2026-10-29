@@ -40,6 +40,9 @@ def wire_results(tmp_path_factory):
             results = {}
             results["business"] = await session.call_tool("execute_labtalk", {"command": ""})
             results["dynamic_confirm"] = await session.call_tool("execute_labtalk", {"command": "if ((1)) %(cmd$);"})
+            results["for_confirm"] = await session.call_tool("execute_labtalk", {"command": "for(ii=1; ii<=1; ii++) %(cmd$);"})
+            results["case_confirm"] = await session.call_tool("execute_labtalk", {"command": "switch(1) { case 1: %(cmd$); }"})
+            results["default_confirm"] = await session.call_tool("execute_labtalk", {"command": "switch(1) { default: %A; }"})
             results["mixed_autosave"] = await session.call_tool("execute_labtalk", {"command": 'python -s "print(1)"; doc -n;', "confirm": True})
             results["exception"] = await session.call_tool("list_worksheets", {})
             results["timeout"] = await session.call_tool("execute_labtalk", {"command": "type 1;", "timeout": 0.01})
@@ -70,6 +73,9 @@ def wire_results(tmp_path_factory):
     ("exception", "internal_error", "列出工作表"),
     ("timeout", "timeout", "dispatch_timeout"),
     ("dynamic_confirm", "invalid_input", "confirm"),
+    ("for_confirm", "invalid_input", "confirm"),
+    ("case_confirm", "invalid_input", "confirm"),
+    ("default_confirm", "invalid_input", "confirm"),
     ("mixed_autosave", "invalid_input", "autosave"),
 ])
 def test_tool_failures_set_protocol_error_flag(wire_results, case, error_type, target):

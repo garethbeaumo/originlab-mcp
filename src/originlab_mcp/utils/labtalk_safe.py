@@ -151,15 +151,15 @@ def strip_labtalk_strings_and_comments(script: str) -> str:
     return "".join(out)
 
 
-def _with_conditional_boundaries(cleaned: str) -> str:
-    """Expose braceless if/else bodies to the dynamic-command rule.
+def _with_statement_boundaries(cleaned: str) -> str:
+    """Expose braceless if/else/for bodies and case/default label bodies.
 
     Balance condition parentheses after strings/comments have been blanked;
     a flat regex would stop at a nested function call or parenthesized term.
     Preserve offsets so risk ordering still refers to the original scan.
     """
     out = list(cleaned)
-    for header in re.finditer(r"\bif\s*\(", cleaned, re.IGNORECASE):
+    for header in re.finditer(r"\b(?:if|for)\s*\(", cleaned, re.IGNORECASE):
         depth = 1
         for index in range(header.end(), len(cleaned)):
             if cleaned[index] == "(":
@@ -171,6 +171,9 @@ def _with_conditional_boundaries(cleaned: str) -> str:
                     break
     for header in re.finditer(r"\belse\b", cleaned, re.IGNORECASE):
         out[header.end() - 1] = ";"
+    # Only label colons introduce statements; range/expression colons do not.
+    for label in re.finditer(r"\b(?:case\b[^:;{}]*|default\s*):", cleaned, re.IGNORECASE):
+        out[label.end() - 1] = ";"
     return "".join(out)
 
 
@@ -181,10 +184,10 @@ def find_labtalk_risks(script: str) -> tuple[tuple[str, tuple[str, ...]], ...]:
     reason can be unrelated to a later project-destructive operation.
     """
     cleaned = strip_labtalk_strings_and_comments(script)
-    conditional_boundaries = _with_conditional_boundaries(cleaned)
+    statement_boundaries = _with_statement_boundaries(cleaned)
     matches: list[tuple[int, str, tuple[str, ...]]] = []
     for label, pattern, alts in _LABTALK_CONFIRM_RULES:
-        scan = conditional_boundaries if label == "%() dynamic command" else cleaned
+        scan = statement_boundaries if label == "%() dynamic command" else cleaned
         match = pattern.search(scan)
         if match is not None:
             matches.append((match.start(), label, alts))
