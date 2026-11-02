@@ -172,3 +172,43 @@ def test_invalid_codex_toml_is_not_replaced_or_reported_configured(tmp_path, mon
     assert "TOML" in result["message"]
     assert path.read_text(encoding="utf-8") == original
     assert not ui._is_originlab_configured(path)
+
+
+def test_is_allowed_request_accepts_panel_and_non_browser_clients():
+    assert ui.is_allowed_request("127.0.0.1:8765", "http://127.0.0.1:8765")
+    assert ui.is_allowed_request("localhost:8765", "http://localhost:8765")
+    assert ui.is_allowed_request("127.0.0.1:8765", None)
+
+
+def test_is_allowed_request_rejects_other_sites_and_rebound_hosts():
+    assert not ui.is_allowed_request("127.0.0.1:8765", "https://evil.example")
+    assert not ui.is_allowed_request("127.0.0.1:8765", "null")
+    assert not ui.is_allowed_request("evil.example:8765", None)
+    assert not ui.is_allowed_request(None, None)
+
+
+def test_handler_returns_403_for_cross_origin_post(monkeypatch):
+    import http.client
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    called = []
+    monkeypatch.setattr(ui, "start_mcp_server", lambda: called.append(1) or {})
+    server = ThreadingHTTPServer(("127.0.0.1", 0), ui.UIHandler)
+    monkeypatch.setattr(ui, "PORT", server.server_address[1])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", ui.PORT, timeout=5)
+        conn.request("POST", "/api/start", headers={"Origin": "https://evil.example"})
+        assert conn.getresponse().status == 403
+        conn.close()
+
+        conn = http.client.HTTPConnection("127.0.0.1", ui.PORT, timeout=5)
+        conn.request("POST", "/api/start", headers={"Origin": f"http://127.0.0.1:{ui.PORT}"})
+        assert conn.getresponse().status == 200
+        conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert called == [1]

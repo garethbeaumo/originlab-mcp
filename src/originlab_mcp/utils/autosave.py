@@ -11,7 +11,7 @@ import os
 from dataclasses import dataclass
 from typing import Final
 
-from originlab_mcp.utils.labtalk_safe import classify_labtalk_script
+from originlab_mcp.utils.labtalk_safe import find_labtalk_risks
 
 # Typed tools that can destroy or replace project content.
 DESTRUCTIVE_TOOLS: Final[frozenset[str]] = frozenset(
@@ -86,8 +86,10 @@ def should_autosave_labtalk(command: str, *, confirm: bool) -> bool:
     """True when a confirmed LabTalk script is project-destructive."""
     if not confirm or not command:
         return False
-    requires, reason, _alts = classify_labtalk_script(command)
-    return requires and reason in _DESTRUCTIVE_LABTALK_LABELS
+    return any(
+        reason in _DESTRUCTIVE_LABTALK_LABELS
+        for reason, _alts in find_labtalk_risks(command)
+    )
 
 
 def should_autosave_tool(tool_name: str) -> bool:

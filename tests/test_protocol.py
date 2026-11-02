@@ -23,6 +23,8 @@ def wire_results(tmp_path_factory):
         # Exercise this checkout, not a stale installed wheel or a .pth file.
         env["PYTHONPATH"] = os.pathsep.join([str(root / "src"), str(root)])
         env["ORIGINLAB_MCP_AUTOSAVE_INTERVAL"] = "off"
+        env["ORIGINLAB_MCP_AUTOSAVE"] = "1"
+        env["ORIGINLAB_MCP_AUTOSAVE_REQUIRED"] = "1"
         env["ORIGINLAB_MCP_DISPATCH_TIMEOUT"] = "1"
         params = StdioServerParameters(
             command=sys.executable,
@@ -37,6 +39,18 @@ def wire_results(tmp_path_factory):
             await session.initialize()
             results = {}
             results["business"] = await session.call_tool("execute_labtalk", {"command": ""})
+            results["dynamic_confirm"] = await session.call_tool("execute_labtalk", {"command": "if ((1)) %(cmd$);"})
+            results["for_confirm"] = await session.call_tool("execute_labtalk", {"command": "for(ii=1; ii<=1; ii++) %(cmd$);"})
+            results["case_confirm"] = await session.call_tool("execute_labtalk", {"command": "switch(1) { case 1: %(cmd$); }"})
+            results["default_confirm"] = await session.call_tool("execute_labtalk", {"command": "switch(1) { default: %A; }"})
+            results["group_confirm"] = await session.call_tool("execute_labtalk", {"command": "if (1) (%(cmd$);)"})
+            results["doc_e_confirm"] = await session.call_tool("execute_labtalk", {"command": "doc -e P %(cmd$);"})
+            results["doc_ef_confirm"] = await session.call_tool("execute_labtalk", {"command": "document -ef W %A;"})
+            results["loop_confirm"] = await session.call_tool("execute_labtalk", {"command": "loop(ii, 1, 2) %(cmd$);"})
+            results["queue_confirm"] = await session.call_tool("execute_labtalk", {"command": 'queue -p "%(cmd$);";'})
+            results["selector_confirm"] = await session.call_tool("execute_labtalk", {"command": "doc -e %(obj$) %(cmd$);"})
+            results["run_file_confirm"] = await session.call_tool("execute_labtalk", {"command": "run %(file$);"})
+            results["mixed_autosave"] = await session.call_tool("execute_labtalk", {"command": 'python -s "print(1)"; doc -n;', "confirm": True})
             results["exception"] = await session.call_tool("list_worksheets", {})
             results["timeout"] = await session.call_tool("execute_labtalk", {"command": "type 1;", "timeout": 0.01})
             results["schema"] = await session.call_tool("create_plot", {"x_col": "not-an-int", "y_cols": 1})
@@ -65,6 +79,18 @@ def wire_results(tmp_path_factory):
     ("business", "invalid_input", "command"),
     ("exception", "internal_error", "列出工作表"),
     ("timeout", "timeout", "dispatch_timeout"),
+    ("dynamic_confirm", "invalid_input", "confirm"),
+    ("for_confirm", "invalid_input", "confirm"),
+    ("case_confirm", "invalid_input", "confirm"),
+    ("default_confirm", "invalid_input", "confirm"),
+    ("group_confirm", "invalid_input", "confirm"),
+    ("doc_e_confirm", "invalid_input", "confirm"),
+    ("doc_ef_confirm", "invalid_input", "confirm"),
+    ("loop_confirm", "invalid_input", "confirm"),
+    ("queue_confirm", "invalid_input", "confirm"),
+    ("selector_confirm", "invalid_input", "confirm"),
+    ("run_file_confirm", "invalid_input", "confirm"),
+    ("mixed_autosave", "invalid_input", "autosave"),
 ])
 def test_tool_failures_set_protocol_error_flag(wire_results, case, error_type, target):
     result = wire_results[case]

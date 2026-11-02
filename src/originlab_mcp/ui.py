@@ -832,7 +832,28 @@ INDEX_HTML = """<!doctype html>
 """
 
 
+def is_allowed_request(host: str | None, origin: str | None) -> bool:
+    """Reject requests from other web pages and DNS-rebound host names.
+
+    The panel listens on loopback without authentication, so any site open in
+    the user's browser could otherwise POST to it. Browsers always send Origin
+    on cross-origin POSTs; non-browser clients (curl, tests) may omit it.
+    """
+    allowed_hosts = {f"{HOST}:{PORT}", f"localhost:{PORT}"}
+    if (host or "").strip().lower() not in allowed_hosts:
+        return False
+    if origin is None:
+        return True
+    return origin.strip().lower() in {f"http://{h}" for h in allowed_hosts}
+
+
 class UIHandler(BaseHTTPRequestHandler):
+    def _reject_foreign_request(self) -> bool:
+        if is_allowed_request(self.headers.get("Host"), self.headers.get("Origin")):
+            return False
+        self.send_error(HTTPStatus.FORBIDDEN, "Cross-origin requests are not allowed.")
+        return True
+
     def _send_json(self, payload: dict[str, Any], status: int = 200) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -860,7 +881,9 @@ class UIHandler(BaseHTTPRequestHandler):
         return data
 
     def do_GET(self) -> None:
-        if self.path == "/" or self.path.startswith("/?"):
+        if self._reject_foreign_request():
+            return
+        if self.path == "/"or self.path.startswith("/?"):
             self._send_html()
             return
         if self.path == "/api/status":
@@ -869,6 +892,8 @@ class UIHandler(BaseHTTPRequestHandler):
         self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
+        if self._reject_foreign_request():
+            return
         if self.path == "/api/start":
             self._send_json(start_mcp_server())
             return
