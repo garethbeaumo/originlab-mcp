@@ -1,11 +1,16 @@
 # PR #8 local review handoff
 
+Historical local review record: the refs, remote state and local-only actions
+below describe that review round. PR #8 has since been merged; see
+[current validation status](validation-status.md). No live acceptance is implied.
+
 ## Verified starting point
 
 - Repository: https://github.com/garethbeaumo/originlab-mcp
 - PR: https://github.com/garethbeaumo/originlab-mcp/pull/8
 - Base for this local work: `4b42cb5465c69e61a0d92d8fcc5b524a7dd1dda0`.
-- PR remains open/draft; GitHub reported its Python 3.10/3.11/3.12 jobs successful.
+- At that starting point PR #8 was open/draft; GitHub reported its
+  Python 3.10/3.11/3.12 jobs successful.
   Those are historical checks of the old head, not checks of this patch.
 - Independent clone, local branch `codex/pr8-usability`. No pre-existing local
   changes were overwritten. No repository AGENTS.md or `.agents/skills` exists.

@@ -2,7 +2,20 @@
 
 The portable test suite uses fake Origin objects. It does **not** prove COM thread
 ownership, Origin attachment, fitting, rendering, or file persistence on Windows.
-Keep PR #8 draft until the checks below have been performed on the intended host.
+
+## Current acceptance status — 2026-10-29
+
+[PR #8](https://github.com/garethbeaumo/originlab-mcp/pull/8) was merged into
+`main` at `e157772d77a3bc2e0a2d126508e8da4802b29f57`. The former instruction
+to keep that PR draft is obsolete; merging it did not complete live acceptance.
+The latest handoff explicitly records that no licensed Origin connection,
+fitting, rendering or save/reopen was verified. No later live acceptance evidence
+was found in the reviewed repository, PR discussion or CI artifacts.
+
+**Live acceptance remains NOT VERIFIED; release readiness is not established.**
+See [validation status and evidence](validation-status.md) for the audited refs,
+CI results, publication status and remaining P0 work. Complete and retain the
+checks below before claiming Windows + Origin acceptance or release readiness.
 
 ## Required environment
 
@@ -22,6 +35,7 @@ uv run --no-sync ruff check src tests scripts/verify_mcp.py
 uv run --no-sync mypy src
 uv run --no-sync pytest -q
 uv run --no-sync python scripts/verify_mcp.py
+uv run --no-sync python scripts/verify_mcp.py --fake-workflow
 
 # Choose a directory that does not exist yet. This resets the active project.
 uv run --no-sync python scripts/verify_mcp.py --live --allow-project-reset --output-dir C:\temp\origin-smoke-001 2>&1 | Tee-Object origin-smoke.log
@@ -29,19 +43,21 @@ uv run --no-sync python scripts/verify_mcp.py --live --allow-project-reset --out
 
 The portable command checks actual stdio initialization, tools/prompts/resources
 discovery, `originlab_doctor`, and an invalid-command response with `isError:true`
-without connecting to Origin. The live command
-imports three rows of synthetic data, lists worksheets, creates and lists a
-scatter plot, reads the session, saves, batch-exports a PNG and a CSV, checks
-nonempty output files, reopens the project, and releases Origin. Inspect the
-retained graph and CSV visually; verify that the saved/reopened worksheet contains
-X = 1, 2, 3 and Y = 2, 4, 6.
+without connecting to Origin. The live command imports three rows of synthetic
+data, checks linear fits, lists worksheets, creates and lists a scatter plot,
+reads the session, saves, batch-exports a PNG
+and a CSV, checks nonempty output files, reopens the project, and releases Origin.
+Inspect the retained graph and CSV visually; verify that the saved/reopened
+worksheet contains X = 1, 2, 3 and Y = 3, 5, 7. The script checks object counts
+after reopening; checking the persisted cell values and rendered figure is a
+separate acceptance step. Retain the live command's exit code as well as its log.
 
 The script sets allowed roots to its output directory and disables automatic
 saves for its child process. This makes the initial reset explicit and prevents
 background saves from obscuring which operation wrote a file. It does not test
 periodic autosave. It never force-kills Origin.
 
-## Manual checks before approval
+## Manual checks before live acceptance
 
 1. In a trusted project, run the UI and configure Codex. Inspect
    `.codex/config.toml`, verify existing settings/comments remain, then check
@@ -81,6 +97,12 @@ Record PASS / FAIL / NOT RUN for portable checks, live workflow, config loading,
 failure handling, identity switching, periodic saving, and modal timeout. Attach
 `origin-smoke.log`, `coverage.xml`, output files and version information. A green
 fake suite cannot replace any NOT RUN live item.
+
+Until a versioned live evidence bundle is linked, all live/manual categories above
+remain NOT VERIFIED (the latest handoff records live Origin as NOT RUN). Record
+the tested commit, host/version information, operator and date for each result;
+link that bundle from [validation status](validation-status.md). A passing smoke
+workflow alone does not close the other manual checks or the P0 design work.
 
 
 ## Fitting and result-contract acceptance (October 12 follow-up)

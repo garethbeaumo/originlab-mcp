@@ -1,13 +1,25 @@
 # Evidence-driven follow-up
 
-Work from the verified PR #8 head `4b42cb5465c69e61a0d92d8fcc5b524a7dd1dda0`.
-Do not merge or publish on the strength of fake tests alone.
+## Audited baseline — 2026-10-29
+
+[PR #8](https://github.com/garethbeaumo/originlab-mcp/pull/8) is merged, with
+final head `809307fbb86fa4feb5d086a5bbdea8952f05f001` and merge/main commit
+`e157772d77a3bc2e0a2d126508e8da4802b29f57`. These two commits have the same
+Git tree. The previous `4b42cb5` instruction referred to an earlier review round;
+start new work from the latest `main`, recording its SHA before making changes.
+
+The merge is a completed repository action, not proof of live acceptance.
+**Windows + licensed Origin acceptance remains NOT VERIFIED.** See
+[validation status](validation-status.md) for confirmed CI evidence, historical
+reports and publication status. Do not merge runtime-dependent changes or publish
+on the strength of fake tests alone; documentation corrections can be reviewed
+independently without claiming runtime acceptance.
 
 | Priority | Work | Evidence / acceptance | Boundary |
 | --- | --- | --- | --- |
-| P0 | Run the Windows acceptance checklist | `windows-validation.md`, retained files and logs | Requires licensed interactive Windows + Origin |
-| P0 | COM owner and lifecycle design | Locally reproduced distinct worker thread IDs across serialized calls; verify connect/call/detach/idle/shutdown share the required owner on Windows | Keep user-owned Origin alive; no timeout force-kill |
-| P0 | Atomic preflight + destructive dispatch | Current tools perform two separate `execute()` calls; add deterministic competing-call tests before changing API | Do not claim current save/mutation pair is transactional |
+| P0 — NOT VERIFIED | Run the Windows acceptance checklist | [Checklist](windows-validation.md): retain commit/versions, exit codes, logs, project/PNG/CSV, reopened values, and each manual outcome; latest handoff records no successful live run | Requires licensed interactive Windows + Origin; portable CI is insufficient |
+| P0 — OPEN | COM owner and lifecycle design | `run_with_soft_timeout` creates a per-call executor; lifecycle entry points and timer detach also access the backend. Serialization does not establish one COM owner. Add owner-thread tests and verify connect/call/release/reconnect/idle/shutdown, including a blocked modal dialog, on Windows | Keep user-owned Origin alive; no timeout force-kill; already-started COM calls are not cancelled |
+| P0 — OPEN | Atomic preflight + destructive dispatch | Preflight and mutation still use separate `execute()` calls. Add deterministic competing-call tests proving the saved project identity is the one mutated; design one owner dispatch for both, and separately detect/handle manual UI project switches | A successful save does not make the pair transactional or protect against external UI changes |
 | P1 | Authoritative live project identity | Cached-path reuse reproduced; current fix refuses cache-only saves. Validate a documented live full filename API, readonly behavior and same-directory UI switches | Unknown/ambiguous path skips autosave; strict mode blocks mutation |
 | P1 | Actual periodic save semantics | `_reset_autosave_timer` runs after every operation; default interval equals idle timeout | Prove repeated editing and idle behavior with a controlled clock and Windows run |
 | P2 | Broaden real API contract coverage | A fake accepted `pages("Book")` / `pages("Graph")`, hiding empty real results | Validate high-use APIs against locked package and Windows outputs before adding tools |
@@ -27,8 +39,10 @@ this repository's behavior):
   ThepExcel [PR #10](https://github.com/ThepExcel/ThepExcelMCP/pull/10): identity/cache boundary leads.
 - [MCP tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools): error-contract follow-up.
 
-Prioritize one reproduced problem with a clear acceptance test per iteration;
-retain a draft until runtime-dependent claims are supported by live evidence.
+Prioritize one reproduced problem with a clear acceptance test per iteration.
+Keep future PRs making runtime-dependent claims draft until those claims have
+live evidence. This cannot retroactively change PR #8's merged state or mark
+its unperformed acceptance complete.
 
 ## Completed protocol follow-up
 
@@ -46,5 +60,7 @@ The October 12 Windows round corrects fitting method calls and flat NLFit result
 checks actual export paths and partial batches, bounds worksheet previews before
 cell transfer, and reports graph objects/steps retained after creation failures.
 See [result contract handoff](result-contract-handoff.md) for API sources,
-**269 passing Windows tests**, installed stdio evidence, and live Origin limits.
+**269 passing portable tests on Windows with a fake Origin backend**, installed
+stdio evidence, and live Origin limits. The audited main CI separately confirms
+269 tests and 71% combined coverage on Linux; neither is a licensed Origin run.
 COM owner/lifecycle and atomic preflight/mutation work remain separate.
