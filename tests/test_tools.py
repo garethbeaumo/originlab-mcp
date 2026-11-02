@@ -578,7 +578,7 @@ class TestToolRegressions:
             (2, ["", 5], "C"),
         ]
 
-    def test_sort_worksheet_uses_origin_one_based_index(self, fresh_manager):
+    def test_sort_worksheet_uses_origin_zero_based_index(self, fresh_manager):
         mcp = DummyMCP()
         manager = fresh_manager
         register_data_tools(mcp, manager)
@@ -590,8 +590,9 @@ class TestToolRegressions:
             def __init__(self):
                 self.calls = []
 
-            def sort(self, col: int, descending: bool) -> None:
+            def sort(self, col: int, descending: bool) -> int:
                 self.calls.append((col, descending))
+                return 0
 
         class StubOp:
             def __init__(self):
@@ -611,7 +612,7 @@ class TestToolRegressions:
         result = mcp.tools["sort_worksheet"](col=0, descending=True)
 
         assert result["ok"] is True
-        assert op.sheet.calls == [(1, True)]
+        assert op.sheet.calls == [(0, True)]
 
     def test_set_legend_uses_requested_layer_index(self, fresh_manager):
         mcp = DummyMCP()

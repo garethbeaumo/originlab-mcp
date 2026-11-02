@@ -37,17 +37,14 @@ def worksheet_full_name(book_name: str, sheet_name: str) -> str:
 
 
 def iter_pages(op: Any, kind: str) -> list[Any]:
-    """Return pages of the given Origin type, or an empty list on failure."""
+    """Enumerate completely or raise; an unavailable backend is not empty."""
     try:
         pages = op.pages(kind)
-    except Exception:
-        return []
-    if pages is None:
-        return []
-    try:
+        if pages is None:
+            raise RuntimeError("pages returned None")
         return list(pages)
-    except TypeError:
-        return []
+    except Exception as exc:
+        raise RuntimeError(f"Origin page enumeration failed ({kind}): {exc}") from exc
 
 
 def _page_name(page: Any, fallback: str = "") -> str:
@@ -106,10 +103,7 @@ def collect_worksheets(op: Any) -> list[dict[str, Any]]:
     worksheets: list[dict[str, Any]] = []
     for book in iter_pages(op, PAGE_KIND_BOOK):
         book_name = _page_name(book)
-        try:
-            sheets = list(book)
-        except TypeError:
-            sheets = []
+        sheets = list(book)
         if not sheets:
             worksheets.append(
                 {
@@ -155,10 +149,7 @@ def collect_matrix_sheets(op: Any) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for book in iter_pages(op, PAGE_KIND_MATRIX):
         book_name = _page_name(book)
-        try:
-            sheets = list(book)
-        except TypeError:
-            sheets = []
+        sheets = list(book)
         if not sheets:
             items.append(
                 {
@@ -390,8 +381,26 @@ def build_session_snapshot(
     worksheets = collect_worksheets(op)
     graphs = collect_graphs(op)
     matrices = collect_matrix_sheets(op)
-    notes = collect_named_pages(op, PAGE_KIND_NOTES)
-    excel_books = collect_named_pages(op, PAGE_KIND_EXCEL)
+    # originpro 1.1.15 pages() only supports w/m/g/i. Optional backends must
+    # explicitly advertise additional filters; [] from an unknown filter is
+    # not evidence that no such pages exist.
+    supported = getattr(op, "session_page_types", ())
+    enumeration: dict[str, dict[str, str]] = {}
+    optional: dict[str, list[dict[str, Any]] | None] = {}
+    warnings: list[str] = []
+    for key, kind in (("notes", PAGE_KIND_NOTES), ("excel_books", PAGE_KIND_EXCEL)):
+        optional[key] = None
+        if kind not in supported:
+            enumeration[key] = {"status": "unsupported"}
+            warnings.append(f"{kind} enumeration is unsupported; count is unknown.")
+            continue
+        try:
+            optional[key] = collect_named_pages(op, kind)
+            enumeration[key] = {"status": "ok"}
+        except Exception as exc:
+            enumeration[key] = {"status": "error", "message": str(exc)}
+            warnings.append(str(exc))
+    notes, excel_books = optional["notes"], optional["excel_books"]
     snapshot: dict[str, Any] = {
         "exe_path": _safe_path(op, "e"),
         "user_path": _safe_path(op, "u"),
@@ -402,14 +411,17 @@ def build_session_snapshot(
             "worksheets": len(worksheets),
             "graphs": len(graphs),
             "matrices": len(matrices),
-            "notes": len(notes),
-            "excel_books": len(excel_books),
+            "notes": len(notes) if notes is not None else None,
+            "excel_books": len(excel_books) if excel_books is not None else None,
         },
         "worksheets": worksheets,
         "graphs": graphs,
         "matrices": matrices,
         "notes": notes,
         "excel_books": excel_books,
+        "partial": bool(warnings),
+        "enumeration": enumeration,
+        "warnings": warnings,
     }
     if include_preview and active_worksheet:
         snapshot["active_worksheet_preview"] = read_worksheet_detail(

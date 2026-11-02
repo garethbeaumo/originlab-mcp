@@ -703,8 +703,10 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
             if col < 0 or col >= wks.cols:
                 raise ColumnIndexError(col, wks.cols)
 
-            # originpro sort 使用 1-offset 索引
-            wks.sort(col + 1, descending)
+            # Locked originpro converts the zero-based index with lt_col_index.
+            status = wks.sort(col, descending)
+            if status != 0:
+                raise RuntimeError(f"Origin sort failed (code={status!r})")
             return {
                 "sheet_name": target_name,
                 "sort_col": col,
@@ -740,36 +742,49 @@ def register_data_tools(mcp: Any, manager: Any) -> None:
 
         Default behavior:
         - sheet_name omitted: uses current active worksheet
-        - Without start_col and end_col, clears all data
+        - Indices are zero-based; end_col is inclusive
+        - Omitted start_col means first column; omitted end_col means last
 
         Examples:
         - clear_worksheet()
         - clear_worksheet(start_col=1, end_col=3)
         """
-        autosave = manager.preflight_autosave("clear_worksheet")
         target_name = _resolve_worksheet_name(sheet_name, manager)
+
+        def _bounds(op: Any) -> tuple[int, int]:
+            wks = _find_worksheet(op, target_name)
+            first = 0 if start_col is None else start_col
+            last = wks.cols - 1 if end_col is None else end_col
+            for supplied in (start_col, end_col):
+                if supplied is not None and (supplied < 0 or supplied >= wks.cols):
+                    raise ColumnIndexError(supplied, wks.cols)
+            if wks.cols and last < first:
+                raise ValueError("end_col must be greater than or equal to start_col")
+            return first, last
+
+        # Reject invalid ranges before even saving. Revalidate before mutation;
+        # this is still not an atomic transaction with external UI changes.
+        manager.execute(_bounds)
+        autosave = manager.preflight_autosave("clear_worksheet")
 
         def _clear(op: Any) -> dict[str, Any]:
             wks = _find_worksheet(op, target_name)
-            if start_col is not None and end_col is not None:
-                wks.clear(start_col, c2=end_col)
-            elif start_col is not None:
-                wks.clear(start_col)
-            else:
-                wks.clear()
+            first, last = _bounds(op)
+            if wks.cols:
+                status = wks.clear(first, c2=last)
+                if status != 0:
+                    raise RuntimeError(f"Origin clear failed (code={status!r})")
             return {
                 "sheet_name": target_name,
-                "start_col": start_col,
-                "end_col": end_col,
+                "start_col": first if wks.cols else None,
+                "end_col": last if wks.cols else None,
                 "autosave": autosave,
             }
 
         result = manager.execute(_clear)
 
-        if start_col is not None:
-            msg = f"已清除列 {start_col}"
-            if end_col is not None:
-                msg += f" 至 {end_col}"
+        if start_col is not None or end_col is not None:
+            msg = f"已清除列 {result['start_col']} 至 {result['end_col']}"
             msg += " 的数据。"
         else:
             msg = "已清除工作表全部数据。"

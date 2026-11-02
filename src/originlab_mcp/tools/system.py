@@ -165,6 +165,7 @@ def register_system_tools(mcp, manager) -> None:
                 f"{worksheet_count} 个工作表，{graph_count} 个图表。"
             ),
             data=snapshot,
+            warnings=snapshot["warnings"],
             resource=manager.get_resource_context(),
             next_suggestions=[
                 "get_worksheet_info",

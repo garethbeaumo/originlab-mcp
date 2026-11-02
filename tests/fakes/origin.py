@@ -391,15 +391,20 @@ class FakeSheet:
         self._ensure_col(col)
         self._labels[label_type.upper()][col] = value
 
-    def sort(self, col: int, descending: bool) -> None:
+    def sort(self, col: int, descending: bool) -> int:
         self.sort_calls.append((col, descending))
+        rows = list(zip(*self._columns, strict=True))
+        rows.sort(key=lambda row: row[col], reverse=descending)
+        self._columns = [list(values) for values in zip(*rows, strict=True)]
+        return 0
 
-    def clear(self, c1: int = 0, c2: int | None = None) -> None:
+    def clear(self, c1: int = 0, c2: int = -1) -> int:
         self.cleared.append((c1, c2))
-        end = self.cols if c2 is None else c2
+        end = self.cols if c2 == -1 else c2 + 1
         for idx in range(c1, end):
             if idx < len(self._columns):
                 self._columns[idx] = []
+        return 0
 
     def set_formula(self, col: int | str, formula: str) -> None:
         index = int(col) if not isinstance(col, int) else col

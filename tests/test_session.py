@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from types import MethodType
 
+import pytest
+
 from originlab_mcp.origin_manager import OriginManager
 from originlab_mcp.resources import register_session_resources
 from originlab_mcp.session import (
@@ -92,6 +94,7 @@ class StubNote:
 
 
 class StubOp:
+    session_page_types = {"Notes", "Excel"}
     def __init__(self) -> None:
         self.sheet = StubSheet(
             "Sheet1",
@@ -181,7 +184,8 @@ class TestSessionSnapshot:
 
     def test_missing_page_types_are_skipped(self):
         op = StubOp()
-        assert collect_named_pages(op, "Excel") == []
+        with pytest.raises(RuntimeError, match="Excel"):
+            collect_named_pages(op, "Excel")
         matrices = collect_matrix_sheets(op)
         assert matrices[0]["book_name"] == "MBook1"
         assert matrices[0]["sheet_name"] is None
@@ -200,7 +204,7 @@ class TestSessionSnapshot:
             "graphs": 1,
             "matrices": 1,
             "notes": 1,
-            "excel_books": 0,
+            "excel_books": None,
         }
         assert snapshot["active_worksheet"] == "[Book1]Sheet1"
         assert "active_worksheet_preview" not in snapshot
